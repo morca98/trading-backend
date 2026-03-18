@@ -4,7 +4,6 @@ const axios = require(“axios”);
 
 const app = express();
 
-// CORS explícito para aceitar qualquer origem
 app.use((req, res, next) => {
 res.header(“Access-Control-Allow-Origin”, “*”);
 res.header(“Access-Control-Allow-Methods”, “GET, OPTIONS”);
@@ -16,7 +15,6 @@ app.use(express.json());
 
 const BINANCE = “https://api.binance.com”;
 
-// GET /api/candles?symbol=BTCUSDT&interval=1h&limit=60&endTime=…
 app.get(”/api/candles”, async (req, res) => {
 try {
 const { symbol = “BTCUSDT”, interval = “1h”, limit = 60, endTime } = req.query;
@@ -37,7 +35,6 @@ res.status(500).json({ success: false, error: err.message });
 }
 });
 
-// GET /api/price?symbol=BTCUSDT
 app.get(”/api/price”, async (req, res) => {
 try {
 const { symbol = “BTCUSDT” } = req.query;
@@ -58,4 +55,4 @@ res.status(500).json({ success: false, error: err.message });
 app.get(”/”, (req, res) => res.json({ status: “ok” }));
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Servidor a correr na porta ${PORT}`));
+app.listen(PORT, () => console.log(“Server running on port “ + PORT));
