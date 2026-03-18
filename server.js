@@ -33,20 +33,20 @@ app.get("/api/candles", async (req, res) => {
 app.get("/api/price", async (req, res) => {
   try {
     const { symbol = "BTCUSDT" } = req.query;
-    const { data } = await axios.get(
-      `${BINANCE}/api/v3/ticker/24hr?symbol=${symbol}`
-    );
+    const [ticker, stats] = await Promise.all([
+      axios.get(`${BINANCE}/api/v3/ticker/price?symbol=${symbol}`),
+      axios.get(`${BINANCE}/api/v3/ticker/24hr?symbol=${symbol}`),
+    ]);
     res.json({
       success: true,
-      price:  parseFloat(data.lastPrice),
-      change: parseFloat(data.priceChangePercent),
+      price:  parseFloat(ticker.data.price),
+      change: parseFloat(stats.data.priceChangePercent),
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Health check
 app.get("/", (req, res) => res.json({ status: "ok" }));
 
 const PORT = process.env.PORT || 3001;
