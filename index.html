@@ -59,6 +59,7 @@
   <div class="header-btns">
     <span id="liveBadge" style="font-size:9px;padding:3px 8px;border-radius:4px;letter-spacing:1px;background:#1e293b;color:#64748b;border:1px solid #334155">◌ SIM</span>
     <button class="btn" id="btnRefresh" onclick="loadData()" style="background:#0f172a;color:#64748b;border:1px solid #1e293b">↻</button>
+    <button class="btn" onclick="testTelegram()" style="background:#0f172a;color:#a855f7;border:1px solid #a855f7">🔔 TEST</button>
     <button class="btn" id="btnAnalyse" onclick="runAnalysis()" style="background:#1d4ed8;color:#fff">▶ ANALISAR</button>
   </div>
 </header>
@@ -128,7 +129,15 @@ const TELEGRAM_TOKEN = "8612572299:AAEhFCNPliOPw847O6-77L47UEZ9-WzrJiI"; // ← 
 const TELEGRAM_CHAT_ID = "1354621810";
 
 // ── Telegram ──────────────────────────────────────────────────────────────────
-async function sendTelegram(msg) {
+async function testTelegram() {
+  const msg = `🤖 <b>Crypto AI Agent — Teste</b>\n\n`
+    + `✅ Notificações configuradas com sucesso!\n`
+    + `📊 Par activo: ${currentSym}\n`
+    + `💰 Preço actual: $${currentPrice ? currentPrice.toLocaleString("en-US",{maximumFractionDigits:2}) : "---"}\n\n`
+    + `🔔 Vais receber sinais BUY/SELL a cada 30 minutos.`;
+  await sendTelegram(msg);
+  alert("Mensagem de teste enviada! Verifica o Telegram 📱");
+}
   try {
     await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
       method: "POST",
@@ -220,28 +229,79 @@ function renderChart() {
   const c = candles.slice(-40);
   const prices = c.flatMap(x=>[x.high,x.low]);
   const minP=Math.min(...prices), maxP=Math.max(...prices), range=maxP-minP||1;
-  const W=460,H=200,P=6, cw=(W-P*2)/c.length;
-  const py=p=>H-P-((p-minP)/range)*(H-P*2);
-  const {poc,val,vah}=vpData;
-  let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">`;
-  svg+=`<rect x="${P}" y="${py(vah)}" width="${W-P*2}" height="${Math.max(1,py(val)-py(vah))}" fill="#10b981" opacity="0.05"/>`;
+
+  // Espaço para eixos: direita para preços, baixo para tempo
+  const W=480, H=230, PL=6, PR=58, PT=6, PB=22;
+  const chartW = W - PL - PR;
+  const chartH = H - PT - PB;
+  const cw = chartW / c.length;
+  const py = p => PT + chartH - ((p - minP) / range) * chartH;
+  const px = i => PL + i * cw + cw * 0.1;
+  const {poc,val,vah} = vpData;
+
+  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">`;
+
+  // Grid de preços (linhas horizontais subtis)
+  const priceSteps = 5;
+  for (let i = 0; i <= priceSteps; i++) {
+    const p = minP + (range / priceSteps) * i;
+    const y = py(p);
+    svg += `<line x1="${PL}" x2="${W-PR}" y1="${y}" y2="${y}" stroke="#1e293b" stroke-width="0.5"/>`;
+    // Label de preço à direita
+    const label = p >= 1000 ? p.toLocaleString("en-US",{maximumFractionDigits:0}) : p.toFixed(2);
+    svg += `<text x="${W-PR+4}" y="${y+3}" fill="#475569" font-size="7" font-family="monospace">${label}</text>`;
+  }
+
+  // Preço atual — linha e label destacados
+  if (currentPrice >= minP && currentPrice <= maxP) {
+    const cy = py(currentPrice);
+    const priceLabel = currentPrice.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    svg += `<line x1="${PL}" x2="${W-PR}" y1="${cy}" y2="${cy}" stroke="#f8fafc" stroke-width="0.8" stroke-dasharray="3 3"/>`;
+    svg += `<rect x="${W-PR+1}" y="${cy-7}" width="${PR-2}" height="13" fill="#1d4ed8" rx="2"/>`;
+    svg += `<text x="${W-PR+4}" y="${cy+3}" fill="#fff" font-size="7" font-family="monospace" font-weight="700">${priceLabel}</text>`;
+  }
+
+  // VA fill
+  svg += `<rect x="${PL}" y="${py(vah)}" width="${chartW}" height="${Math.max(1,py(val)-py(vah))}" fill="#10b981" opacity="0.05"/>`;
+
+  // Nuvens de liquidez
   cloudsData.forEach(cl=>{
-    const y=py(cl.high),h=Math.max(2,py(cl.low)-py(cl.high));
+    const y=py(cl.high), h=Math.max(2,py(cl.low)-py(cl.high));
     const col=cl.type==="lvn"?"#a855f7":cl.type==="wick_sell"?"#f59e0b":"#06b6d4";
-    svg+=`<rect x="${W-16}" y="${y}" width="10" height="${h}" fill="${col}" opacity="0.4" rx="1"/>`;
-    svg+=`<line x1="${P}" x2="${W-18}" y1="${y+h/2}" y2="${y+h/2}" stroke="${col}" stroke-width="0.4" stroke-dasharray="2 8" opacity="0.3"/>`;
+    svg+=`<rect x="${W-PR-14}" y="${y}" width="10" height="${h}" fill="${col}" opacity="0.4" rx="1"/>`;
+    svg+=`<line x1="${PL}" x2="${W-PR-16}" y1="${y+h/2}" y2="${y+h/2}" stroke="${col}" stroke-width="0.4" stroke-dasharray="2 8" opacity="0.3"/>`;
   });
-  svg+=`<line x1="${P}" x2="${W-P}" y1="${py(poc)}" y2="${py(poc)}" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="6 4" opacity="0.9"/>`;
-  svg+=`<line x1="${P}" x2="${W-P}" y1="${py(vah)}" y2="${py(vah)}" stroke="#10b981" stroke-width="0.6" opacity="0.5"/>`;
-  svg+=`<line x1="${P}" x2="${W-P}" y1="${py(val)}" y2="${py(val)}" stroke="#ef4444" stroke-width="0.6" opacity="0.5"/>`;
+
+  // POC / VAH / VAL
+  svg+=`<line x1="${PL}" x2="${W-PR}" y1="${py(poc)}" y2="${py(poc)}" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="6 4" opacity="0.9"/>`;
+  svg+=`<line x1="${PL}" x2="${W-PR}" y1="${py(vah)}" y2="${py(vah)}" stroke="#10b981" stroke-width="0.6" opacity="0.5"/>`;
+  svg+=`<line x1="${PL}" x2="${W-PR}" y1="${py(val)}" y2="${py(val)}" stroke="#ef4444" stroke-width="0.6" opacity="0.5"/>`;
+
+  // Candles
   c.forEach((x,i)=>{
-    const bx=P+i*cw+cw*.1,bw=cw*.8,bull=x.close>=x.open,col=bull?"#10b981":"#ef4444";
-    const top=py(Math.max(x.open,x.close)),bh=Math.max(1,Math.abs(py(x.open)-py(x.close)));
+    const bx=px(i), bw=cw*.8, bull=x.close>=x.open, col=bull?"#10b981":"#ef4444";
+    const top=py(Math.max(x.open,x.close)), bh=Math.max(1,Math.abs(py(x.open)-py(x.close)));
     svg+=`<line x1="${bx+bw/2}" x2="${bx+bw/2}" y1="${py(x.high)}" y2="${py(x.low)}" stroke="${col}" stroke-width="0.8" opacity="0.7"/>`;
     svg+=`<rect x="${bx}" y="${top}" width="${bw}" height="${bh}" fill="${col}" opacity="0.9" rx="0.5"/>`;
   });
-  svg+="</svg>";
-  el.innerHTML=svg;
+
+  // Eixo de tempo em baixo — mostrar a cada 8 velas
+  c.forEach((x,i)=>{
+    if (i % 8 !== 0) return;
+    const bx = PL + i * cw + cw / 2;
+    const d = new Date(x.time);
+    const label = `${d.getDate().toString().padStart(2,"0")}/${(d.getMonth()+1).toString().padStart(2,"0")} ${d.getHours().toString().padStart(2,"0")}:${d.getMinutes().toString().padStart(2,"0")}`;
+    svg += `<line x1="${bx}" x2="${bx}" y1="${PT}" y2="${PT+chartH}" stroke="#1e293b" stroke-width="0.5"/>`;
+    svg += `<text x="${bx}" y="${H-6}" text-anchor="middle" fill="#475569" font-size="7" font-family="monospace">${label}</text>`;
+  });
+
+  // Linha de separação eixo direito
+  svg += `<line x1="${W-PR}" x2="${W-PR}" y1="${PT}" y2="${PT+chartH}" stroke="#1e293b" stroke-width="0.5"/>`;
+  // Linha de separação eixo baixo
+  svg += `<line x1="${PL}" x2="${W-PR}" y1="${PT+chartH}" y2="${PT+chartH}" stroke="#1e293b" stroke-width="0.5"/>`;
+
+  svg += "</svg>";
+  el.innerHTML = svg;
 }
 
 function renderVPBar() {
