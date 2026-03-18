@@ -138,6 +138,8 @@ async function testTelegram() {
   await sendTelegram(msg);
   alert("Mensagem de teste enviada! Verifica o Telegram 📱");
 }
+
+async function sendTelegram(msg) {
   try {
     await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
       method: "POST",
