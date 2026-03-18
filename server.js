@@ -17,10 +17,10 @@ const BINANCE = “https://api.binance.com”;
 
 app.get(”/api/candles”, async (req, res) => {
 try {
-const { symbol = “BTCUSDT”, interval = “1h”, limit = 60, endTime } = req.query;
-let url = `${BINANCE}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-if (endTime) url += `&endTime=${endTime}`;
-const { data } = await axios.get(url);
+const { symbol = “BTCUSDT”, interval = “1h”, limit = 60 } = req.query;
+const { data } = await axios.get(
+`${BINANCE}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
+);
 const candles = data.map((k) => ({
 time:   k[0],
 open:   parseFloat(k[1]),
