@@ -38,7 +38,7 @@
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
   <div>
     <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#f8fafc">◈ BACKTESTER</div>
-    <div style="font-size:9px;color:#475569;letter-spacing:2px;margin-top:2px">30 DIAS · 30MIN · $1000</div>
+    <div style="font-size:9px;color:#475569;letter-spacing:2px;margin-top:2px">90 DIAS · 30MIN · $1000</div>
   </div>
   <div style="display:flex;gap:8px;align-items:center">
     <select id="symSelect" style="background:#0f172a;color:#94a3b8;border:1px solid #1e293b;border-radius:6px;padding:8px;font-family:'Space Mono',monospace;font-size:11px">
@@ -338,27 +338,34 @@ function runBacktestEngine(candles) {
 
 // ── Fetch dados históricos ─────────────────────────────────────────────────────
 async function fetchHistorical(symbol) {
-  // 30 dias × 48 velas/dia (30min) = 1440 velas
-  // Binance limite: 1000 por chamada — fazer 2 chamadas
-  const now = Date.now();
-  const msPerCandle = 30 * 60 * 1000;
-  const totalCandles = 30 * 48; // 1440
+  // 90 dias × 48 velas/dia (30min) = 4320 velas
+  // Binance limite: 1000 por chamada — fazer 5 chamadas
+  const allCandles = [];
+  const calls = 5;
 
-  setStatus("A carregar dados históricos (1/2)...", 20);
-  const r1 = await fetch(`${BACKEND}/api/candles?symbol=${symbol}&interval=30m&limit=1000`);
-  const d1 = await r1.json();
+  for (let i = 0; i < calls; i++) {
+    setStatus(`A carregar dados históricos (${i+1}/${calls})...`, 10 + (i / calls) * 50);
+    const limit = i < 4 ? 1000 : 320;
+    // Calcular endTime para cada chamada com base no offset
+    const offset = (calls - 1 - i) * 1000 * 30 * 60 * 1000; // em ms
+    const endTime = Date.now() - offset;
+    const url = `${BACKEND}/api/candles?symbol=${symbol}&interval=30m&limit=${limit}&endTime=${endTime}`;
 
-  setStatus("A carregar dados históricos (2/2)...", 50);
-  const r2 = await fetch(`${BACKEND}/api/candles?symbol=${symbol}&interval=30m&limit=440`);
-  const d2 = await r2.json();
+    try {
+      const r = await fetch(url);
+      const d = await r.json();
+      const raw = (d.candles || d).map(normalizeCandle);
+      allCandles.push(...raw);
+    } catch {}
 
-  const raw1 = (d1.candles || d1).map(normalizeCandle);
-  const raw2 = (d2.candles || d2).map(normalizeCandle);
+    // Pequena pausa entre chamadas
+    await new Promise(r => setTimeout(r, 200));
+  }
 
-  // Combinar e remover duplicados
-  const all = [...raw2, ...raw1];
+  // Remover duplicados e ordenar
   const seen = new Set();
-  return all.filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; })
+  return allCandles
+    .filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; })
     .sort((a, b) => a.time - b.time);
 }
 
