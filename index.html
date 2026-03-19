@@ -123,7 +123,7 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div style="font-size:9px;color:#475569;letter-spacing:2px">ESTATÍSTICAS DOS SINAIS</div>
     <div style="display:flex;gap:6px;align-items:center">
-      <span id="autoLabel" style="font-size:9px;padding:2px 8px;border-radius:4px;background:#064e3b;color:#6ee7b7;border:1px solid #10b981;letter-spacing:1px">⬤ AUTO ON</span>
+      <span id="autoLabel" style="font-size:9px;padding:2px 8px;border-radius:4px;background:#064e3b;color:#6ee7b7;border:1px solid #10b981;letter-spacing:1px">⬤ AUTO 5MIN</span>
       <button class="btn" onclick="clearStats()" style="background:#0f172a;color:#475569;border:1px solid #1e293b;font-size:9px">🗑 LIMPAR</button>
     </div>
   </div>
@@ -519,8 +519,8 @@ function runAnalysis(auto = false) {
     };
     addStat(statEntry);
 
-    // Notificação Telegram para BUY ou SELL
-    if (signal === "BUY" || signal === "SELL") {
+    // Notificação Telegram para BUY ou SELL com confiança > 75%
+    if ((signal === "BUY" || signal === "SELL") && conf > 75) {
       const icon = signal === "BUY" ? "🟢" : "🔴";
       const msg = `${icon} <b>${signal} ${currentSym}</b> ${auto ? "🤖 AUTO" : "👆 MANUAL"}\n\n`
         + `💰 <b>Preço:</b> $${p.toLocaleString("en-US",{maximumFractionDigits:2})}\n`
@@ -619,7 +619,7 @@ function renderStats() {
 }
 
 // ── Auto-análise ──────────────────────────────────────────────────────────────
-const AUTO_INTERVAL_MS = 30 * 60 * 1000; // 30 minutos
+const AUTO_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
 let nextAutoAt = Date.now() + AUTO_INTERVAL_MS;
 
 function updateCountdown() {
