@@ -139,7 +139,7 @@ var price = await fetchPrice(symbol);
 var result = generateSignal(candles, price);
 var pair = symbol.replace(“USDT”, “/USDT”);
 
-```
+
   if (!result) {
     console.log(pair + ": WAIT");
     continue;
@@ -164,7 +164,6 @@ var pair = symbol.replace(“USDT”, “/USDT”);
 } catch (e) {
   console.error("Erro " + symbol + ":", e.message);
 }
-```
 
 }
 }
