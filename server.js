@@ -16,6 +16,11 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
 
+// Anti-repeticao: guarda ultimo sinal enviado por par
+var lastSignal = { BTCUSDT: null, ETHUSDT: null };
+var lastSignalTime = { BTCUSDT: 0, ETHUSDT: 0 };
+var SIGNAL_COOLDOWN = 60 * 60 * 1000; // 1 hora entre sinais iguais
+
 app.get('/api/candles', async function(req, res) {
   try {
     var symbol = req.query.symbol || 'BTCUSDT';
@@ -68,6 +73,7 @@ function calcEMA(closes, period) {
   return ema;
 }
 
+// Volume Profile com 200 velas
 function calcVP(candles) {
   var prices = [];
   candles.forEach(function(c) { prices.push(c.high); prices.push(c.low); });
@@ -88,9 +94,20 @@ function calcVP(candles) {
   return { poc: poc.price, val: vaLow, vah: vaHigh };
 }
 
+// Confirmacao de candle: vela anterior fechou na direcao do sinal
+function confirmCandle(candles, signal) {
+  var prev = candles[candles.length - 2]; // vela ja fechada
+  if (!prev) return false;
+  if (signal === 'BUY' && prev.close > prev.open) return true;  // vela verde fechada
+  if (signal === 'SELL' && prev.close < prev.open) return true; // vela vermelha fechada
+  return false;
+}
+
 function generateSignal(candles, price) {
   var closes = candles.map(function(c) { return c.close; });
-  var vp = calcVP(candles.slice(-20));
+  // VP com ultimas 200 velas
+  var vpCandles = candles.slice(-200);
+  var vp = calcVP(vpCandles);
   var rsi = calcRSI(closes);
   var ema20 = calcEMA(closes.slice(-20), 20);
   var ema50 = calcEMA(closes.slice(-50), 50);
@@ -107,13 +124,22 @@ function generateSignal(candles, price) {
   if (ema20 > ema50) buy += 1; else sell += 1;
   if (trend === 'UP') buy += 1; else sell += 1;
   if (rv > pv * 1.1) { buy += 1; sell += 1; }
-  if (buy >= 7 && buy > sell + 2) {
-    return { signal: 'BUY', conf: Math.min(95, Math.round(buy/12*100)), price: price, sl: price*0.988, tp: price*1.0264, rsi: rsi.toFixed(1), poc: vp.poc };
+
+  var signal = null;
+  if (buy >= 7 && buy > sell + 2) signal = 'BUY';
+  if (sell >= 7 && sell > buy + 2) signal = 'SELL';
+  if (!signal) return null;
+
+  // Confirmacao de candle
+  if (!confirmCandle(candles, signal)) {
+    console.log('Sinal ' + signal + ' sem confirmacao de candle');
+    return null;
   }
-  if (sell >= 7 && sell > buy + 2) {
-    return { signal: 'SELL', conf: Math.min(95, Math.round(sell/12*100)), price: price, sl: price*1.012, tp: price*0.9736, rsi: rsi.toFixed(1), poc: vp.poc };
-  }
-  return null;
+
+  var conf = Math.min(95, Math.round(Math.max(buy, sell) / 12 * 100));
+  var sl = signal === 'BUY' ? price * 0.988 : price * 1.012;
+  var tp = signal === 'BUY' ? price * 1.0264 : price * 0.9736;
+  return { signal: signal, conf: conf, price: price, sl: sl, tp: tp, rsi: rsi.toFixed(1), poc: vp.poc, val: vp.val, vah: vp.vah };
 }
 
 async function runBot() {
@@ -121,7 +147,8 @@ async function runBot() {
   for (var i = 0; i < SYMBOLS.length; i++) {
     var symbol = SYMBOLS[i];
     try {
-      var resp = await axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=30m&limit=100');
+      // Buscar 200 velas para Volume Profile
+      var resp = await axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=30m&limit=200');
       var candles = resp.data.map(function(k) {
         return { time: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] };
       });
@@ -129,17 +156,36 @@ async function runBot() {
       var price = parseFloat(pr.data.price);
       var result = generateSignal(candles, price);
       var pair = symbol.replace('USDT', '/USDT');
-      if (!result || result.conf < 80) { console.log(pair + ': WAIT conf=' + (result ? result.conf : 0)); continue; }
+
+      // Filtro confianca
+      if (!result || result.conf < 80) {
+        console.log(pair + ': WAIT conf=' + (result ? result.conf : 0));
+        continue;
+      }
+
+      // Anti-repeticao: nao envia o mesmo sinal dentro de 1 hora
+      var now = Date.now();
+      if (lastSignal[symbol] === result.signal && (now - lastSignalTime[symbol]) < SIGNAL_COOLDOWN) {
+        console.log(pair + ': sinal repetido ignorado (' + result.signal + ')');
+        continue;
+      }
+
+      // Guardar ultimo sinal
+      lastSignal[symbol] = result.signal;
+      lastSignalTime[symbol] = now;
+
       var msg = '<b>' + result.signal + ' ' + pair + '</b>\n\n'
         + 'Preco: $' + price.toFixed(2) + '\n'
         + 'Entrada: $' + price.toFixed(0) + '\n'
         + 'Stop: $' + result.sl.toFixed(0) + '\n'
         + 'Alvo: $' + result.tp.toFixed(0) + '\n'
         + 'R/R: 1:2.2 | Conf: ' + result.conf + '%\n'
-        + 'RSI: ' + result.rsi + ' | POC: $' + result.poc.toFixed(0) + '\n'
+        + 'RSI: ' + result.rsi + '\n'
+        + 'POC: $' + result.poc.toFixed(0) + ' | VAH: $' + result.vah.toFixed(0) + ' | VAL: $' + result.val.toFixed(0) + '\n'
         + new Date().toLocaleTimeString('pt-PT');
+
       await sendTelegram(msg);
-      console.log(pair + ': ' + result.signal + ' @ $' + price);
+      console.log(pair + ': ' + result.signal + ' @ $' + price + ' conf=' + result.conf);
     } catch (e) { console.error('Erro ' + symbol + ':', e.message); }
   }
 }
@@ -147,7 +193,7 @@ async function runBot() {
 var PORT = process.env.PORT || 3001;
 app.listen(PORT, function() {
   console.log('Servidor na porta ' + PORT);
-  sendTelegram('<b>Crypto AI Bot iniciado!</b> Sinais a cada 30min para BTC e ETH.');
+  sendTelegram('<b>Crypto AI Bot atualizado!</b>\n\nMelhorias:\n- Anti-repeticao de sinais\n- Confirmacao de candle\n- Volume Profile 200 velas\n- Verificacao a cada 5min\n- Confianca minima 80%');
   runBot();
   setInterval(runBot, 1 * 60 * 1000);
 });
