@@ -430,11 +430,11 @@ function setSym(s) {
   loadData();
 }
 
-// Preço ao vivo a cada 10s
+// Preço ao vivo a cada 3s
 setInterval(async()=>{
   const t=await apiPrice(currentSym);
   if(t){currentPrice=t.price;currentChange=t.change;setLiveBadge(true);renderPrice();renderVPStats();}
-},10000);
+},3000);
 
 // ── Análise ───────────────────────────────────────────────────────────────────
 function runAnalysis(auto = false) {
@@ -619,7 +619,7 @@ function renderStats() {
 }
 
 // ── Auto-análise ──────────────────────────────────────────────────────────────
-const AUTO_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
+const AUTO_INTERVAL_MS = 1 * 60 * 1000; // 1 minutos
 let nextAutoAt = Date.now() + AUTO_INTERVAL_MS;
 
 function updateCountdown() {
