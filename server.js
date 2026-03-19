@@ -1,10 +1,11 @@
 const express = require('express');
 const axios = require('axios');
+const fs = require('fs');
 const app = express();
 
 app.use(function(req, res, next) {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
@@ -18,20 +19,40 @@ const SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
 const SIGNAL_COOLDOWN = 60 * 60 * 1000;
 const MIN_SCORE = 10;
 const MAX_SCORE = 16;
+const STATS_FILE = '/tmp/stats.json';
 
 var lastSignal = { BTCUSDT: null, ETHUSDT: null };
 var lastSignalTime = { BTCUSDT: 0, ETHUSDT: 0 };
 var dailyResults = { BTCUSDT: [], ETHUSDT: [] };
-var winCount = 0, lossCount = 0, totalPnl = 0;
 var activeTrades = {};
 var priceAlerts = [];
+
+// Persistencia de stats
+function loadStats() {
+  try {
+    if (fs.existsSync(STATS_FILE)) {
+      var data = JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'));
+      return { wins: data.wins || 0, losses: data.losses || 0, totalPnl: data.totalPnl || 0 };
+    }
+  } catch(e) {}
+  return { wins: 0, losses: 0, totalPnl: 0 };
+}
+
+function saveStats(wins, losses, pnl) {
+  try {
+    fs.writeFileSync(STATS_FILE, JSON.stringify({ wins: wins, losses: losses, totalPnl: pnl }));
+  } catch(e) {}
+}
+
+var stats = loadStats();
+var winCount = stats.wins, lossCount = stats.losses, totalPnl = stats.totalPnl;
 
 // ── API ───────────────────────────────────────────────────────────────────────
 app.get('/api/candles', async function(req, res) {
   try {
     var symbol = req.query.symbol || 'BTCUSDT';
     var interval = req.query.interval || '1h';
-    var limit = req.query.limit || 60;
+    var limit = Math.min(parseInt(req.query.limit) || 60, 1000);
     var r = await axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=' + interval + '&limit=' + limit);
     var candles = r.data.map(function(k) {
       return { time: k[0], open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]) };
@@ -49,11 +70,12 @@ app.get('/api/price', async function(req, res) {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// Endpoint de signal para o site usar a mesma logica
+// Sinal completo com todos os indicadores
 app.get('/api/signal', async function(req, res) {
   try {
     var symbol = req.query.symbol || 'BTCUSDT';
-    var resp = await axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=30m&limit=200');
+    var interval = req.query.interval || '30m';
+    var resp = await axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=' + interval + '&limit=200');
     var candles = resp.data.map(function(k) {
       return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] };
     });
@@ -63,11 +85,22 @@ app.get('/api/signal', async function(req, res) {
     var macroTrend = await getMacroTrend(symbol);
     var trend15m = await get15mTrend(symbol);
     var result = generateSignal(candles, price, macroTrend, trend15m, atr);
-    res.json({ success: true, signal: result, price: price, candles: candles.slice(-60) });
+    var closes = candles.map(function(c) { return c.close; });
+    var ema20vals = calcEMALine(closes, 20);
+    var ema50vals = calcEMALine(closes, 50);
+    res.json({
+      success: true,
+      signal: result,
+      price: price,
+      candles: candles.slice(-60),
+      ema20: ema20vals.slice(-60),
+      ema50: ema50vals.slice(-60),
+      macroTrend: macroTrend,
+      trend15m: trend15m
+    });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// Performance stats
 app.get('/api/stats', function(req, res) {
   var total = winCount + lossCount;
   res.json({
@@ -80,14 +113,12 @@ app.get('/api/stats', function(req, res) {
   });
 });
 
-// Alertas de preco
 app.post('/api/alert', function(req, res) {
-  var alert = req.body;
-  priceAlerts.push(alert);
+  priceAlerts.push(req.body);
   res.json({ success: true });
 });
 
-app.get('/', function(req, res) { res.json({ status: 'ok', version: 'v5' }); });
+app.get('/', function(req, res) { res.json({ status: 'ok', version: 'v6' }); });
 
 app.post('/telegram', async function(req, res) {
   try {
@@ -95,8 +126,7 @@ app.post('/telegram', async function(req, res) {
     if (update.message) {
       var txt = update.message.text;
       if (txt === '/status') await sendStatus();
-      if (txt === '/backtest') await runBacktest('BTCUSDT');
-      if (txt === '/btc') await runBacktest('BTCUSDT');
+      if (txt === '/backtest' || txt === '/btc') await runBacktest('BTCUSDT');
       if (txt === '/eth') await runBacktest('ETHUSDT');
     }
     res.json({ ok: true });
@@ -109,28 +139,26 @@ async function sendTelegram(msg) {
     await axios.post('https://api.telegram.org/bot' + TELEGRAM_TOKEN + '/sendMessage', {
       chat_id: TELEGRAM_CHAT_ID, text: msg, parse_mode: 'HTML'
     });
-  } catch (e) { console.error('Telegram erro:', e.message); }
+  } catch (e) { console.error('Telegram:', e.message); }
 }
 
 async function sendStatus() {
   var total = winCount + lossCount;
-  var winRate = total > 0 ? Math.round(winCount / total * 100) : 0;
-  var msg = '<b>Status do Bot v5</b>\n\n'
-    + 'Trades: ' + total + ' | Win Rate: ' + winRate + '%\n'
-    + 'Wins: ' + winCount + ' | Losses: ' + lossCount + '\n'
-    + 'P&L Total: ' + (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(2) + '%\n\n'
-    + '<b>Trades Ativos:</b>\n';
+  var wr = total > 0 ? Math.round(winCount / total * 100) : 0;
+  var msg = '<b>Status Bot v6</b>\n\n'
+    + 'Win Rate: ' + wr + '% (' + winCount + 'W/' + lossCount + 'L)\n'
+    + 'P&L: ' + (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(2) + '%\n\n'
+    + '<b>Ativos:</b>\n';
   var keys = Object.keys(activeTrades);
   if (!keys.length) msg += 'Nenhum\n';
   else keys.forEach(function(k) {
     var t = activeTrades[k];
-    msg += t.pair + ' ' + t.signal + ' @ $' + t.entry.toFixed(0) + ' SL:$' + t.sl.toFixed(0) + ' TP:$' + t.tp.toFixed(0) + '\n';
+    msg += t.pair + ' ' + t.signal + ' $' + t.entry.toFixed(0) + ' SL:$' + t.sl.toFixed(0) + ' TP:$' + t.tp.toFixed(0) + '\n';
   });
-  msg += '\nComandos: /backtest /status';
   await sendTelegram(msg);
 }
 
-// ── Indicadores (partilhados com site via /api/signal) ───────────────────────
+// ── Indicadores ───────────────────────────────────────────────────────────────
 function calcRSI(closes, period) {
   period = period || 14;
   if (closes.length < period + 1) return 50;
@@ -150,15 +178,29 @@ function calcEMA(closes, period) {
   return ema;
 }
 
+// Retorna array de valores EMA para cada candle
+function calcEMALine(closes, period) {
+  var k = 2 / (period + 1);
+  var result = [];
+  var ema = closes[0];
+  for (var i = 0; i < closes.length; i++) {
+    if (i === 0) { ema = closes[0]; }
+    else { ema = closes[i] * k + ema * (1 - k); }
+    result.push(ema);
+  }
+  return result;
+}
+
 function calcATR(candles, period) {
   period = period || 14;
   if (candles.length < period + 1) return 0;
   var trs = [];
   for (var i = 1; i < candles.length; i++) {
-    var hl = candles[i].high - candles[i].low;
-    var hc = Math.abs(candles[i].high - candles[i - 1].close);
-    var lc = Math.abs(candles[i].low - candles[i - 1].close);
-    trs.push(Math.max(hl, hc, lc));
+    trs.push(Math.max(
+      candles[i].high - candles[i].low,
+      Math.abs(candles[i].high - candles[i - 1].close),
+      Math.abs(candles[i].low - candles[i - 1].close)
+    ));
   }
   var atr = trs.slice(0, period).reduce(function(s, v) { return s + v; }, 0) / period;
   for (var j = period; j < trs.length; j++) atr = (atr * (period - 1) + trs[j]) / period;
@@ -183,21 +225,15 @@ function calcVP(candles) {
     if (vaVol < totalVol * 0.7) { vaVol += b.vol; vaLow = Math.min(vaLow, b.price); vaHigh = Math.max(vaHigh, b.price); }
   });
   var avgVol = totalVol / bars.length;
-  var lvns = bars.filter(function(b) { return b.vol < avgVol * 0.35; });
-  return { poc: poc.price, val: vaLow, vah: vaHigh, lvns: lvns, bars: bars, maxVol: Math.max.apply(null, bars.map(function(b){return b.vol;})) };
+  return { poc: poc.price, val: vaLow, vah: vaHigh, lvns: bars.filter(function(b) { return b.vol < avgVol * 0.35; }), bars: bars, maxVol: Math.max.apply(null, bars.map(function(b) { return b.vol; })) };
 }
 
 function calcDynamicSL(candles, signal, price, atr) {
-  var slDistance = atr * 1.5;
+  var slDist = atr * 1.5;
   var lows = candles.slice(-5).map(function(c) { return c.low; });
   var highs = candles.slice(-5).map(function(c) { return c.high; });
-  if (signal === 'BUY') {
-    var sl = Math.min(Math.min.apply(null, lows) * 0.999, price - slDistance);
-    return Math.max(sl, price * 0.97);
-  } else {
-    var sl2 = Math.max(Math.max.apply(null, highs) * 1.001, price + slDistance);
-    return Math.min(sl2, price * 1.03);
-  }
+  if (signal === 'BUY') return Math.max(Math.min(Math.min.apply(null, lows) * 0.999, price - slDist), price * 0.97);
+  return Math.min(Math.max(Math.max.apply(null, highs) * 1.001, price + slDist), price * 1.03);
 }
 
 function calcRSIDivergence(candles, rsi) {
@@ -215,7 +251,7 @@ function detectPattern(candles) {
   var len = candles.length;
   if (len < 3) return 'NONE';
   var c = candles[len - 2], prev = candles[len - 3];
-  var body = Math.abs(c.close - c.open), range = c.high - c.low;
+  var body = Math.abs(c.close - c.open), range = c.high - c.low || 0.001;
   var uw = c.high - Math.max(c.open, c.close), lw = Math.min(c.open, c.close) - c.low;
   if (prev.close < prev.open && c.close > c.open && c.open < prev.close && c.close > prev.open) return 'BULL_ENGULF';
   if (prev.close > prev.open && c.close < c.open && c.open > prev.close && c.close < prev.open) return 'BEAR_ENGULF';
@@ -223,13 +259,11 @@ function detectPattern(candles) {
   if (uw > body * 2 && lw < body * 0.5 && c.close < c.open) return 'SHOOT_STAR';
   if (lw > range * 0.6 && body < range * 0.3) return 'PIN_BULL';
   if (uw > range * 0.6 && body < range * 0.3) return 'PIN_BEAR';
-  if (body < range * 0.1) return 'DOJI';
   return 'NONE';
 }
 
 function isGoodSession() {
-  var hour = new Date().getUTCHours();
-  return hour >= 6 && hour <= 22;
+  return new Date().getUTCHours() >= 6 && new Date().getUTCHours() <= 22;
 }
 
 function confirmCandle(candles, signal) {
@@ -242,11 +276,9 @@ async function getMacroTrend(symbol) {
   try {
     var r = await axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=4h&limit=50');
     var closes = r.data.map(function(k) { return +k[4]; });
-    var ema20 = calcEMA(closes.slice(-20), 20), ema50 = calcEMA(closes.slice(-50), 50);
+    var e20 = calcEMA(closes.slice(-20), 20), e50 = calcEMA(closes.slice(-50), 50);
     var last = closes[closes.length - 1];
-    if (last > ema20 && ema20 > ema50) return 'BULL';
-    if (last < ema20 && ema20 < ema50) return 'BEAR';
-    return 'NEUTRAL';
+    return last > e20 && e20 > e50 ? 'BULL' : last < e20 && e20 < e50 ? 'BEAR' : 'NEUTRAL';
   } catch (e) { return 'NEUTRAL'; }
 }
 
@@ -254,8 +286,8 @@ async function get15mTrend(symbol) {
   try {
     var r = await axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=15m&limit=30');
     var closes = r.data.map(function(k) { return +k[4]; });
-    var ema20 = calcEMA(closes.slice(-20), 20), last = closes[closes.length - 1];
-    return last > ema20 ? 'UP' : last < ema20 ? 'DOWN' : 'NEUTRAL';
+    var e20 = calcEMA(closes.slice(-20), 20), last = closes[closes.length - 1];
+    return last > e20 ? 'UP' : last < e20 ? 'DOWN' : 'NEUTRAL';
   } catch (e) { return 'NEUTRAL'; }
 }
 
@@ -307,7 +339,7 @@ function generateSignal(candles, price, macroTrend, trend15m, atr) {
   return {
     signal: signal, conf: conf, price: price, sl: sl, tp: tp,
     rsi: rsi.toFixed(1), ema20: ema20.toFixed(2), ema50: ema50.toFixed(2),
-    poc: vp.poc, val: vp.val, vah: vp.vah, vp: vp,
+    poc: vp.poc, val: vp.val, vah: vp.vah,
     macroTrend: macroTrend, trend15m: trend15m, trend30m: trend30m,
     divergence: divergence, pattern: pattern, atr: atr.toFixed(2),
     slPct: (slPct * 100).toFixed(2), tpPct: (slPct * 2.2 * 100).toFixed(2),
@@ -325,52 +357,39 @@ async function checkActiveTrades() {
       var pr = await axios.get(BINANCE + '/api/v3/ticker/price?symbol=' + symbol);
       var price = parseFloat(pr.data.price);
       var pair = symbol.replace('USDT', '/USDT');
+      var closed = false, pnl = 0, outcome = '';
+
       if (trade.signal === 'BUY') {
-        var halfway = trade.entry + (trade.tp - trade.entry) * 0.5;
-        if (price >= halfway && trade.sl < trade.entry) {
+        var hw = trade.entry + (trade.tp - trade.entry) * 0.5;
+        if (price >= hw && trade.sl < trade.entry) {
           trade.sl = trade.entry * 1.001;
-          await sendTelegram('<b>Trailing Stop</b> ' + pair + '\nSL -> breakeven $' + trade.sl.toFixed(0) + '\nPreco: $' + price.toFixed(2));
+          await sendTelegram('<b>Trailing Stop</b> ' + pair + '\nSL breakeven $' + trade.sl.toFixed(0));
         }
-        if (price <= trade.sl) {
-          var pnl = (price - trade.entry) / trade.entry * 100;
-          if (pnl < 0) lossCount++; else winCount++;
-          totalPnl += pnl;
-          delete activeTrades[symbol];
-          await sendTelegram('<b>' + (pnl >= 0 ? 'BREAKEVEN' : 'LOSS') + ' ' + pair + '</b>\nEntrada: $' + trade.entry.toFixed(0) + '\nSaida: $' + price.toFixed(0) + '\nP&L: ' + pnl.toFixed(2) + '%\nWin Rate: ' + Math.round(winCount / (winCount + lossCount) * 100) + '%');
-        }
-        if (price >= trade.tp) {
-          var pnl2 = (price - trade.entry) / trade.entry * 100;
-          winCount++; totalPnl += pnl2;
-          delete activeTrades[symbol];
-          await sendTelegram('<b>WIN ' + pair + '</b>\nEntrada: $' + trade.entry.toFixed(0) + '\nSaida: $' + price.toFixed(0) + '\nP&L: +' + pnl2.toFixed(2) + '%\nWin Rate: ' + Math.round(winCount / (winCount + lossCount) * 100) + '%');
-        }
+        if (price <= trade.sl) { pnl = (price - trade.entry) / trade.entry * 100; outcome = pnl >= 0 ? 'BREAKEVEN' : 'LOSS'; closed = true; }
+        if (price >= trade.tp) { pnl = (price - trade.entry) / trade.entry * 100; outcome = 'WIN'; closed = true; }
       } else {
-        var halfway2 = trade.entry - (trade.entry - trade.tp) * 0.5;
-        if (price <= halfway2 && trade.sl > trade.entry) {
+        var hw2 = trade.entry - (trade.entry - trade.tp) * 0.5;
+        if (price <= hw2 && trade.sl > trade.entry) {
           trade.sl = trade.entry * 0.999;
-          await sendTelegram('<b>Trailing Stop</b> ' + pair + '\nSL -> breakeven $' + trade.sl.toFixed(0));
+          await sendTelegram('<b>Trailing Stop</b> ' + pair + '\nSL breakeven $' + trade.sl.toFixed(0));
         }
-        if (price >= trade.sl) {
-          var pnl3 = (trade.entry - price) / trade.entry * 100;
-          if (pnl3 < 0) lossCount++; else winCount++;
-          totalPnl += pnl3;
-          delete activeTrades[symbol];
-          await sendTelegram('<b>' + (pnl3 >= 0 ? 'BREAKEVEN' : 'LOSS') + ' ' + pair + '</b>\nP&L: ' + pnl3.toFixed(2) + '%\nWin Rate: ' + Math.round(winCount / (winCount + lossCount) * 100) + '%');
-        }
-        if (price <= trade.tp) {
-          var pnl4 = (trade.entry - price) / trade.entry * 100;
-          winCount++; totalPnl += pnl4;
-          delete activeTrades[symbol];
-          await sendTelegram('<b>WIN ' + pair + '</b>\nP&L: +' + pnl4.toFixed(2) + '%\nWin Rate: ' + Math.round(winCount / (winCount + lossCount) * 100) + '%');
-        }
+        if (price >= trade.sl) { pnl = (trade.entry - price) / trade.entry * 100; outcome = pnl >= 0 ? 'BREAKEVEN' : 'LOSS'; closed = true; }
+        if (price <= trade.tp) { pnl = (trade.entry - price) / trade.entry * 100; outcome = 'WIN'; closed = true; }
       }
-    } catch (e) { console.error('Erro trade ' + symbol + ':', e.message); }
+
+      if (closed) {
+        if (outcome === 'WIN') winCount++; else lossCount++;
+        totalPnl += pnl;
+        saveStats(winCount, lossCount, totalPnl);
+        delete activeTrades[symbol];
+        var wr = Math.round(winCount / (winCount + lossCount) * 100);
+        await sendTelegram('<b>' + outcome + ' ' + pair + '</b>\nEntrada: $' + trade.entry.toFixed(0) + '\nSaida: $' + price.toFixed(0) + '\nP&L: ' + (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%\nWin Rate: ' + wr + '%');
+      }
+    } catch (e) { console.error('Trade check ' + symbol + ':', e.message); }
   }
 }
 
-// ── Alertas de preco ──────────────────────────────────────────────────────────
 async function checkPriceAlerts() {
-  if (!priceAlerts.length) return;
   for (var i = priceAlerts.length - 1; i >= 0; i--) {
     var alert = priceAlerts[i];
     try {
@@ -378,21 +397,18 @@ async function checkPriceAlerts() {
       var price = parseFloat(pr.data.price);
       var triggered = alert.direction === 'above' ? price >= alert.price : price <= alert.price;
       if (triggered) {
-        await sendTelegram('<b>Alerta de Preco</b>\n' + alert.symbol.replace('USDT', '/USDT') + ' ' + (alert.direction === 'above' ? 'acima' : 'abaixo') + ' de $' + alert.price + '\nPreco atual: $' + price.toFixed(2));
+        await sendTelegram('<b>Alerta!</b>\n' + alert.symbol.replace('USDT', '/USDT') + ' ' + (alert.direction === 'above' ? 'acima' : 'abaixo') + ' $' + alert.price + '\nPreco: $' + price.toFixed(2));
         priceAlerts.splice(i, 1);
       }
     } catch (e) {}
   }
 }
 
-// ── Backtesting ───────────────────────────────────────────────────────────────
 async function runBacktest(symbol) {
-  await sendTelegram('<b>Backtest ' + symbol.replace('USDT', '/USDT') + '</b>\nA processar 30 dias...');
+  await sendTelegram('<b>Backtest ' + symbol.replace('USDT', '/USDT') + '</b>\nA processar...');
   try {
     var r = await axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=30m&limit=1000');
-    var candles = r.data.map(function(k) {
-      return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] };
-    });
+    var candles = r.data.map(function(k) { return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }; });
     var capital = 1000, wins = 0, losses = 0, maxCapital = 1000, maxDD = 0;
     for (var i = 60; i < candles.length - 1; i++) {
       var window = candles.slice(0, i + 1);
@@ -400,16 +416,15 @@ async function runBacktest(symbol) {
       var atr = calcATR(window, 14);
       var result = generateSignal(window, price, 'NEUTRAL', 'NEUTRAL', atr);
       if (!result || result.conf < 75) continue;
-      var sl = result.sl, tp = result.tp, signal = result.signal;
       var outcome = null, exitPrice = 0;
       for (var j = i + 1; j < Math.min(i + 48, candles.length); j++) {
         var next = candles[j];
-        if (signal === 'BUY') {
-          if (next.low <= sl) { outcome = 'LOSS'; exitPrice = sl; break; }
-          if (next.high >= tp) { outcome = 'WIN'; exitPrice = tp; break; }
+        if (result.signal === 'BUY') {
+          if (next.low <= result.sl) { outcome = 'LOSS'; exitPrice = result.sl; break; }
+          if (next.high >= result.tp) { outcome = 'WIN'; exitPrice = result.tp; break; }
         } else {
-          if (next.high >= sl) { outcome = 'LOSS'; exitPrice = sl; break; }
-          if (next.low <= tp) { outcome = 'WIN'; exitPrice = tp; break; }
+          if (next.high >= result.sl) { outcome = 'LOSS'; exitPrice = result.sl; break; }
+          if (next.low <= result.tp) { outcome = 'WIN'; exitPrice = result.tp; break; }
         }
       }
       if (!outcome) continue;
@@ -420,15 +435,14 @@ async function runBacktest(symbol) {
       maxDD = Math.max(maxDD, (maxCapital - capital) / maxCapital * 100);
     }
     var total = wins + losses;
-    var winRate = total > 0 ? Math.round(wins / total * 100) : 0;
+    var wr = total > 0 ? Math.round(wins / total * 100) : 0;
     var ret = ((capital - 1000) / 1000 * 100).toFixed(1);
-    await sendTelegram('<b>Resultado Backtest ' + symbol.replace('USDT', '/USDT') + '</b>\n\nTrades: ' + total + '\nWins: ' + wins + ' | Losses: ' + losses + '\nWin Rate: ' + winRate + '%\nCapital: $1000 -> $' + capital.toFixed(0) + '\nRetorno: ' + (ret >= 0 ? '+' : '') + ret + '%\nMax DD: ' + maxDD.toFixed(1) + '%\n\n' + (winRate >= 50 ? 'Estrategia LUCRATIVA' : 'Estrategia precisa de ajuste'));
+    await sendTelegram('<b>Backtest ' + symbol.replace('USDT', '/USDT') + '</b>\n\nTrades: ' + total + '\nWins: ' + wins + ' | Losses: ' + losses + '\nWin Rate: ' + wr + '%\n$1000 -> $' + capital.toFixed(0) + '\nRetorno: ' + (ret >= 0 ? '+' : '') + ret + '%\nMax DD: ' + maxDD.toFixed(1) + '%\n' + (wr >= 50 ? 'Estrategia LUCRATIVA' : 'Ajustar parametros'));
   } catch (e) { await sendTelegram('Erro backtest: ' + e.message); }
 }
 
-// ── Bot loop ──────────────────────────────────────────────────────────────────
 async function runBot() {
-  console.log('Analisar... ' + new Date().toISOString());
+  console.log('Analisar ' + new Date().toISOString());
   if (!isGoodSession()) return;
   await checkActiveTrades();
   await checkPriceAlerts();
@@ -437,9 +451,7 @@ async function runBot() {
     if (activeTrades[symbol]) continue;
     try {
       var resp = await axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=30m&limit=200');
-      var candles = resp.data.map(function(k) {
-        return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] };
-      });
+      var candles = resp.data.map(function(k) { return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }; });
       var pr = await axios.get(BINANCE + '/api/v3/ticker/price?symbol=' + symbol);
       var price = parseFloat(pr.data.price);
       var atr = calcATR(candles, 14);
@@ -462,9 +474,9 @@ async function runBot() {
         + 'Alvo: $' + result.tp.toFixed(0) + ' (+' + result.tpPct + '%)\n'
         + 'R/R: 1:2.2 | Conf: ' + result.conf + '% | Score: ' + Math.max(result.buyScore, result.sellScore) + '/16\n'
         + 'RSI: ' + result.rsi + divTxt + patTxt + '\n'
-        + 'ATR: $' + result.atr + '\n'
-        + 'Macro 4h: ' + result.macroTrend + ' | 15m: ' + result.trend15m + '\n'
-        + 'POC: $' + result.poc.toFixed(0) + ' | VA: $' + result.val.toFixed(0) + '-$' + result.vah.toFixed(0) + '\n'
+        + 'ATR: $' + result.atr + ' | EMA20: $' + result.ema20 + '\n'
+        + 'Macro: ' + result.macroTrend + ' | 15m: ' + result.trend15m + '\n'
+        + 'POC: $' + result.poc.toFixed(0) + ' VA: $' + result.val.toFixed(0) + '-$' + result.vah.toFixed(0) + '\n'
         + new Date().toLocaleTimeString('pt-PT');
       await sendTelegram(msg);
       console.log(pair + ': ' + result.signal + ' conf=' + result.conf);
@@ -479,11 +491,10 @@ async function sendDailyReport() {
   var wr = total > 0 ? Math.round(winCount / total * 100) : 0;
   var msg = '<b>Relatorio Diario</b>\n\nWin Rate: ' + wr + '% (' + winCount + 'W/' + lossCount + 'L)\nP&L: ' + (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(2) + '%\n\n';
   for (var i = 0; i < SYMBOLS.length; i++) {
-    var sym = SYMBOLS[i], pair = sym.replace('USDT', '/USDT');
-    var res = dailyResults[sym];
+    var sym = SYMBOLS[i], res = dailyResults[sym];
     if (res.length) {
       var buys = res.filter(function(r) { return r.signal === 'BUY'; }).length;
-      msg += pair + ': ' + res.length + ' sinais (' + buys + 'B/' + (res.length - buys) + 'S)\n';
+      msg += sym.replace('USDT', '/USDT') + ': ' + res.length + ' sinais (' + buys + 'B/' + (res.length - buys) + 'S)\n';
       dailyResults[sym] = [];
     }
   }
@@ -492,10 +503,10 @@ async function sendDailyReport() {
 
 var PORT = process.env.PORT || 3001;
 app.listen(PORT, function() {
-  console.log('Server v5 na porta ' + PORT);
-  sendTelegram('<b>Bot v5 iniciado!</b>\n\nUnificacao de logica site+bot\nAlertas de preco\nBacktest melhorado\nPerformance stats\n\nComandos: /status /backtest /btc /eth');
+  console.log('Server v6 porta ' + PORT);
+  sendTelegram('<b>Bot v6 iniciado!</b>\n\nNovo:\n- Stats persistentes\n- EMAs no grafico\n- Timeframe selector\n- Sinal completo via API\n\nComandos: /status /backtest /btc /eth');
   runBot();
   setInterval(runBot, 5 * 60 * 1000);
   setInterval(sendDailyReport, 5 * 60 * 1000);
-  setTimeout(function() { runBacktest('BTCUSDT'); }, 15000);
+  setTimeout(function() { runBacktest('BTCUSDT'); }, 20000);
 });
