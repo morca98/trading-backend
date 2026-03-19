@@ -119,6 +119,26 @@
   <div id="logList" style="max-height:150px;overflow-y:auto"></div>
 </div>
 
+<div class="card" id="statsCard">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="font-size:9px;color:#475569;letter-spacing:2px">ESTATÍSTICAS DOS SINAIS</div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span id="autoLabel" style="font-size:9px;padding:2px 8px;border-radius:4px;background:#064e3b;color:#6ee7b7;border:1px solid #10b981;letter-spacing:1px">⬤ AUTO ON</span>
+      <button class="btn" onclick="clearStats()" style="background:#0f172a;color:#475569;border:1px solid #1e293b;font-size:9px">🗑 LIMPAR</button>
+    </div>
+  </div>
+  <div class="grid3" id="statsSummary" style="margin-bottom:12px">
+    <div class="stat-box"><div class="stat-label">TOTAL SINAIS</div><div id="sTot" style="color:#94a3b8;font-size:16px;font-weight:700">0</div></div>
+    <div class="stat-box"><div class="stat-label">BUY / SELL</div><div id="sBuySell" style="font-size:13px;font-weight:700"><span style="color:#10b981">0</span> / <span style="color:#ef4444">0</span></div></div>
+    <div class="stat-box"><div class="stat-label">CONFIANÇA MÉD.</div><div id="sConf" style="color:#f59e0b;font-size:16px;font-weight:700">—</div></div>
+  </div>
+  <div style="font-size:9px;color:#475569;letter-spacing:1px;margin-bottom:6px">HISTÓRICO COMPLETO</div>
+  <div id="statsTable" style="max-height:200px;overflow-y:auto"></div>
+  <div id="nextScanRow" style="margin-top:10px;text-align:center;font-size:9px;color:#334155;letter-spacing:1px">
+    ⏱ PRÓXIMA ANÁLISE AUTO: <span id="countdown" style="color:#3b82f6;font-weight:700">--:--</span>
+  </div>
+</div>
+
 <div style="text-align:center;font-size:9px;color:#1e293b;letter-spacing:1px;margin-top:10px">
   ⚠ APENAS PARA FINS EDUCACIONAIS · NÃO É CONSELHO FINANCEIRO
 </div>
@@ -417,7 +437,7 @@ setInterval(async()=>{
 },10000);
 
 // ── Análise ───────────────────────────────────────────────────────────────────
-function runAnalysis() {
+function runAnalysis(auto = false) {
   if(!vpData||!candles.length) return;
   document.getElementById("loadingCard").style.display="block";
   document.getElementById("analysisCard").style.display="none";
@@ -485,10 +505,24 @@ function runAnalysis() {
     document.getElementById("loadingCard").style.display="none";
     document.getElementById("btnAnalyse").disabled=false;
 
+    // Guardar estatísticas
+    const now = new Date();
+    const statEntry = {
+      time: `${now.toLocaleDateString("pt-BR")} ${now.toLocaleTimeString("pt-BR")}`,
+      sym: currentSym,
+      signal, conf,
+      price: p.toFixed(2),
+      sl: sl.toFixed(2),
+      tp: tp.toFixed(2),
+      rr: (tpPct/slPct).toFixed(1),
+      auto: auto
+    };
+    addStat(statEntry);
+
     // Notificação Telegram para BUY ou SELL
     if (signal === "BUY" || signal === "SELL") {
       const icon = signal === "BUY" ? "🟢" : "🔴";
-      const msg = `${icon} <b>${signal} ${currentSym}</b>\n\n`
+      const msg = `${icon} <b>${signal} ${currentSym}</b> ${auto ? "🤖 AUTO" : "👆 MANUAL"}\n\n`
         + `💰 <b>Preço:</b> $${p.toLocaleString("en-US",{maximumFractionDigits:2})}\n`
         + `🎯 <b>Entrada:</b> $${p.toLocaleString("en-US",{maximumFractionDigits:0})}\n`
         + `🛑 <b>Stop Loss:</b> $${sl.toLocaleString("en-US",{maximumFractionDigits:0})}\n`
@@ -510,11 +544,110 @@ function runAnalysis() {
   },1000);
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-loadData();
+// ── Estatísticas ──────────────────────────────────────────────────────────────
+const STATS_KEY = "cryptoAgentStats_v2";
 
-// Análise automática a cada 30 minutos
-setInterval(()=>{ if(vpData && candles.length) runAnalysis(); }, 30 * 60 * 1000);
+function loadStats() {
+  try { return JSON.parse(localStorage.getItem(STATS_KEY)) || []; } catch { return []; }
+}
+
+function saveStats(arr) {
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(arr.slice(0,200))); } catch {}
+}
+
+function addStat(entry) {
+  const arr = loadStats();
+  arr.unshift(entry);
+  saveStats(arr);
+  renderStats();
+}
+
+function clearStats() {
+  if (!confirm("Apagar todas as estatísticas?")) return;
+  localStorage.removeItem(STATS_KEY);
+  renderStats();
+}
+
+function renderStats() {
+  const arr = loadStats();
+  const tot = arr.length;
+  const buys = arr.filter(e=>e.signal==="BUY").length;
+  const sells = arr.filter(e=>e.signal==="SELL").length;
+  const avgConf = tot ? Math.round(arr.reduce((s,e)=>s+e.conf,0)/tot) : null;
+
+  document.getElementById("sTot").textContent = tot;
+  document.getElementById("sBuySell").innerHTML =
+    `<span style="color:#10b981">${buys}</span> / <span style="color:#ef4444">${sells}</span>`;
+  document.getElementById("sConf").textContent = avgConf !== null ? avgConf+"%" : "—";
+
+  const sigCol = {BUY:"#10b981",SELL:"#ef4444",HOLD:"#3b82f6",WAIT:"#f59e0b"};
+  const tbl = document.getElementById("statsTable");
+  if (!arr.length) {
+    tbl.innerHTML = '<div class="empty" style="text-align:center;padding:16px">Sem registos ainda</div>';
+    return;
+  }
+  tbl.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:9px">
+      <thead>
+        <tr style="color:#334155;border-bottom:1px solid #1e293b">
+          <th style="text-align:left;padding:3px 4px">DATA/HORA</th>
+          <th style="text-align:left;padding:3px 4px">PAR</th>
+          <th style="text-align:center;padding:3px 4px">SINAL</th>
+          <th style="text-align:right;padding:3px 4px">PREÇO</th>
+          <th style="text-align:right;padding:3px 4px">CONF.</th>
+          <th style="text-align:right;padding:3px 4px">SL</th>
+          <th style="text-align:right;padding:3px 4px">TP</th>
+          <th style="text-align:center;padding:3px 4px">R/R</th>
+          <th style="text-align:center;padding:3px 4px">ORIGEM</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${arr.map((e,i)=>`
+          <tr style="border-bottom:1px solid #0f172a;opacity:${Math.max(0.35,1-i*0.03)}">
+            <td style="padding:3px 4px;color:#475569">${e.time}</td>
+            <td style="padding:3px 4px;color:#64748b">${e.sym}</td>
+            <td style="padding:3px 4px;text-align:center;color:${sigCol[e.signal]||"#64748b"};font-weight:700">${e.signal}</td>
+            <td style="padding:3px 4px;text-align:right;color:#94a3b8">$${Number(e.price).toLocaleString("en-US",{maximumFractionDigits:0})}</td>
+            <td style="padding:3px 4px;text-align:right;color:${e.conf>=70?"#10b981":e.conf>=50?"#f59e0b":"#ef4444"}">${e.conf}%</td>
+            <td style="padding:3px 4px;text-align:right;color:#ef4444">$${Number(e.sl).toLocaleString("en-US",{maximumFractionDigits:0})}</td>
+            <td style="padding:3px 4px;text-align:right;color:#10b981">$${Number(e.tp).toLocaleString("en-US",{maximumFractionDigits:0})}</td>
+            <td style="padding:3px 4px;text-align:center;color:#64748b">1:${e.rr}</td>
+            <td style="padding:3px 4px;text-align:center;color:${e.auto?"#a855f7":"#3b82f6"}">${e.auto?"AUTO":"MANUAL"}</td>
+          </tr>`).join("")}
+      </tbody>
+    </table>`;
+}
+
+// ── Auto-análise ──────────────────────────────────────────────────────────────
+const AUTO_INTERVAL_MS = 30 * 60 * 1000; // 30 minutos
+let nextAutoAt = Date.now() + AUTO_INTERVAL_MS;
+
+function updateCountdown() {
+  const diff = Math.max(0, nextAutoAt - Date.now());
+  const m = Math.floor(diff / 60000).toString().padStart(2,"0");
+  const s = Math.floor((diff % 60000) / 1000).toString().padStart(2,"0");
+  const el = document.getElementById("countdown");
+  if (el) el.textContent = `${m}:${s}`;
+}
+
+setInterval(updateCountdown, 1000);
+
+setInterval(async () => {
+  // Recarrega dados frescos antes de analisar
+  const [c, t] = await Promise.all([apiCandles(currentSym), apiPrice(currentSym)]);
+  if (c && c.length) {
+    candles = c; vpData = calcVP(c); levelsData = calcLevels(c); cloudsData = calcClouds(c, vpData);
+    setLiveBadge(true);
+  }
+  if (t) { currentPrice = t.price; currentChange = t.change; }
+  renderAll();
+  if (vpData && candles.length) runAnalysis(true); // true = automático
+  nextAutoAt = Date.now() + AUTO_INTERVAL_MS;
+}, AUTO_INTERVAL_MS);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderStats();
+loadData();
 </script>
 
 </body>
