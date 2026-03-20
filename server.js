@@ -135,10 +135,10 @@ return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume
 var capital = 1000, wins = 0, losses = 0, maxCapital = 1000, maxDD = 0;
 var trades = [];
 for (var i = 60; i < candles.length - 1; i++) {
-var window = candles.slice(0, i + 1);
-var price = window[window.length - 1].close;
-var atr = calcATR(window, 14);
-var result = generateSignal(window, price, ‘NEUTRAL’, ‘NEUTRAL’, atr);
+var wnd = candles.slice(0, i + 1);
+var price = wnd[wnd.length - 1].close;
+var atr = calcATR(wnd, 14);
+var result = generateSignal(wnd, price, ‘NEUTRAL’, ‘NEUTRAL’, atr);
 if (!result || result.conf < 75) continue;
 var outcome = null, exitPrice = 0;
 for (var j = i + 1; j < Math.min(i + 48, candles.length); j++) {
@@ -160,12 +160,13 @@ maxDD = Math.max(maxDD, (maxCapital - capital) / maxCapital * 100);
 trades.push({ signal: result.signal, outcome: outcome, entry: price, exit: exitPrice, pnl: pnl, capital: capital, time: candles[i].time });
 }
 var total = wins + losses;
+var ret = (capital - 1000) / 1000 * 100;
 res.json({
 success: true, symbol: symbol,
 total: total, wins: wins, losses: losses,
 winRate: total > 0 ? Math.round(wins / total * 100) : 0,
 capital: capital, maxDD: maxDD,
-return: ((capital - 1000) / 1000 * 100),
+ret: ret,
 trades: trades.slice(-50)
 });
 } catch (err) { res.status(500).json({ success: false, error: err.message }); }
