@@ -123,10 +123,10 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="header-right">
     <div class="live-badge" id="liveBadge"><div class="live-dot"></div><span id="liveText">SIM</span></div>
     <div class="countdown" id="countdown">30:00</div>
-    <button class="btn" onclick="toggleTheme()">&#9788;</button>
-    <button class="btn" onclick="requestNotifPerm()" id="btnNotif" title="Notificacoes">&#128276;</button>
-    <button class="btn" onclick="loadData()" id="btnRef">&#8635;</button>
-    <button class="btn primary" onclick="runAnalysis()" id="btnAna">&#9654; ANALISAR</button>
+    <button class="btn" onclick="toggleTheme()">TEMA</button>
+    <button class="btn" onclick="requestNotifPerm()" id="btnNotif" title="Notificacoes">NOTIF</button>
+    <button class="btn" onclick="loadData()" id="btnRef">REFRESH</button>
+    <button class="btn primary" onclick="runAnalysis()" id="btnAna">ANALISAR</button>
   </div>
 </div>
 
@@ -225,7 +225,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
     <div class="stat c-cyan"><div class="stat-val" id="obSpread">--</div><div class="stat-lbl">SPREAD</div></div>
     <div class="stat c-yellow"><div class="stat-val" id="obSignal">--</div><div class="stat-lbl">SINAL OB</div></div>
   </div>
-  <button class="btn primary" onclick="loadOrderbook()" style="margin-top:4px">&#8635; ATUALIZAR</button>
+  <button class="btn primary" onclick="loadOrderbook()" style="margin-top:4px">ATUALIZAR</button>
 </div>
 
 <!-- BACKTEST -->
@@ -235,7 +235,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
     <div class="card-title">Backtest em Tempo Real</div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <select class="asel" id="btSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option></select>
-      <button class="btn primary" onclick="runBacktest()" id="btnBt">&#9654; CORRER BACKTEST</button>
+      <button class="btn primary" onclick="runBacktest()" id="btnBt">CORRER</button>
     </div>
     <div id="btResult"><div style="color:var(--muted);font-size:10px">Clica "CORRER BACKTEST" para testar a estrategia com dados reais dos ultimos 30 dias.</div></div>
   </div>
@@ -252,7 +252,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   </div>
   <div class="card"><div class="card-title">Curva de Capital</div><div id="perfChart"><div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">A carregar...</div></div></div>
   <div class="card"><div class="card-title">Sinais do Dia</div><div id="dailySig"><div style="color:var(--muted);font-size:10px">A carregar...</div></div></div>
-  <button class="btn primary" onclick="loadPerf()">&#8635; ATUALIZAR</button>
+  <button class="btn primary" onclick="loadPerf()">ATUALIZAR</button>
 </div>
 
 <!-- ALERTS -->
@@ -272,7 +272,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
     <div class="card-title">Notificacoes Browser</div>
     <div style="color:var(--muted);font-size:10px;line-height:1.8">
       Estado: <span id="notifStatus">Nao configurado</span><br>
-      <button class="btn primary" style="margin-top:8px" onclick="requestNotifPerm()">&#128276; ATIVAR NOTIFICACOES</button>
+      <button class="btn primary" style="margin-top:8px" onclick="requestNotifPerm()">ATIVAR NOTIFICACOES</button>
     </div>
   </div>
 </div>
@@ -439,8 +439,8 @@ async function runBacktest() {
     var r = await fetch(BACKEND+'/api/backtest?symbol='+sym);
     var d = await r.json();
     if (!d.success) throw new Error(d.error);
-    var ret = d.return.toFixed(1);
-    var isPos = d.return >= 0;
+    var ret = d.ret.toFixed(1);
+    var isPos = d.ret >= 0;
     var html = '<div class="g4" style="margin-bottom:10px">'
       +'<div class="stat '+(d.winRate>=50?'c-green':'c-red')+'"><div class="stat-val">'+d.winRate+'%</div><div class="stat-lbl">WIN RATE</div></div>'
       +'<div class="stat c-purple"><div class="stat-val">'+d.total+'</div><div class="stat-lbl">TRADES</div></div>'
@@ -456,7 +456,7 @@ async function runBacktest() {
       var py=function(v){return P+(H-P*2)-(v-min)/range*(H-P*2);};
       var path='M '+P+' '+py(caps[0]);
       caps.forEach(function(v,i){if(i>0)path+=' L '+(P+i*cw)+' '+py(v);});
-      var col=d.return>=0?'var(--green)':'var(--red)';
+      var col=d.ret>=0?'var(--green)':'var(--red)';
       html+='<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="display:block;margin-bottom:10px">'
         +'<path d="'+path+' L '+(P+(caps.length-1)*cw)+' '+(H-P)+' L '+P+' '+(H-P)+' Z" fill="'+col+'" opacity="0.15"/>'
         +'<path d="'+path+'" fill="none" stroke="'+col+'" stroke-width="1.5"/>'
@@ -478,7 +478,7 @@ async function runBacktest() {
   } catch(e) {
     document.getElementById('btResult').innerHTML = '<div style="color:var(--red);font-size:10px">Erro: '+e.message+'</div>';
   }
-  btn.disabled = false; btn.textContent = '&#9654; CORRER BACKTEST';
+  btn.disabled = false; btn.textContent = 'CORRER BACKTEST';
 }
 
 // ── Performance ───────────────────────────────────────────────────────────────
@@ -641,7 +641,7 @@ async function loadData(){
   if(c&&c.length){candles=c;vpData=calcVP(c);levelsData=calcLevels(c);cloudsData=calcClouds(c,vpData);var closes=c.map(function(x){return x.close});ema20Line=calcEMALine(closes,20);ema50Line=calcEMALine(closes,50);setLive(true);}
   if(t){prevPrice=currentPrice;currentPrice=t.price;currentChange=t.change;}
   renderAll();
-  document.getElementById('btnRef').disabled=false;document.getElementById('btnRef').textContent='&#8635;';
+  document.getElementById('btnRef').disabled=false;document.getElementById('btnRef').textContent='REFRESH';
 }
 
 function renderAll(){renderChart();renderVPBar();renderVPStats();renderLevels();renderClouds();renderPrice();}
