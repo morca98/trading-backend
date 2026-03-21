@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="pt">
 <head>
 <meta charset="UTF-8">
@@ -139,7 +138,6 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 </div>
 
 <!-- CHART -->
-
 <div class="tab-content active" id="tab-chart">
   <div class="sym-row">
     <button class="sym-btn active" id="btnBTC" onclick="setSym('BTC/USDT')">BTC / USDT</button>
@@ -192,7 +190,6 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 </div>
 
 <!-- ORDERBOOK -->
-
 <div class="tab-content" id="tab-ob">
   <div class="sym-row" style="margin-bottom:10px">
     <button class="sym-btn active" id="obBTC" onclick="setObSym('BTCUSDT')">BTC / USDT</button>
@@ -229,7 +226,6 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 </div>
 
 <!-- BACKTEST -->
-
 <div class="tab-content" id="tab-bt">
   <div class="card">
     <div class="card-title">Backtest em Tempo Real</div>
@@ -242,7 +238,6 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 </div>
 
 <!-- PERFORMANCE -->
-
 <div class="tab-content" id="tab-perf">
   <div class="g4">
     <div class="stat c-green"><div class="stat-val" id="pWR">--%</div><div class="stat-lbl">WIN RATE</div></div>
@@ -256,7 +251,6 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 </div>
 
 <!-- ALERTS -->
-
 <div class="tab-content" id="tab-alerts">
   <div class="card">
     <div class="card-title">Novo Alerta</div>
@@ -760,6 +754,5 @@ document.addEventListener('keydown',function(e){
 loadData();
 loadPerf();
 </script>
-
 </body>
 </html>
