@@ -107,18 +107,161 @@ app.get('/api/signal', async function(req, res) {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// Orderbook
-app.get('/api/orderbook', async function(req, res) {
+// Liquidation Map
+var BINANCE_FUTURES = 'https://fapi.binance.com';
+
+app.get('/api/liqmap', async function(req, res) {
   try {
     var symbol = req.query.symbol || 'BTCUSDT';
-    var r = await axios.get(BINANCE + '/api/v3/depth?symbol=' + symbol + '&limit=20');
-    var bids = r.data.bids.map(function(b) { return { price: parseFloat(b[0]), qty: parseFloat(b[1]) }; });
-    var asks = r.data.asks.map(function(a) { return { price: parseFloat(a[0]), qty: parseFloat(a[1]) }; });
-    var totalBid = bids.reduce(function(s, b) { return s + b.qty; }, 0);
-    var totalAsk = asks.reduce(function(s, a) { return s + a.qty; }, 0);
-    var ratio = totalBid / (totalBid + totalAsk) * 100;
-    res.json({ success: true, bids: bids, asks: asks, totalBid: totalBid, totalAsk: totalAsk, ratio: ratio.toFixed(1) });
-  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    var coinglassKey = req.query.apiKey || process.env.COINGLASS_API_KEY || '';
+
+    // Tentar API do Coinglass se tiver API key
+    if (coinglassKey) {
+      try {
+        var cgSymbol = 'Binance_' + symbol;
+        var cgr = await axios.get('https://open-api.coinglass.com/public/v2/liqMap?symbol=' + cgSymbol + '&interval=1d', {
+          headers: { 'coinglassSecret': coinglassKey, 'accept': 'application/json' },
+          timeout: 8000
+        });
+        if (cgr.data && cgr.data.success && cgr.data.data) {
+          var cgData = cgr.data.data;
+          var levels = [];
+          if (cgData.longLiquidationLevels) {
+            cgData.longLiquidationLevels.forEach(function(l) {
+              levels.push({ price: l.price, longLiq: l.amount || 0, shortLiq: 0, total: l.amount || 0, type: 'long' });
+            });
+          }
+          if (cgData.shortLiquidationLevels) {
+            cgData.shortLiquidationLevels.forEach(function(l) {
+              var existing = levels.find(function(x) { return Math.abs(x.price - l.price) / l.price < 0.001; });
+              if (existing) { existing.shortLiq = l.amount || 0; existing.total += l.amount || 0; }
+              else levels.push({ price: l.price, longLiq: 0, shortLiq: l.amount || 0, total: l.amount || 0, type: 'short' });
+            });
+          }
+          levels.sort(function(a, b) { return a.price - b.price; });
+          var maxTotal = Math.max.apply(null, levels.map(function(l) { return l.total; })) || 1;
+          levels.forEach(function(l) { l.intensity = l.total / maxTotal; });
+          return res.json({ success: true, source: 'coinglass', symbol: symbol, levels: levels, currentPrice: cgData.currentPrice || 0 });
+        }
+      } catch (cgErr) {
+        console.log('Coinglass API erro, usando fallback Binance:', cgErr.message);
+      }
+    }
+
+    // Fallback: calcular liquidation map estimado com dados públicos da Binance Futures
+    var results = await Promise.all([
+      axios.get(BINANCE_FUTURES + '/fapi/v1/klines?symbol=' + symbol + '&interval=1h&limit=168'),
+      axios.get(BINANCE_FUTURES + '/fapi/v1/ticker/24hr?symbol=' + symbol),
+      axios.get(BINANCE_FUTURES + '/futures/data/globalLongShortAccountRatio?symbol=' + symbol + '&period=1h&limit=24'),
+      axios.get(BINANCE_FUTURES + '/fapi/v1/premiumIndex?symbol=' + symbol),
+      axios.get(BINANCE_FUTURES + '/fapi/v1/openInterest?symbol=' + symbol)
+    ]);
+
+    var candles = results[0].data.map(function(k) {
+      return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] };
+    });
+    var ticker = results[1].data;
+    var lsRatios = results[2].data;
+    var premium = results[3].data;
+    var openInterest = parseFloat(results[4].data.openInterest);
+    var currentPrice = parseFloat(ticker.lastPrice);
+    var fundingRate = parseFloat(premium.lastFundingRate);
+
+    // Calcular ratio medio de long/short das ultimas 24h
+    var avgLongRatio = lsRatios.reduce(function(s, r) { return s + parseFloat(r.longAccount); }, 0) / lsRatios.length;
+    var avgShortRatio = 1 - avgLongRatio;
+
+    // Estimar niveis de liquidacao usando alavancagem tipica (5x, 10x, 20x, 50x, 100x)
+    var leverages = [5, 10, 20, 50, 100];
+    var priceRange = currentPrice * 0.20; // +/- 20% do preco atual
+    var N = 40; // numero de niveis de preco
+    var step = (priceRange * 2) / N;
+    var minPrice = currentPrice - priceRange;
+    var levels = [];
+
+    // Distribuicao de OI estimada por nivel de preco
+    // Longs sao liquidados quando preco cai, shorts quando sobe
+    for (var i = 0; i < N; i++) {
+      var levelPrice = minPrice + step * i + step / 2;
+      var distFromCurrent = (levelPrice - currentPrice) / currentPrice;
+
+      // Calcular liquidacoes de longs (abaixo do preco atual)
+      var longLiq = 0;
+      if (levelPrice < currentPrice) {
+        var dropPct = Math.abs(distFromCurrent);
+        leverages.forEach(function(lev) {
+          var liqThreshold = 1 / lev; // Threshold de liquidacao
+          if (dropPct >= liqThreshold * 0.85) {
+            // Peso baseado na distribuicao normal ao redor do threshold
+            var weight = Math.exp(-Math.pow((dropPct - liqThreshold) / (liqThreshold * 0.15), 2) * 0.5);
+            // Distribuicao de OI por alavancagem (mais traders em 10x e 20x)
+            var levWeight = lev === 10 ? 0.30 : lev === 20 ? 0.25 : lev === 5 ? 0.20 : lev === 50 ? 0.15 : 0.10;
+            longLiq += openInterest * avgLongRatio * levWeight * weight * 0.15;
+          }
+        });
+      }
+
+      // Calcular liquidacoes de shorts (acima do preco atual)
+      var shortLiq = 0;
+      if (levelPrice > currentPrice) {
+        var risePct = Math.abs(distFromCurrent);
+        leverages.forEach(function(lev) {
+          var liqThreshold = 1 / lev;
+          if (risePct >= liqThreshold * 0.85) {
+            var weight = Math.exp(-Math.pow((risePct - liqThreshold) / (liqThreshold * 0.15), 2) * 0.5);
+            var levWeight = lev === 10 ? 0.30 : lev === 20 ? 0.25 : lev === 5 ? 0.20 : lev === 50 ? 0.15 : 0.10;
+            shortLiq += openInterest * avgShortRatio * levWeight * weight * 0.15;
+          }
+        });
+      }
+
+      // Adicionar liquidacoes historicas reais dos candles (wicks)
+      var nearCandles = candles.filter(function(c) {
+        return c.low <= levelPrice && c.high >= levelPrice;
+      });
+      var volAtLevel = nearCandles.reduce(function(s, c) { return s + c.volume; }, 0);
+      var volBoost = volAtLevel > 0 ? Math.log(1 + volAtLevel / 1000) * 0.1 : 0;
+
+      var total = longLiq + shortLiq + volBoost;
+      if (total > 0) {
+        levels.push({
+          price: Math.round(levelPrice),
+          longLiq: Math.round(longLiq),
+          shortLiq: Math.round(shortLiq),
+          total: total,
+          intensity: 0
+        });
+      }
+    }
+
+    // Normalizar intensidade
+    var maxTotal = Math.max.apply(null, levels.map(function(l) { return l.total; })) || 1;
+    levels.forEach(function(l) { l.intensity = l.total / maxTotal; });
+    levels.sort(function(a, b) { return a.price - b.price; });
+
+    // Calcular estatisticas
+    var totalLongLiq = levels.reduce(function(s, l) { return s + l.longLiq; }, 0);
+    var totalShortLiq = levels.reduce(function(s, l) { return s + l.shortLiq; }, 0);
+    var topLevels = levels.slice().sort(function(a, b) { return b.total - a.total; }).slice(0, 5);
+
+    res.json({
+      success: true,
+      source: 'binance_estimated',
+      symbol: symbol,
+      currentPrice: currentPrice,
+      openInterest: openInterest,
+      fundingRate: fundingRate,
+      longRatio: avgLongRatio,
+      shortRatio: avgShortRatio,
+      levels: levels,
+      totalLongLiq: Math.round(totalLongLiq),
+      totalShortLiq: Math.round(totalShortLiq),
+      topLevels: topLevels,
+      note: coinglassKey ? 'Coinglass indisponivel, usando estimativa Binance' : 'Estimativa baseada em dados publicos Binance Futures'
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Backtest endpoint

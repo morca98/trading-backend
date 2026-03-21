@@ -85,15 +85,25 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 .cloud-bar{height:2px;border-radius:1px;margin-top:4px;opacity:.6}
 .log-wrap{max-height:130px;overflow-y:auto}
 .log-row{display:grid;grid-template-columns:48px 65px 42px 68px 1fr;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:9px;align-items:center}
-/* Orderbook */
-.ob-wrap{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.ob-side{display:flex;flex-direction:column;gap:2px}
-.ob-row{display:flex;justify-content:space-between;align-items:center;padding:3px 6px;border-radius:1px;font-size:10px;position:relative;overflow:hidden}
-.ob-bar{position:absolute;top:0;bottom:0;opacity:.15;border-radius:1px}
-.ob-bar.bid{background:var(--green);right:0}
-.ob-bar.ask{background:var(--red);left:0}
-.ob-ratio{height:8px;border-radius:4px;overflow:hidden;background:rgba(255,61,87,.3);margin-top:8px}
-.ob-ratio-fill{height:100%;background:var(--green);border-radius:4px;transition:width .5s}
+/* Liquidation Map */
+.liqmap-wrap{position:relative;width:100%}
+.liqmap-chart{width:100%;height:320px;position:relative;overflow:hidden}
+.liqmap-row{display:flex;align-items:center;gap:6px;padding:2px 0;position:relative}
+.liqmap-price{font-size:9px;color:var(--muted);width:72px;text-align:right;flex-shrink:0;letter-spacing:.5px}
+.liqmap-bar-wrap{flex:1;height:14px;position:relative;background:rgba(255,255,255,.02);border-radius:1px;overflow:hidden}
+.liqmap-bar-long{position:absolute;top:0;left:0;height:100%;background:var(--green);opacity:.7;border-radius:1px;transition:width .4s}
+.liqmap-bar-short{position:absolute;top:0;right:0;height:100%;background:var(--red);opacity:.7;border-radius:1px;transition:width .4s}
+.liqmap-bar-both{position:absolute;top:0;left:0;height:100%;background:var(--yellow);opacity:.6;border-radius:1px}
+.liqmap-val{font-size:8px;color:var(--muted);width:52px;text-align:left;flex-shrink:0}
+.liqmap-current{position:absolute;left:0;right:0;height:1px;background:var(--accent);opacity:.9;z-index:10}
+.liqmap-current-label{position:absolute;right:0;font-size:8px;color:var(--accent);background:var(--bg2);padding:1px 4px;border-radius:1px;white-space:nowrap;transform:translateY(-50%)}
+.liqmap-legend{display:flex;gap:12px;margin-bottom:8px;font-size:8px;flex-wrap:wrap}
+.liqmap-legend span{display:flex;align-items:center;gap:4px}
+.liqmap-legend .dot{width:8px;height:8px;border-radius:1px;flex-shrink:0}
+.liqmap-source{font-size:8px;color:var(--border2);letter-spacing:1px;margin-top:6px}
+.apikey-row{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.apikey-input{background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:2px;padding:5px 8px;font-family:'JetBrains Mono',monospace;font-size:10px;flex:1;min-width:160px}
+.apikey-input::placeholder{color:var(--muted)}
 /* Backtest */
 .bt-trade-row{display:grid;grid-template-columns:60px 45px 70px 70px 70px;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:9px}
 .bt-win{color:var(--green)}.bt-loss{color:var(--red)}
@@ -108,7 +118,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 .fadein{animation:fadein .35s ease}
 @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .footer{text-align:center;padding:14px 0;font-size:8px;color:var(--border2);letter-spacing:2px}
-@media(max-width:480px){.g4{grid-template-columns:1fr 1fr}.atexts,.tboxes{grid-template-columns:1fr 1fr}.price-main{font-size:30px}.chart-wrap{grid-template-columns:1fr 44px}.ob-wrap{grid-template-columns:1fr}}
+@media(max-width:480px){.g4{grid-template-columns:1fr 1fr}.atexts,.tboxes{grid-template-columns:1fr 1fr}.price-main{font-size:30px}.chart-wrap{grid-template-columns:1fr 44px}}
 </style>
 </head>
 <body class="dark-bg" id="body">
@@ -117,13 +127,12 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 <div class="header">
   <div>
     <div class="logo">CRYPTO AI AGENT</div>
-    <div class="logo-sub">VP &middot; KEY LEVELS &middot; ORDERBOOK &middot; v7</div>
+    <div class="logo-sub">VP &middot; KEY LEVELS &middot; LIQMAP &middot; v8</div>
   </div>
   <div class="header-right">
     <div class="live-badge" id="liveBadge"><div class="live-dot"></div><span id="liveText">SIM</span></div>
     <div class="countdown" id="countdown">30:00</div>
     <button class="btn" onclick="toggleTheme()">TEMA</button>
-    <button class="btn" onclick="requestNotifPerm()" id="btnNotif" title="Notificacoes">NOTIF</button>
     <button class="btn" onclick="loadData()" id="btnRef">REFRESH</button>
     <button class="btn primary" onclick="runAnalysis()" id="btnAna">ANALISAR</button>
   </div>
@@ -131,7 +140,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 
 <div class="tabs">
   <div class="tab active" onclick="showTab('chart')">GRAFICO</div>
-  <div class="tab" onclick="showTab('ob')">ORDERBOOK</div>
+  <div class="tab" onclick="showTab('liqmap')">LIQMAP</div>
   <div class="tab" onclick="showTab('bt')">BACKTEST</div>
   <div class="tab" onclick="showTab('perf')">PERFORMANCE</div>
   <div class="tab" onclick="showTab('alerts')">ALERTAS</div>
@@ -189,40 +198,65 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="card" id="logCard" style="display:none"><div class="card-title">Historico</div><div class="log-wrap" id="logList"></div></div>
 </div>
 
-<!-- ORDERBOOK -->
-<div class="tab-content" id="tab-ob">
+<!-- LIQUIDATION MAP -->
+<div class="tab-content" id="tab-liqmap">
   <div class="sym-row" style="margin-bottom:10px">
-    <button class="sym-btn active" id="obBTC" onclick="setObSym('BTCUSDT')">BTC / USDT</button>
-    <button class="sym-btn" id="obETH" onclick="setObSym('ETHUSDT')">ETH / USDT</button>
+    <button class="sym-btn active" id="liqBTC" onclick="setLiqSym('BTCUSDT')">BTC / USDT</button>
+    <button class="sym-btn" id="liqETH" onclick="setLiqSym('ETHUSDT')">ETH / USDT</button>
   </div>
-  <div class="card" style="margin-bottom:10px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div class="card-title" style="margin-bottom:0">Orderbook</div>
-      <div style="font-size:9px;color:var(--muted)" id="obUpdated">A carregar...</div>
+
+  <!-- Campo API Key Coinglass -->
+  <div class="card" style="margin-bottom:10px;padding:10px">
+    <div class="card-title" style="margin-bottom:8px">Coinglass API Key (Opcional)</div>
+    <div class="apikey-row">
+      <input class="apikey-input" type="password" id="coinglassApiKey" placeholder="Cole aqui a sua API key do Coinglass para dados reais...">
+      <button class="btn primary" onclick="loadLiqMap()">CARREGAR</button>
+      <button class="btn" onclick="document.getElementById('coinglassApiKey').value='';loadLiqMap()">LIMPAR</button>
     </div>
-    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-      <span style="font-size:9px;color:var(--green);letter-spacing:1px">COMPRAS (BID)</span>
-      <span style="font-size:9px;color:var(--red);letter-spacing:1px">VENDAS (ASK)</span>
-    </div>
-    <div class="ob-wrap">
-      <div class="ob-side" id="bidsPanel"></div>
-      <div class="ob-side" id="asksPanel"></div>
-    </div>
-    <div style="margin-top:10px">
-      <div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:4px">
-        <span style="color:var(--green)">BID: <span id="totalBid">---</span></span>
-        <span style="color:var(--muted)" id="obRatioText">---</span>
-        <span style="color:var(--red)">ASK: <span id="totalAsk">---</span></span>
-      </div>
-      <div class="ob-ratio"><div class="ob-ratio-fill" id="obRatioBar" style="width:50%"></div></div>
+    <div style="font-size:8px;color:var(--muted);margin-top:4px">
+      Sem API key: estimativa calculada com dados publicos Binance Futures (OI + L/S Ratio + Funding Rate)
     </div>
   </div>
-  <div class="g3">
-    <div class="stat c-green"><div class="stat-val" id="obPressure">--</div><div class="stat-lbl">PRESSAO</div></div>
-    <div class="stat c-cyan"><div class="stat-val" id="obSpread">--</div><div class="stat-lbl">SPREAD</div></div>
-    <div class="stat c-yellow"><div class="stat-val" id="obSignal">--</div><div class="stat-lbl">SINAL OB</div></div>
+
+  <!-- Stats do Liquidation Map -->
+  <div class="g4" id="liqStats" style="margin-bottom:10px">
+    <div class="stat c-green"><div class="stat-val" id="liqPrice">$---</div><div class="stat-lbl">PRECO ATUAL</div></div>
+    <div class="stat c-red"><div class="stat-val" id="liqOI">---</div><div class="stat-lbl">OPEN INTEREST</div></div>
+    <div class="stat c-yellow"><div class="stat-val" id="liqFunding">---</div><div class="stat-lbl">FUNDING RATE</div></div>
+    <div class="stat c-purple"><div class="stat-val" id="liqLSRatio">---</div><div class="stat-lbl">LONG/SHORT</div></div>
   </div>
-  <button class="btn primary" onclick="loadOrderbook()" style="margin-top:4px">ATUALIZAR</button>
+
+  <!-- Mapa de Liquidacoes -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+      <div class="card-title" style="margin-bottom:0">Mapa de Liquidacoes</div>
+      <div style="font-size:9px;color:var(--muted)" id="liqUpdated">A carregar...</div>
+    </div>
+    <div class="liqmap-legend">
+      <span><div class="dot" style="background:var(--green)"></div>Longs (liquidados na queda)</span>
+      <span><div class="dot" style="background:var(--red)"></div>Shorts (liquidados na subida)</span>
+      <span><div class="dot" style="background:var(--accent)"></div>Preco atual</span>
+    </div>
+    <div id="liqMapPanel">
+      <div style="text-align:center;padding:40px 0;font-size:10px;color:var(--muted)" class="pulse">A CARREGAR DADOS...</div>
+    </div>
+    <div class="liqmap-source" id="liqSource"></div>
+  </div>
+
+  <!-- Niveis de maior concentracao -->
+  <div class="card" id="liqTopCard" style="display:none">
+    <div class="card-title">Niveis de Maior Concentracao</div>
+    <div id="liqTopLevels"></div>
+  </div>
+
+  <!-- Analise de Liquidacoes -->
+  <div class="g3" style="margin-top:0">
+    <div class="stat c-green"><div class="stat-val" id="liqTotalLong">---</div><div class="stat-lbl">LONGS EXPOSTOS</div></div>
+    <div class="stat c-red"><div class="stat-val" id="liqTotalShort">---</div><div class="stat-lbl">SHORTS EXPOSTOS</div></div>
+    <div class="stat c-cyan"><div class="stat-val" id="liqDominance">---</div><div class="stat-lbl">DOMINANCIA</div></div>
+  </div>
+
+  <button class="btn primary" onclick="loadLiqMap()" style="margin-top:8px">ATUALIZAR</button>
 </div>
 
 <!-- BACKTEST -->
@@ -279,7 +313,7 @@ var BACKEND = 'https://trading-backend-production-5dd4.up.railway.app';
 var TELEGRAM_TOKEN = 'coloca_aqui_o_teu_token';
 var TELEGRAM_CHAT_ID = '1354621810';
 var SYM_MAP = {'BTC/USDT':'BTCUSDT','ETH/USDT':'ETHUSDT'};
-var currentSym = 'BTC/USDT', currentTF = '30m', currentObSym = 'BTCUSDT';
+var currentSym = 'BTC/USDT', currentTF = '30m', currentLiqSym = 'BTCUSDT';
 var candles = [], vpData = null, levelsData = [], cloudsData = [];
 var ema20Line = [], ema50Line = [];
 var currentPrice = 0, prevPrice = 0, currentChange = 0;
@@ -287,6 +321,7 @@ var logEntries = [], localAlerts = [];
 var isDark = true, notifEnabled = false;
 var countdownSec = 30 * 60;
 var analysisRunning = false;
+var liqMapData = null;
 
 // ── Notificacoes Browser ──────────────────────────────────────────────────────
 async function requestNotifPerm() {
@@ -304,7 +339,6 @@ function sendBrowserNotif(title, body) {
   }
 }
 
-// Verificar permissao ao iniciar
 if ('Notification' in window && Notification.permission === 'granted') {
   notifEnabled = true;
   document.getElementById('notifStatus') && (document.getElementById('notifStatus').textContent = 'Ativas');
@@ -337,12 +371,12 @@ function toggleTheme() { isDark=!isDark; document.getElementById('body').classNa
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function showTab(name) {
-  var names=['chart','ob','bt','perf','alerts'];
+  var names=['chart','liqmap','bt','perf','alerts'];
   document.querySelectorAll('.tab').forEach(function(t,i){t.className='tab'+(names[i]===name?' active':'');});
   document.querySelectorAll('.tab-content').forEach(function(t){t.className='tab-content';});
   document.getElementById('tab-'+name).className='tab-content active';
   if(name==='perf')loadPerf();
-  if(name==='ob')loadOrderbook();
+  if(name==='liqmap')loadLiqMap();
 }
 
 // ── Telegram ──────────────────────────────────────────────────────────────────
@@ -366,11 +400,11 @@ function setTF(tf) {
   loadData();
 }
 
-function setObSym(sym) {
-  currentObSym=sym;
-  document.getElementById('obBTC').className='sym-btn'+(sym==='BTCUSDT'?' active':'');
-  document.getElementById('obETH').className='sym-btn'+(sym==='ETHUSDT'?' active':'');
-  loadOrderbook();
+function setLiqSym(sym) {
+  currentLiqSym=sym;
+  document.getElementById('liqBTC').className='sym-btn'+(sym==='BTCUSDT'?' active':'');
+  document.getElementById('liqETH').className='sym-btn'+(sym==='ETHUSDT'?' active':'');
+  loadLiqMap();
 }
 
 // ── Alertas ───────────────────────────────────────────────────────────────────
@@ -391,37 +425,181 @@ function renderAlerts(){
   }).join('');
 }
 
-// ── Orderbook ─────────────────────────────────────────────────────────────────
-async function loadOrderbook() {
-  try {
-    var r = await fetch(BACKEND+'/api/orderbook?symbol='+currentObSym);
-    var d = await r.json();
-    if (!d.success) return;
-    var maxBid = Math.max.apply(null, d.bids.map(function(b){return b.qty;}));
-    var maxAsk = Math.max.apply(null, d.asks.map(function(a){return a.qty;}));
-    document.getElementById('bidsPanel').innerHTML = d.bids.slice(0,10).map(function(b){
-      var pct = (b.qty/maxBid)*100;
-      return '<div class="ob-row"><div class="ob-bar bid" style="width:'+pct+'%"></div><span style="color:var(--green)">$'+b.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</span><span style="color:var(--muted)">'+b.qty.toFixed(3)+'</span></div>';
-    }).join('');
-    document.getElementById('asksPanel').innerHTML = d.asks.slice(0,10).map(function(a){
-      var pct = (a.qty/maxAsk)*100;
-      return '<div class="ob-row"><div class="ob-bar ask" style="width:'+pct+'%"></div><span style="color:var(--muted)">'+a.qty.toFixed(3)+'</span><span style="color:var(--red)">$'+a.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div>';
-    }).join('');
-    document.getElementById('totalBid').textContent = d.totalBid.toFixed(2);
-    document.getElementById('totalAsk').textContent = d.totalAsk.toFixed(2);
-    var ratio = parseFloat(d.ratio);
-    document.getElementById('obRatioBar').style.width = ratio+'%';
-    document.getElementById('obRatioText').textContent = ratio.toFixed(1)+'% compra';
-    document.getElementById('obPressure').textContent = ratio > 55 ? 'COMPRA' : ratio < 45 ? 'VENDA' : 'NEUTRO';
-    document.getElementById('obPressure').style.color = ratio > 55 ? 'var(--green)' : ratio < 45 ? 'var(--red)' : 'var(--muted)';
-    var spread = d.asks[0] ? (d.asks[0].price - d.bids[0].price) : 0;
-    document.getElementById('obSpread').textContent = '$'+spread.toFixed(2);
-    document.getElementById('obSignal').textContent = ratio > 60 ? 'BUY' : ratio < 40 ? 'SELL' : 'WAIT';
-    document.getElementById('obSignal').style.color = ratio > 60 ? 'var(--green)' : ratio < 40 ? 'var(--red)' : 'var(--yellow)';
-    document.getElementById('obUpdated').textContent = 'ATT: '+new Date().toLocaleTimeString('pt-PT');
-  } catch(e) { console.error('OB erro:', e.message); }
+// ── Liquidation Map ───────────────────────────────────────────────────────────
+function formatOI(val) {
+  if (val >= 1e9) return (val/1e9).toFixed(2)+'B';
+  if (val >= 1e6) return (val/1e6).toFixed(1)+'M';
+  if (val >= 1e3) return (val/1e3).toFixed(1)+'K';
+  return val.toFixed(0);
 }
-setInterval(function(){if(document.getElementById('tab-ob').className.includes('active'))loadOrderbook();},5000);
+
+async function loadLiqMap() {
+  var panel = document.getElementById('liqMapPanel');
+  panel.innerHTML = '<div style="text-align:center;padding:40px 0;font-size:10px;color:var(--muted)" class="pulse">A CARREGAR DADOS...</div>';
+  document.getElementById('liqTopCard').style.display='none';
+
+  try {
+    var apiKey = document.getElementById('coinglassApiKey').value.trim();
+    var url = BACKEND + '/api/liqmap?symbol=' + currentLiqSym;
+    if (apiKey) url += '&apiKey=' + encodeURIComponent(apiKey);
+
+    var r = await fetch(url);
+    var d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Erro ao carregar dados');
+
+    liqMapData = d;
+    renderLiqMap(d);
+  } catch(e) {
+    panel.innerHTML = '<div style="color:var(--red);font-size:10px;text-align:center;padding:20px">Erro: '+e.message+'<br><br><span style="color:var(--muted)">Verifica se o servidor esta online.</span></div>';
+  }
+}
+
+function renderLiqMap(d) {
+  var panel = document.getElementById('liqMapPanel');
+  var levels = d.levels || [];
+  var currentPrice = d.currentPrice || 0;
+
+  if (!levels.length) {
+    panel.innerHTML = '<div style="color:var(--muted);font-size:10px;text-align:center;padding:20px">Sem dados de liquidacao disponiveis.</div>';
+    return;
+  }
+
+  // Atualizar stats
+  document.getElementById('liqPrice').textContent = '$' + currentPrice.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+  if (d.openInterest) {
+    var oiVal = d.openInterest * currentPrice;
+    document.getElementById('liqOI').textContent = '$' + formatOI(oiVal);
+  }
+  if (d.fundingRate !== undefined) {
+    var fr = (d.fundingRate * 100).toFixed(4);
+    var frEl = document.getElementById('liqFunding');
+    frEl.textContent = (d.fundingRate >= 0 ? '+' : '') + fr + '%';
+    frEl.style.color = d.fundingRate > 0 ? 'var(--green)' : d.fundingRate < 0 ? 'var(--red)' : 'var(--muted)';
+  }
+  if (d.longRatio !== undefined) {
+    var lsEl = document.getElementById('liqLSRatio');
+    lsEl.textContent = (d.longRatio * 100).toFixed(1) + '% L';
+    lsEl.style.color = d.longRatio > 0.55 ? 'var(--green)' : d.longRatio < 0.45 ? 'var(--red)' : 'var(--yellow)';
+  }
+
+  // Calcular max para escala
+  var maxLong = Math.max.apply(null, levels.map(function(l){return l.longLiq||0;})) || 1;
+  var maxShort = Math.max.apply(null, levels.map(function(l){return l.shortLiq||0;})) || 1;
+  var maxTotal = Math.max(maxLong, maxShort);
+
+  // Ordenar do mais alto para o mais baixo (exibicao de cima para baixo)
+  var sortedLevels = levels.slice().sort(function(a,b){return b.price - a.price;});
+
+  // Encontrar indice do preco atual
+  var currentIdx = -1;
+  for (var i = 0; i < sortedLevels.length; i++) {
+    if (sortedLevels[i].price <= currentPrice) { currentIdx = i; break; }
+  }
+
+  var html = '<div class="liqmap-wrap">';
+
+  sortedLevels.forEach(function(lvl, idx) {
+    var longPct = maxTotal > 0 ? (lvl.longLiq / maxTotal * 100) : 0;
+    var shortPct = maxTotal > 0 ? (lvl.shortLiq / maxTotal * 100) : 0;
+    var isCurrentLevel = idx === currentIdx;
+    var isAbove = lvl.price > currentPrice;
+    var isBelow = lvl.price < currentPrice;
+    var intensity = lvl.intensity || 0;
+    var isHighlight = intensity > 0.6;
+
+    var rowStyle = isHighlight ? 'background:rgba(255,255,255,.03);' : '';
+    if (isCurrentLevel) rowStyle += 'border-top:1px solid var(--accent);border-bottom:1px solid var(--accent);';
+
+    html += '<div class="liqmap-row" style="' + rowStyle + '">';
+    html += '<div class="liqmap-price" style="color:' + (isCurrentLevel ? 'var(--accent)' : isAbove ? 'var(--red)' : 'var(--green)') + '">';
+    html += '$' + lvl.price.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+    if (isCurrentLevel) html += ' &#9654;';
+    html += '</div>';
+
+    html += '<div class="liqmap-bar-wrap">';
+
+    // Barra de longs (verde, da esquerda)
+    if (longPct > 0.5 && isBelow) {
+      var opacity = 0.3 + intensity * 0.7;
+      html += '<div class="liqmap-bar-long" style="width:' + Math.min(longPct, 100) + '%;opacity:' + opacity + '"></div>';
+    }
+
+    // Barra de shorts (vermelha, da direita)
+    if (shortPct > 0.5 && isAbove) {
+      var opacityS = 0.3 + intensity * 0.7;
+      html += '<div class="liqmap-bar-short" style="width:' + Math.min(shortPct, 100) + '%;opacity:' + opacityS + '"></div>';
+    }
+
+    html += '</div>';
+
+    // Valor da liquidacao
+    var liqVal = isAbove ? lvl.shortLiq : lvl.longLiq;
+    html += '<div class="liqmap-val" style="color:' + (isHighlight ? 'var(--text)' : 'var(--muted)') + '">';
+    if (liqVal > 0) html += formatOI(liqVal);
+    html += '</div>';
+
+    html += '</div>';
+  });
+
+  html += '</div>';
+  panel.innerHTML = html;
+
+  // Atualizar totais
+  if (d.totalLongLiq !== undefined) {
+    document.getElementById('liqTotalLong').textContent = formatOI(d.totalLongLiq);
+  }
+  if (d.totalShortLiq !== undefined) {
+    document.getElementById('liqTotalShort').textContent = formatOI(d.totalShortLiq);
+  }
+  if (d.totalLongLiq !== undefined && d.totalShortLiq !== undefined) {
+    var total = d.totalLongLiq + d.totalShortLiq;
+    if (total > 0) {
+      var longDom = d.totalLongLiq / total;
+      var domEl = document.getElementById('liqDominance');
+      domEl.textContent = longDom > 0.5 ? 'LONGS' : 'SHORTS';
+      domEl.style.color = longDom > 0.5 ? 'var(--green)' : 'var(--red)';
+    }
+  }
+
+  // Niveis de maior concentracao
+  if (d.topLevels && d.topLevels.length) {
+    var topCard = document.getElementById('liqTopCard');
+    var topPanel = document.getElementById('liqTopLevels');
+    topCard.style.display = 'block';
+    topPanel.innerHTML = d.topLevels.map(function(lvl, i) {
+      var isAbove = lvl.price > currentPrice;
+      var dist = ((lvl.price - currentPrice) / currentPrice * 100).toFixed(2);
+      var distStr = (parseFloat(dist) >= 0 ? '+' : '') + dist + '%';
+      return '<div class="lvl-row">'
+        + '<div style="display:flex;align-items:center;gap:8px">'
+        + '<span style="color:var(--muted);font-size:9px">#'+(i+1)+'</span>'
+        + '<span class="lvl-tag '+(isAbove?'res':'sup')+'">'+(isAbove?'SHORT LIQ':'LONG LIQ')+'</span>'
+        + '</div>'
+        + '<div style="text-align:right">'
+        + '<div style="color:'+(isAbove?'var(--red)':'var(--green)')+';font-size:11px;font-weight:700">$'+lvl.price.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+'</div>'
+        + '<div style="color:var(--muted);font-size:9px">'+distStr+' | '+formatOI(lvl.total)+'</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  // Fonte dos dados
+  var sourceEl = document.getElementById('liqSource');
+  if (d.source === 'coinglass') {
+    sourceEl.innerHTML = '&#9632; FONTE: COINGLASS API (DADOS REAIS)';
+    sourceEl.style.color = 'var(--green)';
+  } else {
+    sourceEl.innerHTML = '&#9632; FONTE: ESTIMATIVA BINANCE FUTURES (OI + L/S RATIO + FUNDING RATE)' + (d.note ? ' &mdash; ' + d.note : '');
+    sourceEl.style.color = 'var(--muted)';
+  }
+
+  document.getElementById('liqUpdated').textContent = 'ATT: ' + new Date().toLocaleTimeString('pt-PT');
+}
+
+// Auto-refresh do liqmap a cada 30 segundos quando ativo
+setInterval(function(){
+  if(document.getElementById('tab-liqmap').className.includes('active')) loadLiqMap();
+}, 30000);
 
 // ── Backtest ──────────────────────────────────────────────────────────────────
 async function runBacktest() {
@@ -442,7 +620,6 @@ async function runBacktest() {
       +'<div class="stat c-yellow"><div class="stat-val">'+d.maxDD.toFixed(1)+'%</div><div class="stat-lbl">MAX DD</div></div>'
       +'</div>';
     html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:10px"><span style="color:var(--muted)">$1000 inicial</span><span style="color:'+(isPos?'var(--green)':'var(--red)')+'">$'+d.capital.toFixed(0)+' final</span><span style="color:var(--green)">'+d.wins+'W</span><span style="color:var(--red)">'+d.losses+'L</span></div>';
-    // Mini equity chart
     if (d.trades && d.trades.length) {
       var caps = [1000].concat(d.trades.map(function(t){return t.capital;}));
       var W=460,H=80,P=6,min=Math.min.apply(null,caps),max=Math.max.apply(null,caps),range=max-min||1;
@@ -699,7 +876,7 @@ async function runAnalysis(){
     +'<svg width="70" height="70" viewBox="0 0 70 70"><circle cx="35" cy="35" r="'+r2+'" fill="none" stroke="var(--border)" stroke-width="5"/><circle cx="35" cy="35" r="'+r2+'" fill="none" stroke="'+ringCol+'" stroke-width="5" stroke-dasharray="'+dash+' '+circ+'" stroke-linecap="round" transform="rotate(-90 35 35)"/><text x="35" y="40" text-anchor="middle" fill="'+ringCol+'" font-size="13" font-weight="700" font-family="JetBrains Mono,monospace">'+conf+'%</text></svg>'
     +'<div style="flex:1;min-width:160px"><div class="tboxes"><div class="tbox"><div class="tbox-lbl">ENTRADA</div><div class="tbox-val" style="color:var(--text)">$'+p.toLocaleString('en-US',{maximumFractionDigits:0})+'</div></div><div class="tbox"><div class="tbox-lbl">STOP</div><div class="tbox-val" style="color:var(--red)">$'+sl.toLocaleString('en-US',{maximumFractionDigits:0})+'</div></div><div class="tbox"><div class="tbox-lbl">ALVO</div><div class="tbox-val" style="color:var(--green)">$'+tp.toLocaleString('en-US',{maximumFractionDigits:0})+'</div></div></div>'
     +'<div class="tags">'+srcTag+'<span class="tag" style="color:var(--accent);border-color:rgba(0,212,255,.2)">R/R 1:'+rr+'</span><span class="tag" style="color:'+biasCol+'">'+bias+'</span><span class="tag">RSI '+rsi+'</span><span class="tag">Score '+score+'</span>'+(pattern!=='NONE'?'<span class="tag" style="color:var(--yellow)">'+pattern+'</span>':'')+(divergence!=='NONE'?'<span class="tag" style="color:var(--purple)">DIV '+divergence+'</span>':'')+'<span class="tag">4H:'+macro+'</span><span class="tag">15M:'+tf15m+'</span></div></div></div>'
-    +'<div class="atexts"><div class="atext"><div class="atext-lbl">ANALISE</div><div class="atext-val">'+reasons[signal]+'</div></div><div class="atext"><div class="atext-lbl">VOLUME PROFILE</div><div class="atext-val">POC:$'+poc.toFixed(0)+' VA:$'+val.toFixed(0)+'-$'+vah.toFixed(0)+'</div></div><div class="atext"><div class="atext-lbl">ORDERBOOK</div><div class="atext-val" id="anaOB">A carregar...</div></div></div></div>';
+    +'<div class="atexts"><div class="atext"><div class="atext-lbl">ANALISE</div><div class="atext-val">'+reasons[signal]+'</div></div><div class="atext"><div class="atext-lbl">VOLUME PROFILE</div><div class="atext-val">POC:$'+poc.toFixed(0)+' VA:$'+val.toFixed(0)+'-$'+vah.toFixed(0)+'</div></div><div class="atext"><div class="atext-lbl">LIQMAP</div><div class="atext-val" id="anaLiq">A carregar...</div></div></div></div>';
 
   document.getElementById('anaCard').innerHTML=html;
   document.getElementById('anaCard').style.display='block';
@@ -707,11 +884,18 @@ async function runAnalysis(){
   document.getElementById('btnAna').disabled=false;
   analysisRunning=false;
 
-  // Carregar OB para a analise
+  // Carregar info do LiqMap para a analise
   try {
-    var obr=await fetch(BACKEND+'/api/orderbook?symbol='+SYM_MAP[currentSym]);
-    var obd=await obr.json();
-    if(obd.success){var obEl=document.getElementById('anaOB');if(obEl)obEl.textContent='Pressao: '+obd.ratio+'% compra | '+(parseFloat(obd.ratio)>55?'BULLS dominam':parseFloat(obd.ratio)<45?'BEARS dominam':'Equilibrado');}
+    var liqr = await fetch(BACKEND+'/api/liqmap?symbol='+SYM_MAP[currentSym]);
+    var liqd = await liqr.json();
+    if(liqd.success){
+      var liqEl = document.getElementById('anaLiq');
+      if(liqEl) {
+        var dom = liqd.totalLongLiq > liqd.totalShortLiq ? 'LONGS dominam' : 'SHORTS dominam';
+        var fr = liqd.fundingRate ? ((liqd.fundingRate*100).toFixed(4)+'%') : '--';
+        liqEl.textContent = dom + ' | Funding: ' + fr + ' | L/S: ' + ((liqd.longRatio||0.5)*100).toFixed(1) + '%';
+      }
+    }
   } catch(e){}
 
   logEntries.unshift({time:new Date().toLocaleTimeString('pt-PT'),sym:currentSym,signal:signal,conf:conf,price:p.toFixed(2),reason:reasons[signal]});
@@ -749,6 +933,7 @@ document.addEventListener('keydown',function(e){
   if(e.key==='a'||e.key==='A')runAnalysis();
   if(e.key==='b'||e.key==='B')setSym('BTC/USDT');
   if(e.key==='e'||e.key==='E')setSym('ETH/USDT');
+  if(e.key==='l'||e.key==='L')showTab('liqmap');
 });
 
 loadData();
