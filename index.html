@@ -151,6 +151,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="sym-row">
     <button class="sym-btn active" id="btnBTC" onclick="setSym('BTC/USDT')">BTC / USDT</button>
     <button class="sym-btn" id="btnETH" onclick="setSym('ETH/USDT')">ETH / USDT</button>
+    <button class="sym-btn" id="btnSOL" onclick="setSym('SOL/USDT')">SOL / USDT</button>
   </div>
   <div class="tf-row">
     <span style="font-size:9px;color:var(--muted);letter-spacing:1px">TF:</span>
@@ -170,29 +171,23 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
       <div style="font-size:9px;color:var(--muted);margin-top:4px" id="emaDisplay">EMA: ---</div>
     </div>
   </div>
-  <div class="chart-wrap">
-    <div class="card" style="padding:10px;margin-bottom:0">
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:8px">
-        <span style="color:var(--yellow)">&#9472; POC</span>
-        <span style="color:var(--green)">&#8230; VAH</span>
-        <span style="color:var(--red)">&#8230; VAL</span>
-        <span style="color:#ff9800">&#9472; EMA20</span>
-        <span style="color:#e040fb">&#9472; EMA50</span>
-        <span style="color:var(--purple)">&#9612; LVN</span>
-        <span style="color:var(--cyan)">&#9612; LIQZ</span>
-      </div>
-      <div id="chartWrap"><div style="text-align:center;padding:60px 0;font-size:10px;color:var(--muted)" class="pulse">A CARREGAR...</div></div>
+  <div class="card" style="padding:10px;margin-bottom:10px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:8px">
+      <span style="color:var(--yellow)">&#9472; POC</span>
+      <span style="color:var(--green)">&#8230; VAH</span>
+      <span style="color:var(--red)">&#8230; VAL</span>
+      <span style="color:#ff9800">&#9472; EMA20</span>
+      <span style="color:#e040fb">&#9472; EMA50</span>
+      <span style="color:var(--purple)">&#9612; LVN</span>
+      <span style="color:var(--cyan)">&#9612; LIQZ</span>
     </div>
-    <div class="card" style="padding:8px;margin-bottom:0">
-      <div style="font-size:7px;color:var(--muted);text-align:center;margin-bottom:6px;letter-spacing:1px">VP</div>
-      <div class="vp-wrap" id="vpBar"></div>
-    </div>
+    <div id="chartWrap"><div style="text-align:center;padding:60px 0;font-size:10px;color:var(--muted)" class="pulse">A CARREGAR...</div></div>
   </div>
   <div class="g2">
     <div class="card"><div class="card-title">Volume Profile</div><div id="vpStats"></div></div>
     <div class="card"><div class="card-title">Niveis-Chave</div><div id="levelsPanel"><div style="color:var(--muted);font-size:10px">Sem niveis</div></div></div>
   </div>
-  <div class="card" id="cloudsCard" style="display:none"><div class="card-title">Nuvens de Liquidez</div><div class="clouds-grid" id="cloudsPanel"></div></div>
+  <!-- Nuvens de liquidez removidas -->
   <div class="card" id="loadCard" style="display:none"><div class="pulse" style="text-align:center;padding:18px;font-size:9px;color:var(--accent);letter-spacing:3px">&#9632; IA A PROCESSAR... (SERVIDOR)</div></div>
   <div id="anaCard" style="display:none;margin-bottom:10px"></div>
   <div class="card" id="logCard" style="display:none"><div class="card-title">Historico</div><div class="log-wrap" id="logList"></div></div>
@@ -203,6 +198,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="sym-row" style="margin-bottom:10px">
     <button class="sym-btn active" id="liqBTC" onclick="setLiqSym('BTCUSDT')">BTC / USDT</button>
     <button class="sym-btn" id="liqETH" onclick="setLiqSym('ETHUSDT')">ETH / USDT</button>
+    <button class="sym-btn" id="liqSOL" onclick="setLiqSym('SOLUSDT')">SOL / USDT</button>
   </div>
 
   <!-- Campo API Key Coinglass -->
@@ -264,7 +260,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="card">
     <div class="card-title">Backtest em Tempo Real</div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <select class="asel" id="btSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option></select>
+      <select class="asel" id="btSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option><option value="SOLUSDT">SOL/USDT</option></select>
       <button class="btn primary" onclick="runBacktest()" id="btnBt">CORRER</button>
     </div>
     <div id="btResult"><div style="color:var(--muted);font-size:10px">Clica "CORRER BACKTEST" para testar a estrategia com dados reais dos ultimos 30 dias.</div></div>
@@ -289,7 +285,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="card">
     <div class="card-title">Novo Alerta</div>
     <div class="alert-form">
-      <select class="asel" id="alertSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option></select>
+      <select class="asel" id="alertSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option><option value="SOLUSDT">SOL/USDT</option></select>
       <select class="asel" id="alertDir"><option value="above">Acima de</option><option value="below">Abaixo de</option></select>
       <input class="ainput" type="number" id="alertPrice" placeholder="Preco $">
       <button class="btn primary" onclick="addAlert()">+ ADICIONAR</button>
@@ -312,7 +308,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 var BACKEND = 'https://trading-backend-production-5dd4.up.railway.app';
 var TELEGRAM_TOKEN = 'coloca_aqui_o_teu_token';
 var TELEGRAM_CHAT_ID = '1354621810';
-var SYM_MAP = {'BTC/USDT':'BTCUSDT','ETH/USDT':'ETHUSDT'};
+var SYM_MAP={'BTC/USDT':'BTCUSDT','ETH/USDT':'ETHUSDT','SOL/USDT':'SOLUSDT'};
 var currentSym = 'BTC/USDT', currentTF = '30m', currentLiqSym = 'BTCUSDT';
 var candles = [], vpData = null, levelsData = [], cloudsData = [];
 var ema20Line = [], ema50Line = [];
@@ -772,11 +768,7 @@ function renderChart(){
   el.innerHTML=svg;
 }
 
-function renderVPBar(){
-  var el=document.getElementById('vpBar');if(!vpData){el.innerHTML='';return;}
-  var bars=vpData.bars,maxVol=vpData.maxVol,poc=vpData.poc,val=vpData.val,vah=vpData.vah,step=vpData.step;
-  el.innerHTML=bars.slice().reverse().map(function(b){var isPoc=Math.abs(b.price-poc)<step*.6,inVA=b.price>=val&&b.price<=vah,pct=(b.vol/maxVol)*80,col=isPoc?'var(--yellow)':inVA?'var(--green)':'var(--accent)',op=isPoc?1:inVA?.6:.2;return '<div style="display:flex;align-items:center;height:'+(100/bars.length)+'%"><div style="width:'+Math.max(pct,2)+'%;height:60%;background:'+col+';opacity:'+op+';border-radius:1px"></div></div>';}).join('');
-}
+function renderVPBar(){ /* VP lateral removido */ }
 
 function renderVPStats(){
   var el=document.getElementById('vpStats');if(!vpData){el.innerHTML='';return;}
@@ -790,11 +782,7 @@ function renderLevels(){
   el.innerHTML=levelsData.map(function(l){var isRes=l.type==='resistance';return '<div class="lvl-row"><div style="display:flex;align-items:center;gap:8px"><span class="lvl-tag '+(isRes?'res':'sup')+'">'+(isRes?'RES':'SUP')+'</span></div><div style="text-align:right"><div style="color:'+(isRes?'var(--red)':'var(--green)')+';font-size:11px;font-weight:700">$'+l.price.toFixed(2)+'</div><div style="color:var(--muted);font-size:9px">'+l.str.toFixed(0)+'%</div></div></div>';}).join('');
 }
 
-function renderClouds(){
-  var card=document.getElementById('cloudsCard'),panel=document.getElementById('cloudsPanel');
-  if(!cloudsData.length){card.style.display='none';return;}card.style.display='block';
-  panel.innerHTML=cloudsData.map(function(cl){var col=cl.type==='lvn'?'var(--purple)':cl.type==='wick_sell'?'var(--yellow)':'var(--cyan)';var mid=(cl.low+cl.high)/2,dist=((mid-currentPrice)/currentPrice*100).toFixed(2),isUp=parseFloat(dist)>=0;return '<div class="cloud fadein" style="background:var(--bg3);border-left-color:'+col+'"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:'+col+';font-size:10px;font-weight:700">'+cl.label+'</span><span style="color:'+(isUp?'var(--green)':'var(--red)')+';font-size:9px">'+(isUp?'&#9650;':'&#9660;')+Math.abs(dist)+'%</span></div><div style="color:var(--muted);font-size:9px">$'+cl.low.toFixed(0)+'-$'+cl.high.toFixed(0)+'</div><div class="cloud-bar" style="background:'+col+';width:'+(cl.str*100).toFixed(0)+'%"></div></div>';}).join('');
-}
+function renderClouds(){ /* Nuvens de liquidez removidas */ }
 
 function renderPrice(){
   var el=document.getElementById('priceDisplay'),ch=document.getElementById('changeDisplay');

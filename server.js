@@ -15,15 +15,15 @@ app.use(express.json());
 const BINANCE = 'https://api.binance.com';
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-const SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
+const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
 const SIGNAL_COOLDOWN = 60 * 60 * 1000;
 const MIN_SCORE = 10;
 const MAX_SCORE = 16;
 const STATS_FILE = '/tmp/stats.json';
 
-var lastSignal = { BTCUSDT: null, ETHUSDT: null };
-var lastSignalTime = { BTCUSDT: 0, ETHUSDT: 0 };
-var dailyResults = { BTCUSDT: [], ETHUSDT: [] };
+var lastSignal = { BTCUSDT: null, ETHUSDT: null, SOLUSDT: null };
+var lastSignalTime = { BTCUSDT: 0, ETHUSDT: 0, SOLUSDT: 0 };
+var dailyResults = { BTCUSDT: [], ETHUSDT: [], SOLUSDT: [] };
 var activeTrades = {};
 var priceAlerts = [];
 
@@ -91,7 +91,7 @@ app.get('/api/signal', async function(req, res) {
     var macroTrend = calcTrend(candles4h.map(function(c){return c.close;}));
     var trend15m = calcTrend(candles15m.map(function(c){return c.close;}));
     var atr = calcATR(candles, 14);
-    var signal = generateSignal(candles, price, macroTrend, trend15m, atr);
+    var signal = generateSignal(candles, price, macroTrend, trend15m, atr, null);
 
     var closes = candles.map(function(c) { return c.close; });
     var ema20vals = calcEMALine(closes, 20);
@@ -278,7 +278,7 @@ app.get('/api/backtest', async function(req, res) {
       var wnd = candles.slice(0, i + 1);
       var price = wnd[wnd.length - 1].close;
       var atr = calcATR(wnd, 14);
-      var result = generateSignal(wnd, price, 'NEUTRAL', 'NEUTRAL', atr);
+      var result = generateSignal(wnd, price, 'NEUTRAL', 'NEUTRAL', atr, null);
       if (!result || result.conf < 75) continue;
       var outcome = null, exitPrice = 0;
       for (var j = i + 1; j < Math.min(i + 48, candles.length); j++) {
@@ -400,7 +400,7 @@ function calcVP(candles) {
   var prices = [];
   candles.forEach(function(c) { prices.push(c.high); prices.push(c.low); });
   var min = Math.min.apply(null, prices), max = Math.max.apply(null, prices);
-  var N = 20, step = (max - min) / N;
+  var N = 40, step = (max - min) / N; // Aumentado para 40 bars para maior precisão
   var bars = [];
   for (var i = 0; i < N; i++) bars.push({ price: min + step * (i + 0.5), vol: 0 });
   candles.forEach(function(c) {
@@ -414,7 +414,57 @@ function calcVP(candles) {
     if (vaVol < totalVol * 0.7) { vaVol += b.vol; vaLow = Math.min(vaLow, b.price); vaHigh = Math.max(vaHigh, b.price); }
   });
   var avgVol = totalVol / bars.length;
-  return { poc: poc.price, val: vaLow, vah: vaHigh, lvns: bars.filter(function(b) { return b.vol < avgVol * 0.35; }), bars: bars, maxVol: Math.max.apply(null, bars.map(function(b) { return b.vol; })) };
+  // Identificar HVNs (High Volume Nodes) como níveis chave adicionais
+  var hvns = bars.filter(function(b) { return b.vol > avgVol * 1.5 && Math.abs(b.price - poc.price) / poc.price > 0.01; });
+  return { poc: poc.price, val: vaLow, vah: vaHigh, lvns: bars.filter(function(b) { return b.vol < avgVol * 0.35; }), hvns: hvns, bars: bars, maxVol: Math.max.apply(null, bars.map(function(b) { return b.vol; })) };
+}
+
+function calcKeyLevels(candles, vp) {
+  var levels = [];
+  var currentPrice = candles[candles.length - 1].close;
+
+  // 1. Níveis do Volume Profile
+  levels.push({ price: vp.poc, type: 'POC', strength: 100 });
+  levels.push({ price: vp.vah, type: 'VAH', strength: 80 });
+  levels.push({ price: vp.val, type: 'VAL', strength: 80 });
+  vp.hvns.forEach(function(h) { levels.push({ price: h.price, type: 'HVN', strength: 60 }); });
+
+  // 2. Suportes e Resistências Clássicos (Fractais)
+  for (var i = 5; i < candles.length - 5; i++) {
+    var isHigh = true, isLow = true;
+    for (var j = 1; j <= 5; j++) {
+      if (candles[i].high < candles[i-j].high || candles[i].high < candles[i+j].high) isHigh = false;
+      if (candles[i].low > candles[i-j].low || candles[i].low > candles[i+j].low) isLow = false;
+    }
+    if (isHigh) levels.push({ price: candles[i].high, type: 'RES', strength: 50 });
+    if (isLow) levels.push({ price: candles[i].low, type: 'SUP', strength: 50 });
+  }
+
+  // 3. Agrupar níveis próximos para evitar duplicidade
+  var grouped = [];
+  levels.sort(function(a, b) { return a.price - b.price; });
+  if (levels.length > 0) {
+    var current = levels[0];
+    for (var k = 1; k < levels.length; k++) {
+      if (Math.abs(levels[k].price - current.price) / current.price < 0.005) {
+        if (levels[k].strength > current.strength) {
+          current.price = (current.price + levels[k].price) / 2;
+          current.strength = Math.min(100, current.strength + 10);
+        }
+      } else {
+        grouped.push(current);
+        current = levels[k];
+      }
+    }
+    grouped.push(current);
+  }
+
+  // Filtrar apenas níveis relevantes ao preço atual (+/- 5%)
+  return grouped.filter(function(l) {
+    return Math.abs(l.price - currentPrice) / currentPrice < 0.05;
+  }).sort(function(a, b) {
+    return Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice);
+  }).slice(0, 8);
 }
 
 function calcDynamicSL(candles, signal, price, atr) {
@@ -459,9 +509,10 @@ function confirmCandle(candles, signal) {
   return signal === 'BUY' ? prev.close > prev.open : prev.close < prev.open;
 }
 
-function generateSignal(candles, price, macroTrend, trend15m, atr) {
+function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var closes = candles.map(function(c) { return c.close; });
   var vp = calcVP(candles.slice(-200));
+  var keyLevels = calcKeyLevels(candles, vp);
   var rsi = calcRSI(closes);
   var ema20 = calcEMA(closes.slice(-20), 20);
   var ema50 = closes.length >= 50 ? calcEMA(closes.slice(-50), 50) : ema20;
@@ -471,39 +522,74 @@ function generateSignal(candles, price, macroTrend, trend15m, atr) {
   var inVA = price >= vp.val && price <= vp.vah, abovePoc = price > vp.poc;
   var divergence = calcRSIDivergence(candles, rsi);
   var pattern = detectPattern(candles);
-  var nearLVN = vp.lvns.some(function(l) { return Math.abs(l.price - price) / price < 0.01; });
+  
+  // Detecção de proximidade de níveis chave
+  var nearSupport = keyLevels.filter(function(l) { return (l.type === 'SUP' || l.type === 'VAL' || l.type === 'POC') && price > l.price && (price - l.price) / price < 0.01; });
+  var nearResistance = keyLevels.filter(function(l) { return (l.type === 'RES' || l.type === 'VAH' || l.type === 'POC') && price < l.price && (l.price - price) / price < 0.01; });
 
   var buy = 0, sell = 0;
+  
+  // 1. Contexto de Volume Profile
   if (abovePoc && inVA) buy += 2; if (!abovePoc && inVA) sell += 2;
-  if (rsi < 35) buy += 3; else if (rsi < 45) buy += 1;
-  if (rsi > 65) sell += 3; else if (rsi > 55) sell += 1;
+  if (price > vp.vah) buy += 1; 
+  if (price < vp.val) sell += 1;
+  
+  // 2. RSI e Divergências
+  if (rsi < 30) buy += 3; else if (rsi < 40) buy += 1;
+  if (rsi > 70) sell += 3; else if (rsi > 60) sell += 1;
+  if (divergence === 'BULLISH') buy += 3; if (divergence === 'BEARISH') sell += 3;
+  
+  // 3. Médias Móveis e Tendência
   if (price > ema20 && price > ema50) buy += 2; else if (price < ema20 && price < ema50) sell += 2;
   if (ema20 > ema50) buy += 1; else sell += 1;
-  if (trend30m === 'UP') buy += 1; else sell += 1;
-  if (rv > pv * 1.1) { buy += 1; sell += 1; }
   if (macroTrend === 'BULL') buy += 2; if (macroTrend === 'BEAR') sell += 2;
   if (trend15m === 'UP') buy += 1; if (trend15m === 'DOWN') sell += 1;
-  if (divergence === 'BULLISH') buy += 2; if (divergence === 'BEARISH') sell += 2;
-  if (pattern === 'BULL_ENGULF' || pattern === 'HAMMER' || pattern === 'PIN_BULL') buy += 2;
-  if (pattern === 'BEAR_ENGULF' || pattern === 'SHOOT_STAR' || pattern === 'PIN_BEAR') sell += 2;
-  if (nearLVN) { buy += 1; sell += 1; }
+  
+  // 4. Volume e Padrões de Candles
+  if (rv > pv * 1.2) { if (trend30m === 'UP') buy += 2; else sell += 2; }
+  if (pattern === 'BULL_ENGULF' || pattern === 'HAMMER' || pattern === 'PIN_BULL') buy += 3;
+  if (pattern === 'BEAR_ENGULF' || pattern === 'SHOOT_STAR' || pattern === 'PIN_BEAR') sell += 3;
+  
+  // 5. Níveis Chave (Suporte/Resistência)
+  if (nearSupport.length > 0) buy += 3;
+  if (nearResistance.length > 0) sell += 3;
+  
+  // 6. Liquidation Map (Sentimento e Liquidez)
+  if (liqData) {
+    if (liqData.lsRatio < 0.45) buy += 2; // Muitos shorts, possível short squeeze
+    if (liqData.lsRatio > 0.55) sell += 2; // Muitos longs, possível long flush
+  }
 
   var signal = null;
-  if (buy >= MIN_SCORE && buy > sell + 2) signal = 'BUY';
-  if (sell >= MIN_SCORE && sell > buy + 2) signal = 'SELL';
+  var score = Math.max(buy, sell);
+  var conf = Math.round((score / 25) * 100); 
+
+  if (buy >= MIN_SCORE && buy > sell + 3) signal = 'BUY';
+  if (sell >= MIN_SCORE && sell > buy + 3) signal = 'SELL';
+  
   if (!signal) return null;
-  if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 12) return null;
-  if (signal === 'SELL' && macroTrend === 'BULL' && sell < 12) return null;
-  if (signal === 'BUY' && trend15m === 'DOWN' && macroTrend !== 'BULL') return null;
-  if (signal === 'SELL' && trend15m === 'UP' && macroTrend !== 'BEAR') return null;
+  
+  if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 14) return null;
+  if (signal === 'SELL' && macroTrend === 'BULL' && sell < 14) return null;
+  if (signal === 'BUY' && rsi > 65) return null;
+  if (signal === 'SELL' && rsi < 35) return null;
+  
   if (!confirmCandle(candles, signal)) return null;
 
-  var conf = Math.min(95, Math.round(Math.max(buy, sell) / MAX_SCORE * 100));
   var sl = calcDynamicSL(candles, signal, price, atr);
-  var slPct = Math.abs(price - sl) / price;
-  var tp = signal === 'BUY' ? price * (1 + slPct * 2.2) : price * (1 - slPct * 2.2);
+  
+  if (signal === 'BUY' && nearSupport.length > 0) {
+    var bestSup = nearSupport[0].price * 0.998;
+    if (bestSup < price && bestSup > sl) sl = bestSup;
+  } else if (signal === 'SELL' && nearResistance.length > 0) {
+    var bestRes = nearResistance[0].price * 1.002;
+    if (bestRes > price && bestRes < sl) sl = bestRes;
+  }
 
-  return { signal: signal, conf: conf, price: price, sl: sl, tp: tp, rsi: rsi.toFixed(1), ema20: ema20.toFixed(2), ema50: ema50.toFixed(2), poc: vp.poc, val: vp.val, vah: vp.vah, macroTrend: macroTrend, trend15m: trend15m, trend30m: trend30m, divergence: divergence, pattern: pattern, atr: atr.toFixed(2), slPct: (slPct * 100).toFixed(2), tpPct: (slPct * 2.2 * 100).toFixed(2), buyScore: buy, sellScore: sell };
+  var slPct = Math.abs(price - sl) / price;
+  var tp = signal === 'BUY' ? price * (1 + slPct * 2.5) : price * (1 - slPct * 2.5);
+
+  return { signal: signal, conf: conf, price: price, sl: sl, tp: tp, rsi: rsi.toFixed(1), ema20: ema20.toFixed(2), ema50: ema50.toFixed(2), poc: vp.poc, val: vp.val, vah: vp.vah, macroTrend: macroTrend, trend15m: trend15m, trend30m: trend30m, divergence: divergence, pattern: pattern, atr: atr.toFixed(2), slPct: (slPct * 100).toFixed(2), tpPct: (slPct * 2.5 * 100).toFixed(2), buyScore: buy, sellScore: sell };
 }
 
 async function checkActiveTrades() {
@@ -515,15 +601,21 @@ async function checkActiveTrades() {
       var price = parseFloat(pr.data.price), pair = symbol.replace('USDT', '/USDT');
       var closed = false, pnl = 0, outcome = '';
       if (trade.signal === 'BUY') {
-        var hw = trade.entry + (trade.tp - trade.entry) * 0.5;
-        if (price >= hw && trade.sl < trade.entry) { trade.sl = trade.entry * 1.001; await sendTelegram('<b>Trailing</b> ' + pair + ' SL $' + trade.sl.toFixed(0)); }
-        if (price <= trade.sl) { pnl = (price - trade.entry) / trade.entry * 100; outcome = pnl >= 0 ? 'BREAKEVEN' : 'LOSS'; closed = true; }
-        if (price >= trade.tp) { pnl = (price - trade.entry) / trade.entry * 100; outcome = 'WIN'; closed = true; }
+        // Trailing Stop Progressivo
+        var profitPct = (price - trade.entry) / trade.entry * 100;
+        if (profitPct >= 1.0 && trade.sl < trade.entry) { trade.sl = trade.entry * 1.002; await sendTelegram('<b>Trailing BE+</b> ' + pair + ' SL $' + trade.sl.toFixed(0)); }
+        else if (profitPct >= 2.0 && trade.sl < trade.entry * 1.01) { trade.sl = trade.entry * 1.01; await sendTelegram('<b>Trailing +1%</b> ' + pair + ' SL $' + trade.sl.toFixed(0)); }
+        
+        if (price <= trade.sl) { pnl = (price - trade.entry) / trade.entry * 100; outcome = pnl >= 0 ? 'WIN (SL)' : 'LOSS'; closed = true; }
+        if (price >= trade.tp) { pnl = (price - trade.entry) / trade.entry * 100; outcome = 'WIN (TP)'; closed = true; }
       } else {
-        var hw2 = trade.entry - (trade.entry - trade.tp) * 0.5;
-        if (price <= hw2 && trade.sl > trade.entry) { trade.sl = trade.entry * 0.999; await sendTelegram('<b>Trailing</b> ' + pair + ' SL $' + trade.sl.toFixed(0)); }
-        if (price >= trade.sl) { pnl = (trade.entry - price) / trade.entry * 100; outcome = pnl >= 0 ? 'BREAKEVEN' : 'LOSS'; closed = true; }
-        if (price <= trade.tp) { pnl = (trade.entry - price) / trade.entry * 100; outcome = 'WIN'; closed = true; }
+        // Trailing Stop Progressivo para Shorts
+        var profitPctS = (trade.entry - price) / trade.entry * 100;
+        if (profitPctS >= 1.0 && trade.sl > trade.entry) { trade.sl = trade.entry * 0.998; await sendTelegram('<b>Trailing BE+</b> ' + pair + ' SL $' + trade.sl.toFixed(0)); }
+        else if (profitPctS >= 2.0 && trade.sl > trade.entry * 0.99) { trade.sl = trade.entry * 0.99; await sendTelegram('<b>Trailing +1%</b> ' + pair + ' SL $' + trade.sl.toFixed(0)); }
+        
+        if (price >= trade.sl) { pnl = (trade.entry - price) / trade.entry * 100; outcome = pnl >= 0 ? 'WIN (SL)' : 'LOSS'; closed = true; }
+        if (price <= trade.tp) { pnl = (trade.entry - price) / trade.entry * 100; outcome = 'WIN (TP)'; closed = true; }
       }
       if (closed) {
         if (outcome === 'WIN') winCount++; else lossCount++;
@@ -558,7 +650,7 @@ async function runBacktest(symbol) {
     var capital = 1000, wins = 0, losses = 0, maxDD = 0, maxCap = 1000;
     for (var i = 60; i < candles.length - 1; i++) {
       var w = candles.slice(0, i + 1), price = w[w.length - 1].close;
-      var result = generateSignal(w, price, 'NEUTRAL', 'NEUTRAL', calcATR(w, 14));
+      var result = generateSignal(w, price, 'NEUTRAL', 'NEUTRAL', calcATR(w, 14), null);
       if (!result || result.conf < 75) continue;
       var outcome = null;
       for (var j = i + 1; j < Math.min(i + 48, candles.length); j++) {
@@ -576,6 +668,14 @@ async function runBacktest(symbol) {
   } catch (e) { await sendTelegram('Erro: ' + e.message); }
 }
 
+async function getLiqData(symbol) {
+  try {
+    var r = await axios.get(BINANCE_FUTURES + '/fapi/v1/openInterest?symbol=' + symbol);
+    var r2 = await axios.get(BINANCE_FUTURES + '/futures/data/globalLongShortAccountRatio?symbol=' + symbol + '&period=1h&limit=1');
+    return { oi: parseFloat(r.data.openInterest), lsRatio: parseFloat(r2.data[0].longAccount) };
+  } catch (e) { return null; }
+}
+
 async function runBot() {
   if (!isGoodSession()) return;
   await checkActiveTrades();
@@ -588,22 +688,24 @@ async function runBot() {
         axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=30m&limit=200'),
         axios.get(BINANCE + '/api/v3/ticker/price?symbol=' + symbol),
         axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=4h&limit=50'),
-        axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=15m&limit=30')
+        axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=15m&limit=30'),
+        getLiqData(symbol)
       ]);
       var candles = results[0].data.map(function(k) { return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }; });
       var price = parseFloat(results[1].data.price);
       var macroTrend = calcTrend(results[2].data.map(function(k) { return +k[4]; }));
       var trend15m = calcTrend(results[3].data.map(function(k) { return +k[4]; }));
+      var liqData = results[4];
       var atr = calcATR(candles, 14);
-      var result = generateSignal(candles, price, macroTrend, trend15m, atr);
+      var result = generateSignal(candles, price, macroTrend, trend15m, atr, liqData);
       var pair = symbol.replace('USDT', '/USDT');
       if (!result || result.conf < 80) { console.log(pair + ': WAIT'); continue; }
       var now = Date.now();
       if (lastSignal[symbol] === result.signal && (now - lastSignalTime[symbol]) < SIGNAL_COOLDOWN) continue;
       lastSignal[symbol] = result.signal; lastSignalTime[symbol] = now;
       dailyResults[symbol].push({ signal: result.signal, conf: result.conf });
-      activeTrades[symbol] = { pair: pair, signal: result.signal, entry: price, sl: result.sl, tp: result.tp };
-      var msg = '<b>' + result.signal + ' ' + pair + '</b>\n\nPreco: $' + price.toFixed(2) + '\nStop: $' + result.sl.toFixed(0) + ' (-' + result.slPct + '%)\nAlvo: $' + result.tp.toFixed(0) + ' (+' + result.tpPct + '%)\nConf: ' + result.conf + '% | Score: ' + Math.max(result.buyScore, result.sellScore) + '/16\nRSI: ' + result.rsi + ' | ATR: $' + result.atr + '\nMacro: ' + result.macroTrend + ' | 15m: ' + result.trend15m + '\nPOC: $' + result.poc.toFixed(0) + ' VA: $' + result.val.toFixed(0) + '-$' + result.vah.toFixed(0) + '\n' + new Date().toLocaleTimeString('pt-PT');
+      activeTrades[symbol] = { pair: pair, signal: result.signal, entry: price, sl: result.sl, tp: result.tp, time: now };
+      var msg = '<b>' + result.signal + ' ' + pair + '</b>\n\nPreco: $' + price.toFixed(2) + '\nStop: $' + result.sl.toFixed(0) + ' (-' + result.slPct + '%)\nAlvo: $' + result.tp.toFixed(0) + ' (+' + result.tpPct + '%)\nConf: ' + result.conf + '%\nScore: ' + Math.max(result.buyScore, result.sellScore) + '/25\nRSI: ' + result.rsi + ' | ATR: $' + result.atr + '\nMacro: ' + result.macroTrend + ' | 15m: ' + result.trend15m + '\nPOC: $' + result.poc.toFixed(0) + ' VA: $' + result.val.toFixed(0) + '-$' + result.vah.toFixed(0) + '\n' + new Date().toLocaleTimeString('pt-PT');
       await sendTelegram(msg);
       console.log(pair + ': ' + result.signal + ' conf=' + result.conf);
     } catch (e) { console.error('Erro ' + symbol + ':', e.message); }
