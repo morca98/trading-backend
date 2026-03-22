@@ -17,8 +17,8 @@ const BINANCE = 'https://api.binance.com';
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
-const SIGNAL_COOLDOWN = 60 * 60 * 1000;
-const MIN_SCORE = 10;
+const SIGNAL_COOLDOWN = 30 * 60 * 1000; // Reduzido para 30 minutos
+const MIN_SCORE = 8; // Reduzido de 10 para 8 para capturar mais sinais
 const MAX_SCORE = 16;
 const STATS_FILE = '/tmp/stats.json';
 
@@ -545,14 +545,24 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   
   if (!signal) return null;
   
-  // Filtros mais suaves para o backtest
-  if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 12) return null;
-  if (signal === 'SELL' && macroTrend === 'BULL' && sell < 12) return null;
-  if (signal === 'BUY' && rsi > 70) return null; // Aumentado de 65 para 70
-  if (signal === 'SELL' && rsi < 30) return null; // Diminuído de 35 para 30
+  // Confluência Dinâmica: Filtros mais inteligentes
+  // Se houver uma divergência forte ou padrão de candle, ignoramos o filtro de tendência macro
+  var hasStrongTrigger = (divergence !== 'NONE' || pattern !== 'NONE' || score >= 14);
   
-  // Tornar a confirmação de vela opcional se o score for muito alto
-  if (score < 15 && !confirmCandle(candles, signal)) return null;
+  if (!hasStrongTrigger) {
+    if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 12) return null;
+    if (signal === 'SELL' && macroTrend === 'BULL' && sell < 12) return null;
+  }
+  
+  // Filtros de RSI mais flexíveis se houver volume alto
+  var rsiLimitBuy = (rv > pv * 1.5) ? 75 : 70;
+  var rsiLimitSell = (rv > pv * 1.5) ? 25 : 30;
+  
+  if (signal === 'BUY' && rsi > rsiLimitBuy) return null;
+  if (signal === 'SELL' && rsi < rsiLimitSell) return null;
+  
+  // Confirmação de vela apenas para sinais mais fracos
+  if (score < 12 && !confirmCandle(candles, signal)) return null;
 
   var sl = calcDynamicSL(candles, signal, price, atr);
   

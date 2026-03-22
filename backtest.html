@@ -508,7 +508,7 @@ async function runBacktest() {
   try {
     setStatus(`A executar backtest para ${sym} no servidor...`, 30);
     
-    const r = await fetch(`${BACKEND}/api/backtest?symbol=${sym}&interval=30m&limit=2000`);
+    const r = await fetch(`${BACKEND}/api/backtest?symbol=${sym}&interval=30m&limit=5000`);
     const data = await r.json();
     
     if (!data.success) throw new Error(data.error || "Erro desconhecido no servidor");
