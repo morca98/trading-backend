@@ -540,17 +540,19 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var score = Math.max(buy, sell);
   var conf = Math.round((score / 25) * 100); 
 
-  if (buy >= MIN_SCORE && buy > sell + 3) signal = 'BUY';
-  if (sell >= MIN_SCORE && sell > buy + 3) signal = 'SELL';
+  if (buy >= MIN_SCORE && buy > sell + 2) signal = 'BUY';
+  if (sell >= MIN_SCORE && sell > buy + 2) signal = 'SELL';
   
   if (!signal) return null;
   
-  if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 14) return null;
-  if (signal === 'SELL' && macroTrend === 'BULL' && sell < 14) return null;
-  if (signal === 'BUY' && rsi > 65) return null;
-  if (signal === 'SELL' && rsi < 35) return null;
+  // Filtros mais suaves para o backtest
+  if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 12) return null;
+  if (signal === 'SELL' && macroTrend === 'BULL' && sell < 12) return null;
+  if (signal === 'BUY' && rsi > 70) return null; // Aumentado de 65 para 70
+  if (signal === 'SELL' && rsi < 30) return null; // Diminuído de 35 para 30
   
-  if (!confirmCandle(candles, signal)) return null;
+  // Tornar a confirmação de vela opcional se o score for muito alto
+  if (score < 15 && !confirmCandle(candles, signal)) return null;
 
   var sl = calcDynamicSL(candles, signal, price, atr);
   
