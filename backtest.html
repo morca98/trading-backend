@@ -381,19 +381,19 @@ function renderResults(trades, capital, maxDrawdown, sym, profitFactor) {
   const worstTrade = trades.length ? trades.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
 
   // Stats principais
-  document.getElementById("statReturn").textContent = `${totalReturn >= 0 ? "+" : ""}${totalReturn.toFixed(1)}%`;
+  document.getElementById("statReturn").textContent = `${totalReturn >= 0 ? "+" : ""}${(totalReturn || 0).toFixed(1)}%`;
   document.getElementById("statReturn").style.color = totalReturn >= 0 ? "#10b981" : "#ef4444";
-  document.getElementById("statWinRate").textContent = `${winRate.toFixed(0)}%`;
+  document.getElementById("statWinRate").textContent = `${(winRate || 0).toFixed(0)}%`;
   document.getElementById("statWinRate").style.color = winRate >= 50 ? "#10b981" : "#ef4444";
   document.getElementById("statTrades").textContent = trades.length;
   document.getElementById("statTrades").style.color = "#94a3b8";
-  document.getElementById("statCapital").textContent = `$${capital.toFixed(0)}`;
+  document.getElementById("statCapital").textContent = `$${(capital || 1000).toFixed(0)}`;
   document.getElementById("statCapital").style.color = capital >= CAPITAL_INICIAL ? "#10b981" : "#ef4444";
 
   // Stats secundários
-  document.getElementById("statAvgWin").textContent = `+$${avgWin.toFixed(1)}`;
-  document.getElementById("statAvgLoss").textContent = `$${avgLoss.toFixed(1)}`;
-  document.getElementById("statMaxDD").textContent = `${maxDrawdown.toFixed(1)}%`;
+  document.getElementById("statAvgWin").textContent = `+$${(avgWin || 0).toFixed(1)}`;
+  document.getElementById("statAvgLoss").textContent = `$${(avgLoss || 0).toFixed(1)}`;
+  document.getElementById("statMaxDD").textContent = `${(maxDrawdown || 0).toFixed(1)}%`;
   
   if (profitFactor) {
     // Adicionar Profit Factor na UI se disponível
@@ -527,7 +527,9 @@ async function runBacktest() {
       capital: t.capital
     }));
 
-    renderResults(trades, parseFloat(data.finalCapital), parseFloat(data.maxDD), sym, data.profitFactor);
+    const finalCap = parseFloat(data.finalCapital || 1000);
+    const maxDD = parseFloat(data.maxDD || 0);
+    renderResults(trades, finalCap, maxDD, sym, data.profitFactor);
   } catch (e) {
     console.error(e);
     setStatus("❌ Erro: " + e.message, 0);

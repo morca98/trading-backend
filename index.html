@@ -607,15 +607,21 @@ async function runBacktest() {
     var r = await fetch(BACKEND+'/api/backtest?symbol='+sym);
     var d = await r.json();
     if (!d.success) throw new Error(d.error);
-    var ret = d.ret.toFixed(1);
-    var isPos = d.ret >= 0;
+    var ret = (d.returnPct || d.ret || 0);
+    var retStr = parseFloat(ret).toFixed(1);
+    var isPos = ret >= 0;
+    var winRate = d.winRate || 0;
+    var totalTrades = d.totalTrades || d.total || 0;
+    var maxDD = parseFloat(d.maxDD || 0).toFixed(1);
+    var finalCapital = parseFloat(d.finalCapital || d.capital || 1000).toFixed(0);
+
     var html = '<div class="g4" style="margin-bottom:10px">'
-      +'<div class="stat '+(d.winRate>=50?'c-green':'c-red')+'"><div class="stat-val">'+d.winRate+'%</div><div class="stat-lbl">WIN RATE</div></div>'
-      +'<div class="stat c-purple"><div class="stat-val">'+d.total+'</div><div class="stat-lbl">TRADES</div></div>'
-      +'<div class="stat '+(isPos?'c-green':'c-red')+'"><div class="stat-val">'+(isPos?'+':'')+ret+'%</div><div class="stat-lbl">RETORNO</div></div>'
-      +'<div class="stat c-yellow"><div class="stat-val">'+d.maxDD.toFixed(1)+'%</div><div class="stat-lbl">MAX DD</div></div>'
+      +'<div class="stat '+(winRate>=50?'c-green':'c-red')+'"><div class="stat-val">'+winRate+'%</div><div class="stat-lbl">WIN RATE</div></div>'
+      +'<div class="stat c-purple"><div class="stat-val">'+totalTrades+'</div><div class="stat-lbl">TRADES</div></div>'
+      +'<div class="stat '+(isPos?'c-green':'c-red')+'"><div class="stat-val">'+(isPos?'+':'')+retStr+'%</div><div class="stat-lbl">RETORNO</div></div>'
+      +'<div class="stat c-yellow"><div class="stat-val">'+maxDD+'%</div><div class="stat-lbl">MAX DD</div></div>'
       +'</div>';
-    html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:10px"><span style="color:var(--muted)">$1000 inicial</span><span style="color:'+(isPos?'var(--green)':'var(--red)')+'">$'+d.capital.toFixed(0)+' final</span><span style="color:var(--green)">'+d.wins+'W</span><span style="color:var(--red)">'+d.losses+'L</span></div>';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:10px"><span style="color:var(--muted)">$1000 inicial</span><span style="color:'+(isPos?'var(--green)':'var(--red)')+'">$'+finalCapital+' final</span><span style="color:var(--green)">'+(d.wins||0)+'W</span><span style="color:var(--red)">'+(d.losses||0)+'L</span></div>';
     if (d.trades && d.trades.length) {
       var caps = [1000].concat(d.trades.map(function(t){return t.capital;}));
       var W=460,H=80,P=6,min=Math.min.apply(null,caps),max=Math.max.apply(null,caps),range=max-min||1;
@@ -636,7 +642,10 @@ async function runBacktest() {
         var isW=t.outcome==='WIN';
         var d2=new Date(t.time);
         var date=(d2.getDate()<10?'0':'')+d2.getDate()+'/'+(d2.getMonth()+1);
-        html+='<div class="bt-trade-row '+(isW?'bt-win':'bt-loss')+'"><span style="color:var(--muted)">'+date+'</span><span>'+t.signal+'</span><span>$'+t.entry.toFixed(0)+'</span><span>$'+t.exit.toFixed(0)+'</span><span>'+(t.pnl>=0?'+':'')+t.pnl.toFixed(1)+'</span></div>';
+        var entry = parseFloat(t.entry || 0).toFixed(0);
+        var exit = parseFloat(t.exit || 0).toFixed(0);
+        var pnl = parseFloat(t.pnl || 0).toFixed(1);
+        html+='<div class="bt-trade-row '+(isW?'bt-win':'bt-loss')+'"><span style="color:var(--muted)">'+date+'</span><span>'+t.signal+'</span><span>$'+entry+'</span><span>$'+exit+'</span><span>'+(t.pnl>=0?'+':'')+pnl+'</span></div>';
       });
       html += '</div>';
     }
