@@ -581,16 +581,30 @@ async function checkActiveTrades() {
       if (trade.signal === 'BUY') {
         // Trailing Stop Progressivo
         var profitPct = (price - trade.entry) / trade.entry * 100;
-        if (profitPct >= 1.0 && trade.sl < trade.entry) { trade.sl = trade.entry * 1.002; await sendTelegram('<b>Trailing BE+</b> ' + pair + ' SL $' + trade.sl.toFixed(0)); }
-        else if (profitPct >= 2.0 && trade.sl < trade.entry * 1.01) { trade.sl = trade.entry * 1.01; await sendTelegram('<b>Trailing +1%</b> ' + pair + ' SL $' + trade.sl.toFixed(0)); }
+        // Breakeven Automático: Move para entrada + pequena margem ao atingir 1% de lucro
+        if (profitPct >= 1.0 && trade.sl < trade.entry) { 
+          trade.sl = trade.entry * 1.001; 
+          await sendTelegram('<b>🛡️ Breakeven Ativado</b>\n' + pair + ' movido para $' + trade.sl.toFixed(0)); 
+        }
+        else if (profitPct >= 2.0 && trade.sl < trade.entry * 1.01) { 
+          trade.sl = trade.entry * 1.01; 
+          await sendTelegram('<b>📈 Trailing Stop +1%</b>\n' + pair + ' garantido em $' + trade.sl.toFixed(0)); 
+        }
         
         if (price <= trade.sl) { pnl = (price - trade.entry) / trade.entry * 100; outcome = pnl >= 0 ? 'WIN (SL)' : 'LOSS'; closed = true; }
         if (price >= trade.tp) { pnl = (price - trade.entry) / trade.entry * 100; outcome = 'WIN (TP)'; closed = true; }
       } else {
         // Trailing Stop Progressivo para Shorts
         var profitPctS = (trade.entry - price) / trade.entry * 100;
-        if (profitPctS >= 1.0 && trade.sl > trade.entry) { trade.sl = trade.entry * 0.998; await sendTelegram('<b>Trailing BE+</b> ' + pair + ' SL $' + trade.sl.toFixed(0)); }
-        else if (profitPctS >= 2.0 && trade.sl > trade.entry * 0.99) { trade.sl = trade.entry * 0.99; await sendTelegram('<b>Trailing +1%</b> ' + pair + ' SL $' + trade.sl.toFixed(0)); }
+        // Breakeven Automático para Shorts
+        if (profitPctS >= 1.0 && trade.sl > trade.entry) { 
+          trade.sl = trade.entry * 0.999; 
+          await sendTelegram('<b>🛡️ Breakeven Ativado (Short)</b>\n' + pair + ' movido para $' + trade.sl.toFixed(0)); 
+        }
+        else if (profitPctS >= 2.0 && trade.sl > trade.entry * 0.99) { 
+          trade.sl = trade.entry * 0.99; 
+          await sendTelegram('<b>📉 Trailing Stop +1% (Short)</b>\n' + pair + ' garantido em $' + trade.sl.toFixed(0)); 
+        }
         
         if (price >= trade.sl) { pnl = (trade.entry - price) / trade.entry * 100; outcome = pnl >= 0 ? 'WIN (SL)' : 'LOSS'; closed = true; }
         if (price <= trade.tp) { pnl = (trade.entry - price) / trade.entry * 100; outcome = 'WIN (TP)'; closed = true; }
@@ -673,7 +687,8 @@ async function runBot() {
       var atr = calcATR(candles, 14);
       var result = generateSignal(candles, price, macroTrend, trend15m, atr, liqData);
       var pair = symbol.replace('USDT', '/USDT');
-      if (!result || result.conf < 80) { console.log(pair + ': WAIT'); continue; }
+      // Baixado de 80 para 70 para capturar mais sinais de qualidade
+      if (!result || result.conf < 70) { console.log(pair + ': WAIT'); continue; }
       var now = Date.now();
       if (lastSignal[symbol] === result.signal && (now - lastSignalTime[symbol]) < SIGNAL_COOLDOWN) continue;
       lastSignal[symbol] = result.signal; lastSignalTime[symbol] = now;
