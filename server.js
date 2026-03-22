@@ -16,15 +16,15 @@ app.use(express.json());
 const BINANCE = 'https://api.binance.com';
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+const SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
 const SIGNAL_COOLDOWN = 30 * 60 * 1000; // Reduzido para 30 minutos
 const MIN_SCORE = 8; // Reduzido de 10 para 8 para capturar mais sinais
 const MAX_SCORE = 16;
 const STATS_FILE = '/tmp/stats.json';
 
-var lastSignal = { BTCUSDT: null, ETHUSDT: null, SOLUSDT: null };
-var lastSignalTime = { BTCUSDT: 0, ETHUSDT: 0, SOLUSDT: 0 };
-var dailyResults = { BTCUSDT: [], ETHUSDT: [], SOLUSDT: [] };
+var lastSignal = { BTCUSDT: null, ETHUSDT: null };
+var lastSignalTime = { BTCUSDT: 0, ETHUSDT: 0 };
+var dailyResults = { BTCUSDT: [], ETHUSDT: [] };
 var activeTrades = {};
 var priceAlerts = [];
 
