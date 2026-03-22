@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const fs = require('fs');
+const BacktestEngine = require('./backtest-engine');
 const app = express();
 
 app.use(function(req, res, next) {
@@ -267,49 +268,24 @@ app.get('/api/liqmap', async function(req, res) {
 // Backtest endpoint
 app.get('/api/backtest', async function(req, res) {
   try {
-    var symbol = req.query.symbol || 'BTCUSDT';
-    var r = await axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=30m&limit=1000');
-    var candles = r.data.map(function(k) {
-      return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] };
+    const symbol = req.query.symbol || 'BTCUSDT';
+    const interval = req.query.interval || '30m';
+    const limit = parseInt(req.query.limit) || 1000;
+    const risk = parseFloat(req.query.risk) || 0.02;
+    
+    const engine = new BacktestEngine({
+      symbol: symbol,
+      interval: interval,
+      limit: limit,
+      riskPerTrade: risk
     });
-    var capital = 1000, wins = 0, losses = 0, maxCapital = 1000, maxDD = 0;
-    var trades = [];
-    for (var i = 60; i < candles.length - 1; i++) {
-      var wnd = candles.slice(0, i + 1);
-      var price = wnd[wnd.length - 1].close;
-      var atr = calcATR(wnd, 14);
-      var result = generateSignal(wnd, price, 'NEUTRAL', 'NEUTRAL', atr, null);
-      if (!result || result.conf < 75) continue;
-      var outcome = null, exitPrice = 0;
-      for (var j = i + 1; j < Math.min(i + 48, candles.length); j++) {
-        var next = candles[j];
-        if (result.signal === 'BUY') {
-          if (next.low <= result.sl) { outcome = 'LOSS'; exitPrice = result.sl; break; }
-          if (next.high >= result.tp) { outcome = 'WIN'; exitPrice = result.tp; break; }
-        } else {
-          if (next.high >= result.sl) { outcome = 'LOSS'; exitPrice = result.sl; break; }
-          if (next.low <= result.tp) { outcome = 'WIN'; exitPrice = result.tp; break; }
-        }
-      }
-      if (!outcome) continue;
-      var pnl = outcome === 'WIN' ? capital * 0.02 * 2.2 : -(capital * 0.02);
-      capital += pnl;
-      if (outcome === 'WIN') wins++; else losses++;
-      maxCapital = Math.max(maxCapital, capital);
-      maxDD = Math.max(maxDD, (maxCapital - capital) / maxCapital * 100);
-      trades.push({ signal: result.signal, outcome: outcome, entry: price, exit: exitPrice, pnl: pnl, capital: capital, time: candles[i].time });
-    }
-    var total = wins + losses;
-    var ret = (capital - 1000) / 1000 * 100;
-    res.json({
-      success: true, symbol: symbol,
-      total: total, wins: wins, losses: losses,
-      winRate: total > 0 ? Math.round(wins / total * 100) : 0,
-      capital: capital, maxDD: maxDD,
-      ret: ret,
-      trades: trades.slice(-50)
-    });
-  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    
+    const results = await engine.run(generateSignal);
+    res.json({ success: true, ...results });
+  } catch (err) { 
+    console.error('Backtest API Error:', err);
+    res.status(500).json({ success: false, error: err.message }); 
+  }
 });
 
 app.get('/api/stats', function(req, res) {
@@ -527,7 +503,7 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var nearSupport = keyLevels.filter(function(l) { return (l.type === 'SUP' || l.type === 'VAL' || l.type === 'POC') && price > l.price && (price - l.price) / price < 0.01; });
   var nearResistance = keyLevels.filter(function(l) { return (l.type === 'RES' || l.type === 'VAH' || l.type === 'POC') && price < l.price && (l.price - price) / price < 0.01; });
 
-  var buy = 0, sell = 0;
+  var buy = 0, sell = 0; 
   
   // 1. Contexto de Volume Profile
   if (abovePoc && inVA) buy += 2; if (!abovePoc && inVA) sell += 2;
@@ -645,27 +621,23 @@ async function checkPriceAlerts() {
 async function runBacktest(symbol) {
   await sendTelegram('<b>Backtest ' + symbol.replace('USDT', '/USDT') + '</b>\nA processar...');
   try {
-    var r = await axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=30m&limit=1000');
-    var candles = r.data.map(function(k) { return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }; });
-    var capital = 1000, wins = 0, losses = 0, maxDD = 0, maxCap = 1000;
-    for (var i = 60; i < candles.length - 1; i++) {
-      var w = candles.slice(0, i + 1), price = w[w.length - 1].close;
-      var result = generateSignal(w, price, 'NEUTRAL', 'NEUTRAL', calcATR(w, 14), null);
-      if (!result || result.conf < 75) continue;
-      var outcome = null;
-      for (var j = i + 1; j < Math.min(i + 48, candles.length); j++) {
-        var next = candles[j];
-        if (result.signal === 'BUY') { if (next.low <= result.sl) { outcome = 'LOSS'; break; } if (next.high >= result.tp) { outcome = 'WIN'; break; } }
-        else { if (next.high >= result.sl) { outcome = 'LOSS'; break; } if (next.low <= result.tp) { outcome = 'WIN'; break; } }
-      }
-      if (!outcome) continue;
-      var pnl = outcome === 'WIN' ? capital * 0.02 * 2.2 : -(capital * 0.02);
-      capital += pnl; if (outcome === 'WIN') wins++; else losses++;
-      maxCap = Math.max(maxCap, capital); maxDD = Math.max(maxDD, (maxCap - capital) / maxCap * 100);
-    }
-    var total = wins + losses, wr = total > 0 ? Math.round(wins / total * 100) : 0;
-    await sendTelegram('<b>Backtest ' + symbol.replace('USDT', '/USDT') + '</b>\nTrades: ' + total + '\nWin Rate: ' + wr + '%\n$1000 -> $' + capital.toFixed(0) + '\nRetorno: ' + ((capital - 1000) / 1000 * 100).toFixed(1) + '%\nMax DD: ' + maxDD.toFixed(1) + '%\n' + (wr >= 50 ? 'LUCRATIVA' : 'Ajustar'));
-  } catch (e) { await sendTelegram('Erro: ' + e.message); }
+    const engine = new BacktestEngine({ symbol: symbol, limit: 1000 });
+    const results = await engine.run(generateSignal);
+    
+    const msg = '<b>Backtest ' + symbol.replace('USDT', '/USDT') + '</b>\n' +
+                'Trades: ' + results.totalTrades + '\n' +
+                'Win Rate: ' + results.winRate + '%\n' +
+                'Profit Factor: ' + results.profitFactor + '\n' +
+                '$1000 -> $' + parseFloat(results.finalCapital).toFixed(0) + '\n' +
+                'Retorno: ' + results.returnPct + '%\n' +
+                'Max DD: ' + results.maxDD + '%\n' +
+                (parseFloat(results.winRate) >= 50 ? 'LUCRATIVA' : 'Ajustar');
+    
+    await sendTelegram(msg);
+  } catch (e) { 
+    console.error('Backtest Error:', e);
+    await sendTelegram('Erro: ' + e.message); 
+  }
 }
 
 async function getLiqData(symbol) {

@@ -368,7 +368,7 @@ function setStatus(msg, pct) {
 }
 
 // ── Render Resultados ──────────────────────────────────────────────────────────
-function renderResults(trades, capital, maxDrawdown, sym) {
+function renderResults(trades, capital, maxDrawdown, sym, profitFactor) {
   const wins = trades.filter(t => t.result === "WIN");
   const losses = trades.filter(t => t.result === "LOSS");
   const winRate = trades.length ? (wins.length / trades.length * 100) : 0;
@@ -394,6 +394,23 @@ function renderResults(trades, capital, maxDrawdown, sym) {
   document.getElementById("statAvgWin").textContent = `+$${avgWin.toFixed(1)}`;
   document.getElementById("statAvgLoss").textContent = `$${avgLoss.toFixed(1)}`;
   document.getElementById("statMaxDD").textContent = `${maxDrawdown.toFixed(1)}%`;
+  
+  if (profitFactor) {
+    // Adicionar Profit Factor na UI se disponível
+    const pfBox = document.getElementById("statMaxDD").parentElement;
+    pfBox.innerHTML = `<div class="stat-val" id="statPF" style="color:${parseFloat(profitFactor) > 1 ? '#10b981' : '#ef4444'}">${profitFactor}</div><div class="stat-lbl">PROFIT FACTOR</div>`;
+    
+    // Mover Max DD para outro lugar ou adicionar novo box
+    const grid = document.getElementById("statsGrid2");
+    if (!document.getElementById("statMaxDD_new")) {
+      const newBox = document.createElement("div");
+      newBox.className = "stat-box";
+      newBox.innerHTML = `<div class="stat-val" id="statMaxDD_new" style="color:#f59e0b">${maxDrawdown.toFixed(1)}%</div><div class="stat-lbl">MAX DRAWDOWN</div>`;
+      grid.appendChild(newBox);
+    } else {
+      document.getElementById("statMaxDD_new").textContent = `${maxDrawdown.toFixed(1)}%`;
+    }
+  }
 
   // Curva de capital
   const equityData = [CAPITAL_INICIAL, ...trades.map(t => t.capital)];
@@ -478,7 +495,10 @@ function renderEquityChart(data) {
 // ── Main ───────────────────────────────────────────────────────────────────────
 async function runBacktest() {
   const sym = document.getElementById("symSelect").value;
-  document.getElementById("btnRun").disabled = true;
+  const btn = document.getElementById("btnRun");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="pulse">A PROCESSAR...</span>';
+  
   document.getElementById("statsGrid").style.display = "none";
   document.getElementById("statsGrid2").style.display = "none";
   document.getElementById("equityCard").style.display = "none";
@@ -486,21 +506,36 @@ async function runBacktest() {
   document.getElementById("tradesCard").style.display = "none";
 
   try {
-    const candles = await fetchHistorical(sym);
-    setStatus(`A processar ${candles.length} velas...`, 70);
-    await new Promise(r => setTimeout(r, 100));
+    setStatus(`A executar backtest para ${sym} no servidor...`, 30);
+    
+    const r = await fetch(`${BACKEND}/api/backtest?symbol=${sym}&interval=30m&limit=1000`);
+    const data = await r.json();
+    
+    if (!data.success) throw new Error(data.error || "Erro desconhecido no servidor");
 
-    const { trades, capital, maxDrawdown } = runBacktestEngine(candles);
-    setStatus(`✅ Backtest concluído — ${trades.length} trades encontrados!`, 100);
+    setStatus(`✅ Backtest concluído — ${data.totalTrades} trades encontrados!`, 100);
     document.getElementById("statusText").style.color = "#10b981";
 
-    renderResults(trades, capital, maxDrawdown, sym);
+    // Adaptar dados do backend para o formato do frontend
+    const trades = data.trades.map(t => ({
+      date: new Date(t.time).toLocaleString("pt-PT", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}),
+      signal: t.signal,
+      entry: t.entry,
+      exit: t.exit,
+      pnl: t.pnl,
+      result: t.outcome,
+      capital: t.capital
+    }));
+
+    renderResults(trades, parseFloat(data.finalCapital), parseFloat(data.maxDD), sym, data.profitFactor);
   } catch (e) {
+    console.error(e);
     setStatus("❌ Erro: " + e.message, 0);
     document.getElementById("statusText").style.color = "#ef4444";
   }
 
-  document.getElementById("btnRun").disabled = false;
+  btn.disabled = false;
+  btn.innerHTML = "▶ INICIAR";
 }
 </script>
 
