@@ -649,7 +649,12 @@ async function runBacktest() {
       });
       html += '</div>';
     }
-    html += '<div style="margin-top:10px;padding:8px;border-radius:2px;font-size:10px;text-align:center;border:1px solid '+(d.winRate>=50?'rgba(0,230,118,.3)':'rgba(255,61,87,.3)')+';color:'+(d.winRate>=50?'var(--green)':'var(--red)')+';">'+(d.winRate>=50?'Estrategia LUCRATIVA nos ultimos 30 dias':'Estrategia precisa de ajuste')+'</div>';
+    var isProfitable = ret > 0 || (d.profitFactor && parseFloat(d.profitFactor) > 1.1);
+    var evalMsg = isProfitable ? 'Estrategia LUCRATIVA (' + retStr + '%)' : 'Estrategia precisa de ajuste';
+    if (isProfitable && winRate < 45) evalMsg += ' - Win Rate baixo, mas ganhos superam perdas';
+    if (!isProfitable && winRate > 55) evalMsg += ' - Win Rate alto, mas perdas sao muito grandes';
+    
+    html += '<div style="margin-top:10px;padding:8px;border-radius:2px;font-size:10px;text-align:center;border:1px solid '+(isProfitable?'rgba(0,230,118,.3)':'rgba(255,61,87,.3)')+';color:'+(isProfitable?'var(--green)':'var(--red)')+';">'+evalMsg+'</div>';
     document.getElementById('btResult').innerHTML = html;
   } catch(e) {
     document.getElementById('btResult').innerHTML = '<div style="color:var(--red);font-size:10px">Erro: '+e.message+'</div>';
