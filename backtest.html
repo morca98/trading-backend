@@ -45,6 +45,14 @@
       <option value="BTCUSDT">BTC/USDT</option>
       <option value="ETHUSDT">ETH/USDT</option>
     </select>
+    <select id="tfSelect" style="background:#0f172a;color:#94a3b8;border:1px solid #1e293b;border-radius:6px;padding:8px;font-family:'Space Mono',monospace;font-size:11px">
+      <option value="15m">15M</option>
+      <option value="30m" selected>30M</option>
+      <option value="1h">1H</option>
+      <option value="4h">4H</option>
+      <option value="1d">1D</option>
+      <option value="1w">1W</option>
+    </select>
     <button class="btn" id="btnRun" onclick="runBacktest()" style="background:#1d4ed8;color:#fff">▶ INICIAR</button>
   </div>
 </div>
@@ -508,7 +516,8 @@ async function runBacktest() {
   try {
     setStatus(`A executar backtest para ${sym} no servidor...`, 30);
     
-    const r = await fetch(`${BACKEND}/api/backtest?symbol=${sym}&interval=30m&limit=5000`);
+    const tf = document.getElementById("tfSelect").value;
+    const r = await fetch(`${BACKEND}/api/backtest?symbol=${sym}&interval=${tf}&limit=5000`);
     const data = await r.json();
     
     if (!data.success) throw new Error(data.error || "Erro desconhecido no servidor");
