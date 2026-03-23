@@ -398,30 +398,14 @@ function calcVP(candles) {
 function calcKeyLevels(candles, vp) {
   var levels = [];
   var currentPrice = candles[candles.length - 1].close;
-  var prices = candles.map(function(c) { return c.close; });
-  var minP = Math.min.apply(null, prices), maxP = Math.max.apply(null, prices);
 
-  // 1. Níveis do Volume Profile (Peso Máximo)
+  // 1. Níveis do Volume Profile
   levels.push({ price: vp.poc, type: 'POC', strength: 100 });
-  levels.push({ price: vp.vah, type: 'VAH', strength: 85 });
-  levels.push({ price: vp.val, type: 'VAL', strength: 85 });
-  vp.hvns.forEach(function(h) { levels.push({ price: h.price, type: 'HVN', strength: 70 }); });
+  levels.push({ price: vp.vah, type: 'VAH', strength: 80 });
+  levels.push({ price: vp.val, type: 'VAL', strength: 80 });
+  vp.hvns.forEach(function(h) { levels.push({ price: h.price, type: 'HVN', strength: 60 }); });
 
-  // 2. Níveis Psicológicos (Round Numbers)
-  var roundStep = currentPrice > 1000 ? 1000 : (currentPrice > 100 ? 100 : 10);
-  var startRound = Math.floor(minP / roundStep) * roundStep;
-  for (var r = startRound; r <= maxP; r += roundStep) {
-    levels.push({ price: r, type: 'PSY', strength: 60 });
-  }
-
-  // 3. Máximos e Mínimos Históricos Recentes (PDH/PDL)
-  var last24h = candles.slice(-48); // Aproximadamente 24h em candles de 30m
-  var pdh = Math.max.apply(null, last24h.map(function(c) { return c.high; }));
-  var pdl = Math.min.apply(null, last24h.map(function(c) { return c.low; }));
-  levels.push({ price: pdh, type: 'PDH', strength: 90 });
-  levels.push({ price: pdl, type: 'PDL', strength: 90 });
-
-  // 4. Suportes e Resistências Clássicos (Fractais)
+  // 2. Suportes e Resistências Clássicos (Fractais)
   for (var i = 5; i < candles.length - 5; i++) {
     var isHigh = true, isLow = true;
     for (var j = 1; j <= 5; j++) {
@@ -432,17 +416,17 @@ function calcKeyLevels(candles, vp) {
     if (isLow) levels.push({ price: candles[i].low, type: 'SUP', strength: 50 });
   }
 
-  // 5. Agrupar níveis próximos e criar "Zonas"
+  // 3. Agrupar níveis próximos para evitar duplicidade
   var grouped = [];
   levels.sort(function(a, b) { return a.price - b.price; });
   if (levels.length > 0) {
     var current = levels[0];
     for (var k = 1; k < levels.length; k++) {
-      // Se níveis estiverem a menos de 0.3% de distância, agrupa
-      if (Math.abs(levels[k].price - current.price) / current.price < 0.003) {
-        current.price = (current.price * current.strength + levels[k].price * levels[k].strength) / (current.strength + levels[k].strength);
-        current.strength = Math.min(100, current.strength + 15);
-        current.type = current.strength > 90 ? 'ZONE' : current.type;
+      if (Math.abs(levels[k].price - current.price) / current.price < 0.005) {
+        if (levels[k].strength > current.strength) {
+          current.price = (current.price + levels[k].price) / 2;
+          current.strength = Math.min(100, current.strength + 10);
+        }
       } else {
         grouped.push(current);
         current = levels[k];
@@ -451,13 +435,12 @@ function calcKeyLevels(candles, vp) {
     grouped.push(current);
   }
 
-  // Filtrar apenas níveis relevantes ao preço atual (+/- 4%)
+  // Filtrar apenas níveis relevantes ao preço atual (+/- 5%)
   return grouped.filter(function(l) {
-    return Math.abs(l.price - currentPrice) / currentPrice < 0.04;
+    return Math.abs(l.price - currentPrice) / currentPrice < 0.05;
   }).sort(function(a, b) {
-    // Priorizar por força e depois por proximidade
-    return (b.strength - a.strength) || (Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice));
-  }).slice(0, 10);
+    return Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice);
+  }).slice(0, 8);
 }
 
 function calcDynamicSL(candles, signal, price, atr) {
@@ -516,9 +499,9 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var divergence = calcRSIDivergence(candles, rsi);
   var pattern = detectPattern(candles);
   
-  // Detecção de proximidade de níveis chave (Margem aumentada para 1.5% para capturar mais trades)
-  var nearSupport = keyLevels.filter(function(l) { return (l.type === 'SUP' || l.type === 'VAL' || l.type === 'POC' || l.type === 'ZONE' || l.type === 'PDL') && price > l.price && (price - l.price) / price < 0.015; });
-  var nearResistance = keyLevels.filter(function(l) { return (l.type === 'RES' || l.type === 'VAH' || l.type === 'POC' || l.type === 'ZONE' || l.type === 'PDH') && price < l.price && (l.price - price) / price < 0.015; });
+  // Detecção de proximidade de níveis chave
+  var nearSupport = keyLevels.filter(function(l) { return (l.type === 'SUP' || l.type === 'VAL' || l.type === 'POC') && price > l.price && (price - l.price) / price < 0.01; });
+  var nearResistance = keyLevels.filter(function(l) { return (l.type === 'RES' || l.type === 'VAH' || l.type === 'POC') && price < l.price && (l.price - price) / price < 0.01; });
 
   var buy = 0, sell = 0; 
   
@@ -563,13 +546,12 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   if (!signal) return null;
   
   // Confluência Dinâmica: Filtros mais inteligentes
-  // Se houver uma divergência forte, padrão de candle ou MOMENTUM (Volume + RSI), ignoramos o filtro de tendência macro
-  var isMomentumBreakout = (rv > pv * 1.8 && ((signal === 'BUY' && rsi > 55) || (signal === 'SELL' && rsi < 45)));
-  var hasStrongTrigger = (divergence !== 'NONE' || pattern !== 'NONE' || score >= 13 || isMomentumBreakout);
+  // Se houver uma divergência forte ou padrão de candle, ignoramos o filtro de tendência macro
+  var hasStrongTrigger = (divergence !== 'NONE' || pattern !== 'NONE' || score >= 14);
   
   if (!hasStrongTrigger) {
-    if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 11) return null;
-    if (signal === 'SELL' && macroTrend === 'BULL' && sell < 11) return null;
+    if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 12) return null;
+    if (signal === 'SELL' && macroTrend === 'BULL' && sell < 12) return null;
   }
   
   // Filtros de RSI mais flexíveis se houver volume alto
@@ -593,10 +575,9 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   }
 
   var slPct = Math.abs(price - sl) / price;
-  // Aumentado o Risk/Reward para 3.0 para garantir lucratividade mesmo com taxas
-  var tp = signal === 'BUY' ? price * (1 + slPct * 3.0) : price * (1 - slPct * 3.0);
+  var tp = signal === 'BUY' ? price * (1 + slPct * 2.5) : price * (1 - slPct * 2.5);
 
-  return { signal: signal, conf: conf, price: price, sl: sl, tp: tp, rsi: rsi.toFixed(1), ema20: ema20.toFixed(2), ema50: ema50.toFixed(2), poc: vp.poc, val: vp.val, vah: vp.vah, macroTrend: macroTrend, trend15m: trend15m, trend30m: trend30m, divergence: divergence, pattern: pattern, atr: atr.toFixed(2), slPct: (slPct * 100).toFixed(2), tpPct: (slPct * 3.0 * 100).toFixed(2), buyScore: buy, sellScore: sell };
+  return { signal: signal, conf: conf, price: price, sl: sl, tp: tp, rsi: rsi.toFixed(1), ema20: ema20.toFixed(2), ema50: ema50.toFixed(2), poc: vp.poc, val: vp.val, vah: vp.vah, macroTrend: macroTrend, trend15m: trend15m, trend30m: trend30m, divergence: divergence, pattern: pattern, atr: atr.toFixed(2), slPct: (slPct * 100).toFixed(2), tpPct: (slPct * 2.5 * 100).toFixed(2), buyScore: buy, sellScore: sell };
 }
 
 async function checkActiveTrades() {
