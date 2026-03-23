@@ -517,7 +517,7 @@ async function runBacktest() {
     setStatus(`A executar backtest para ${sym} no servidor...`, 30);
     
     const tf = document.getElementById("tfSelect").value;
-    const r = await fetch(`${BACKEND}/api/backtest?symbol=${sym}&interval=${tf}&limit=5000`);
+    const r = await fetch(`${BACKEND}/api/backtest?symbol=${sym}&interval=${tf}&days=90`);
     const data = await r.json();
     
     if (!data.success) throw new Error(data.error || "Erro desconhecido no servidor");

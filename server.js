@@ -270,8 +270,19 @@ app.get('/api/backtest', async function(req, res) {
   try {
     const symbol = req.query.symbol || 'BTCUSDT';
     const interval = req.query.interval || '30m';
-    const limit = parseInt(req.query.limit) || 1000;
+    let limit = parseInt(req.query.limit) || 1000;
+    const days = parseInt(req.query.days) || 0;
     const risk = parseFloat(req.query.risk) || 0.02;
+
+    if (days > 0) {
+      const minutesPerDay = 24 * 60;
+      let intervalMinutes = 30;
+      if (interval.endsWith('m')) intervalMinutes = parseInt(interval);
+      else if (interval.endsWith('h')) intervalMinutes = parseInt(interval) * 60;
+      else if (interval.endsWith('d')) intervalMinutes = parseInt(interval) * 1440;
+      
+      limit = Math.ceil((days * minutesPerDay) / intervalMinutes);
+    }
     
     const engine = new BacktestEngine({
       symbol: symbol,
@@ -645,9 +656,18 @@ async function checkPriceAlerts() {
 }
 
 async function runBacktest(symbol) {
-  await sendTelegram('<b>Backtest ' + symbol.replace('USDT', '/USDT') + '</b>\nA processar...');
+  await sendTelegram('<b>Backtest ' + symbol.replace('USDT', '/USDT') + '</b>\nA processar (90 dias)...');
   try {
-    const engine = new BacktestEngine({ symbol: symbol, limit: 1000 });
+    const days = 90;
+    const interval = '30m';
+    const minutesPerDay = 24 * 60;
+    const limit = Math.ceil((days * minutesPerDay) / 30); // 30m interval
+    
+    const engine = new BacktestEngine({ 
+      symbol: symbol, 
+      interval: interval,
+      limit: limit 
+    });
     const results = await engine.run(generateSignal);
     
     const msg = '<b>Backtest ' + symbol.replace('USDT', '/USDT') + '</b>\n' +

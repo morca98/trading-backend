@@ -606,7 +606,7 @@ async function runBacktest() {
   btn.disabled = true; btn.textContent = 'A PROCESSAR...';
   document.getElementById('btResult').innerHTML = '<div class="pulse" style="color:var(--accent);font-size:10px;text-align:center;padding:20px;letter-spacing:2px">A BUSCAR DADOS REAIS...</div>';
   try {
-    var r = await fetch(BACKEND+'/api/backtest?symbol='+sym+'&limit=5000');
+    var r = await fetch(BACKEND+'/api/backtest?symbol='+sym+'&days=90');
     var d = await r.json();
     if (!d.success) throw new Error(d.error);
     var ret = (d.returnPct || d.ret || 0);
