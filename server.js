@@ -516,9 +516,9 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var divergence = calcRSIDivergence(candles, rsi);
   var pattern = detectPattern(candles);
   
-  // Detecção de proximidade de níveis chave
-  var nearSupport = keyLevels.filter(function(l) { return (l.type === 'SUP' || l.type === 'VAL' || l.type === 'POC') && price > l.price && (price - l.price) / price < 0.01; });
-  var nearResistance = keyLevels.filter(function(l) { return (l.type === 'RES' || l.type === 'VAH' || l.type === 'POC') && price < l.price && (l.price - price) / price < 0.01; });
+  // Detecção de proximidade de níveis chave (Margem aumentada para 1.5% para capturar mais trades)
+  var nearSupport = keyLevels.filter(function(l) { return (l.type === 'SUP' || l.type === 'VAL' || l.type === 'POC' || l.type === 'ZONE' || l.type === 'PDL') && price > l.price && (price - l.price) / price < 0.015; });
+  var nearResistance = keyLevels.filter(function(l) { return (l.type === 'RES' || l.type === 'VAH' || l.type === 'POC' || l.type === 'ZONE' || l.type === 'PDH') && price < l.price && (l.price - price) / price < 0.015; });
 
   var buy = 0, sell = 0; 
   
@@ -563,12 +563,13 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   if (!signal) return null;
   
   // Confluência Dinâmica: Filtros mais inteligentes
-  // Se houver uma divergência forte ou padrão de candle, ignoramos o filtro de tendência macro
-  var hasStrongTrigger = (divergence !== 'NONE' || pattern !== 'NONE' || score >= 14);
+  // Se houver uma divergência forte, padrão de candle ou MOMENTUM (Volume + RSI), ignoramos o filtro de tendência macro
+  var isMomentumBreakout = (rv > pv * 1.8 && ((signal === 'BUY' && rsi > 55) || (signal === 'SELL' && rsi < 45)));
+  var hasStrongTrigger = (divergence !== 'NONE' || pattern !== 'NONE' || score >= 13 || isMomentumBreakout);
   
   if (!hasStrongTrigger) {
-    if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 12) return null;
-    if (signal === 'SELL' && macroTrend === 'BULL' && sell < 12) return null;
+    if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 11) return null;
+    if (signal === 'SELL' && macroTrend === 'BULL' && sell < 11) return null;
   }
   
   // Filtros de RSI mais flexíveis se houver volume alto
@@ -592,9 +593,10 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   }
 
   var slPct = Math.abs(price - sl) / price;
-  var tp = signal === 'BUY' ? price * (1 + slPct * 2.5) : price * (1 - slPct * 2.5);
+  // Aumentado o Risk/Reward para 3.0 para garantir lucratividade mesmo com taxas
+  var tp = signal === 'BUY' ? price * (1 + slPct * 3.0) : price * (1 - slPct * 3.0);
 
-  return { signal: signal, conf: conf, price: price, sl: sl, tp: tp, rsi: rsi.toFixed(1), ema20: ema20.toFixed(2), ema50: ema50.toFixed(2), poc: vp.poc, val: vp.val, vah: vp.vah, macroTrend: macroTrend, trend15m: trend15m, trend30m: trend30m, divergence: divergence, pattern: pattern, atr: atr.toFixed(2), slPct: (slPct * 100).toFixed(2), tpPct: (slPct * 2.5 * 100).toFixed(2), buyScore: buy, sellScore: sell };
+  return { signal: signal, conf: conf, price: price, sl: sl, tp: tp, rsi: rsi.toFixed(1), ema20: ema20.toFixed(2), ema50: ema50.toFixed(2), poc: vp.poc, val: vp.val, vah: vp.vah, macroTrend: macroTrend, trend15m: trend15m, trend30m: trend30m, divergence: divergence, pattern: pattern, atr: atr.toFixed(2), slPct: (slPct * 100).toFixed(2), tpPct: (slPct * 3.0 * 100).toFixed(2), buyScore: buy, sellScore: sell };
 }
 
 async function checkActiveTrades() {
