@@ -18,8 +18,8 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
 const SIGNAL_COOLDOWN = 30 * 60 * 1000; // Reduzido para 30 minutos
-const MIN_SCORE = 8; // Reduzido de 10 para 8 para capturar mais sinais
-const MAX_SCORE = 16;
+const MIN_SCORE = 7; // Reduzido para 7 para aumentar volume de sinais
+const MAX_SCORE = 18; // Aumentado para refletir novos pesos
 const STATS_FILE = '/tmp/stats.json';
 
 var lastSignal = { BTCUSDT: null, ETHUSDT: null };
@@ -516,30 +516,30 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
 
   var buy = 0, sell = 0; 
   
-  // 1. Contexto de Volume Profile
-  if (abovePoc && inVA) buy += 2; if (!abovePoc && inVA) sell += 2;
-  if (price > vp.vah) buy += 1; 
-  if (price < vp.val) sell += 1;
+  // 1. Contexto de Volume Profile (Pesos aumentados para PF)
+  if (abovePoc && inVA) buy += 3; if (!abovePoc && inVA) sell += 3;
+  if (price > vp.vah) buy += 2; 
+  if (price < vp.val) sell += 2;
   
   // 2. RSI e Divergências
-  if (rsi < 30) buy += 3; else if (rsi < 40) buy += 1;
-  if (rsi > 70) sell += 3; else if (rsi > 60) sell += 1;
-  if (divergence === 'BULLISH') buy += 3; if (divergence === 'BEARISH') sell += 3;
+  if (rsi < 32) buy += 4; else if (rsi < 42) buy += 2;
+  if (rsi > 68) sell += 4; else if (rsi > 58) sell += 2;
+  if (divergence === 'BULLISH') buy += 4; if (divergence === 'BEARISH') sell += 4;
   
   // 3. Médias Móveis e Tendência
   if (price > ema20 && price > ema50) buy += 2; else if (price < ema20 && price < ema50) sell += 2;
-  if (ema20 > ema50) buy += 1; else sell += 1;
-  if (macroTrend === 'BULL') buy += 2; if (macroTrend === 'BEAR') sell += 2;
+  if (ema20 > ema50) buy += 2; else sell += 2;
+  if (macroTrend === 'BULL') buy += 3; if (macroTrend === 'BEAR') sell += 3;
   if (trend15m === 'UP') buy += 1; if (trend15m === 'DOWN') sell += 1;
   
   // 4. Volume e Padrões de Candles
-  if (rv > pv * 1.2) { if (trend30m === 'UP') buy += 2; else sell += 2; }
-  if (pattern === 'BULL_ENGULF' || pattern === 'HAMMER' || pattern === 'PIN_BULL') buy += 3;
-  if (pattern === 'BEAR_ENGULF' || pattern === 'SHOOT_STAR' || pattern === 'PIN_BEAR') sell += 3;
+  if (rv > pv * 1.1) { if (trend30m === 'UP') buy += 2; else sell += 2; }
+  if (pattern === 'BULL_ENGULF' || pattern === 'HAMMER' || pattern === 'PIN_BULL') buy += 4;
+  if (pattern === 'BEAR_ENGULF' || pattern === 'SHOOT_STAR' || pattern === 'PIN_BEAR') sell += 4;
   
   // 5. Níveis Chave (Suporte/Resistência)
-  if (nearSupport.length > 0) buy += 3;
-  if (nearResistance.length > 0) sell += 3;
+  if (nearSupport.length > 0) buy += 4;
+  if (nearResistance.length > 0) sell += 4;
   
   // 6. Liquidation Map (Sentimento e Liquidez)
   if (liqData) {
@@ -549,23 +549,23 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
 
   var signal = null;
   var score = Math.max(buy, sell);
-  // MAX_SCORE = 16 (sem liqData) ou 21 (com liqData)
-  // Usar MAX_SCORE definido no topo para calcular confiança corretamente
-  var effectiveMax = liqData ? 21 : MAX_SCORE;
+  // MAX_SCORE = 18 (sem liqData) ou 23 (com liqData)
+  var effectiveMax = liqData ? 23 : MAX_SCORE;
   var conf = Math.min(99, Math.round((score / effectiveMax) * 100)); 
 
-  if (buy >= MIN_SCORE && buy > sell + 2) signal = 'BUY';
-  if (sell >= MIN_SCORE && sell > buy + 2) signal = 'SELL';
+  // Volume de sinais: baixamos o diferencial necessário de 2 para 1
+  if (buy >= MIN_SCORE && buy > sell + 1) signal = 'BUY';
+  if (sell >= MIN_SCORE && sell > buy + 1) signal = 'SELL';
   
   if (!signal) return null;
   
   // Confluência Dinâmica: Filtros mais inteligentes
   // Se houver uma divergência forte ou padrão de candle, ignoramos o filtro de tendência macro
-  var hasStrongTrigger = (divergence !== 'NONE' || pattern !== 'NONE' || score >= 14);
+  var hasStrongTrigger = (divergence !== 'NONE' || pattern !== 'NONE' || score >= 12);
   
   if (!hasStrongTrigger) {
-    if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 12) return null;
-    if (signal === 'SELL' && macroTrend === 'BULL' && sell < 12) return null;
+    if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 10) return null;
+    if (signal === 'SELL' && macroTrend === 'BULL' && sell < 10) return null;
   }
   
   // Filtros de RSI mais flexíveis se houver volume alto
