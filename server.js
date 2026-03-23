@@ -398,14 +398,30 @@ function calcVP(candles) {
 function calcKeyLevels(candles, vp) {
   var levels = [];
   var currentPrice = candles[candles.length - 1].close;
+  var prices = candles.map(function(c) { return c.close; });
+  var minP = Math.min.apply(null, prices), maxP = Math.max.apply(null, prices);
 
-  // 1. Níveis do Volume Profile
+  // 1. Níveis do Volume Profile (Peso Máximo)
   levels.push({ price: vp.poc, type: 'POC', strength: 100 });
-  levels.push({ price: vp.vah, type: 'VAH', strength: 80 });
-  levels.push({ price: vp.val, type: 'VAL', strength: 80 });
-  vp.hvns.forEach(function(h) { levels.push({ price: h.price, type: 'HVN', strength: 60 }); });
+  levels.push({ price: vp.vah, type: 'VAH', strength: 85 });
+  levels.push({ price: vp.val, type: 'VAL', strength: 85 });
+  vp.hvns.forEach(function(h) { levels.push({ price: h.price, type: 'HVN', strength: 70 }); });
 
-  // 2. Suportes e Resistências Clássicos (Fractais)
+  // 2. Níveis Psicológicos (Round Numbers)
+  var roundStep = currentPrice > 1000 ? 1000 : (currentPrice > 100 ? 100 : 10);
+  var startRound = Math.floor(minP / roundStep) * roundStep;
+  for (var r = startRound; r <= maxP; r += roundStep) {
+    levels.push({ price: r, type: 'PSY', strength: 60 });
+  }
+
+  // 3. Máximos e Mínimos Históricos Recentes (PDH/PDL)
+  var last24h = candles.slice(-48); // Aproximadamente 24h em candles de 30m
+  var pdh = Math.max.apply(null, last24h.map(function(c) { return c.high; }));
+  var pdl = Math.min.apply(null, last24h.map(function(c) { return c.low; }));
+  levels.push({ price: pdh, type: 'PDH', strength: 90 });
+  levels.push({ price: pdl, type: 'PDL', strength: 90 });
+
+  // 4. Suportes e Resistências Clássicos (Fractais)
   for (var i = 5; i < candles.length - 5; i++) {
     var isHigh = true, isLow = true;
     for (var j = 1; j <= 5; j++) {
@@ -416,17 +432,17 @@ function calcKeyLevels(candles, vp) {
     if (isLow) levels.push({ price: candles[i].low, type: 'SUP', strength: 50 });
   }
 
-  // 3. Agrupar níveis próximos para evitar duplicidade
+  // 5. Agrupar níveis próximos e criar "Zonas"
   var grouped = [];
   levels.sort(function(a, b) { return a.price - b.price; });
   if (levels.length > 0) {
     var current = levels[0];
     for (var k = 1; k < levels.length; k++) {
-      if (Math.abs(levels[k].price - current.price) / current.price < 0.005) {
-        if (levels[k].strength > current.strength) {
-          current.price = (current.price + levels[k].price) / 2;
-          current.strength = Math.min(100, current.strength + 10);
-        }
+      // Se níveis estiverem a menos de 0.3% de distância, agrupa
+      if (Math.abs(levels[k].price - current.price) / current.price < 0.003) {
+        current.price = (current.price * current.strength + levels[k].price * levels[k].strength) / (current.strength + levels[k].strength);
+        current.strength = Math.min(100, current.strength + 15);
+        current.type = current.strength > 90 ? 'ZONE' : current.type;
       } else {
         grouped.push(current);
         current = levels[k];
@@ -435,12 +451,13 @@ function calcKeyLevels(candles, vp) {
     grouped.push(current);
   }
 
-  // Filtrar apenas níveis relevantes ao preço atual (+/- 5%)
+  // Filtrar apenas níveis relevantes ao preço atual (+/- 4%)
   return grouped.filter(function(l) {
-    return Math.abs(l.price - currentPrice) / currentPrice < 0.05;
+    return Math.abs(l.price - currentPrice) / currentPrice < 0.04;
   }).sort(function(a, b) {
-    return Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice);
-  }).slice(0, 8);
+    // Priorizar por força e depois por proximidade
+    return (b.strength - a.strength) || (Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice));
+  }).slice(0, 10);
 }
 
 function calcDynamicSL(candles, signal, price, atr) {
