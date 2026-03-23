@@ -263,9 +263,21 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
     <div class="card-title">Backtest em Tempo Real</div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <select class="asel" id="btSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option></select>
-      <button class="btn primary" onclick="runBacktest()" id="btnBt">CORRER</button>
+      <select class="asel" id="btTf">
+        <option value="15m">15M</option>
+        <option value="30m" selected>30M</option>
+        <option value="1h">1H</option>
+        <option value="4h">4H</option>
+        <option value="1d">1D</option>
+      </select>
+      <select class="asel" id="btDays">
+        <option value="30">30 dias</option>
+        <option value="60">60 dias</option>
+        <option value="90" selected>90 dias</option>
+      </select>
+      <button class="btn primary" onclick="runBacktest()" id="btnBt">CORRER BACKTEST</button>
     </div>
-    <div id="btResult"><div style="color:var(--muted);font-size:10px">Clica "CORRER BACKTEST" para testar a estrategia com dados reais dos ultimos 30 dias.</div></div>
+    <div id="btResult"><div style="color:var(--muted);font-size:10px">Clica "CORRER BACKTEST" para testar a estrategia com dados reais da Binance (mesma logica do bot real).</div></div>
   </div>
 </div>
 
@@ -616,20 +628,28 @@ setInterval(function(){
 // ── Backtest ──────────────────────────────────────────────────────────────────
 async function runBacktest() {
   var sym = document.getElementById('btSym').value;
+  var tf = (document.getElementById('btTf') ? document.getElementById('btTf').value : '30m') || '30m';
+  var days = (document.getElementById('btDays') ? parseInt(document.getElementById('btDays').value) : 90) || 90;
   var btn = document.getElementById('btnBt');
   btn.disabled = true; btn.textContent = 'A PROCESSAR...';
-  document.getElementById('btResult').innerHTML = '<div class="pulse" style="color:var(--accent);font-size:10px;text-align:center;padding:20px;letter-spacing:2px">A BUSCAR DADOS REAIS...</div>';
+  document.getElementById('btResult').innerHTML = '<div class="pulse" style="color:var(--accent);font-size:10px;text-align:center;padding:20px;letter-spacing:2px">A BUSCAR DADOS REAIS DA BINANCE...</div>';
   try {
-    var r = await fetch(BACKEND+'/api/backtest?symbol='+sym+'&days=90');
+    var r = await fetch(BACKEND+'/api/backtest?symbol='+sym+'&interval='+tf+'&days='+days);
     var d = await r.json();
-    if (!d.success) throw new Error(d.error);
-    var ret = (d.returnPct || d.ret || 0);
-    var retStr = parseFloat(ret).toFixed(1);
+    if (!d.success) throw new Error(d.error || 'Erro desconhecido');
+
+    // Campos do BacktestEngine: returnPct, totalTrades, finalCapital, maxDD, winRate, wins, losses, profitFactor, trades[]
+    // trades[]: { time, signal, entry, exit, outcome, pnl, capital }
+    var ret = parseFloat(d.returnPct || 0);
+    var retStr = ret.toFixed(1);
     var isPos = ret >= 0;
-    var winRate = d.winRate || 0;
-    var totalTrades = d.totalTrades || d.total || 0;
+    var winRate = parseFloat(d.winRate || 0);
+    var totalTrades = parseInt(d.totalTrades || 0);
     var maxDD = parseFloat(d.maxDD || 0).toFixed(1);
-    var finalCapital = parseFloat(d.finalCapital || d.capital || 1000).toFixed(0);
+    var finalCapital = parseFloat(d.finalCapital || 1000).toFixed(0);
+    var profitFactor = parseFloat(d.profitFactor || 0).toFixed(2);
+    var wins = parseInt(d.wins || 0);
+    var losses = parseInt(d.losses || 0);
 
     var html = '<div class="g4" style="margin-bottom:10px">'
       +'<div class="stat '+(winRate>=50?'c-green':'c-red')+'"><div class="stat-val">'+winRate+'%</div><div class="stat-lbl">WIN RATE</div></div>'
@@ -637,43 +657,64 @@ async function runBacktest() {
       +'<div class="stat '+(isPos?'c-green':'c-red')+'"><div class="stat-val">'+(isPos?'+':'')+retStr+'%</div><div class="stat-lbl">RETORNO</div></div>'
       +'<div class="stat c-yellow"><div class="stat-val">'+maxDD+'%</div><div class="stat-lbl">MAX DD</div></div>'
       +'</div>';
-    html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:10px"><span style="color:var(--muted)">$1000 inicial</span><span style="color:'+(isPos?'var(--green)':'var(--red)')+'">$'+finalCapital+' final</span><span style="color:var(--green)">'+(d.wins||0)+'W</span><span style="color:var(--red)">'+(d.losses||0)+'L</span></div>';
+
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:10px;flex-wrap:wrap;gap:6px">';
+    html += '<span style="color:var(--muted)">$1000 inicial &rarr; <span style="color:'+(isPos?'var(--green)':'var(--red)')+';">$'+finalCapital+'</span></span>';
+    html += '<span style="color:var(--muted)">PF: <span style="color:'+(parseFloat(profitFactor)>=1?'var(--green)':'var(--red)')+';">'+profitFactor+'</span></span>';
+    html += '<span><span style="color:var(--green)">'+wins+'W</span> <span style="color:var(--muted)">/</span> <span style="color:var(--red)">'+losses+'L</span></span>';
+    html += '</div>';
+
+    // Curva de capital
     if (d.trades && d.trades.length) {
-      var caps = [1000].concat(d.trades.map(function(t){return t.capital;}));
-      var W=460,H=80,P=6,min=Math.min.apply(null,caps),max=Math.max.apply(null,caps),range=max-min||1;
+      var caps = [1000].concat(d.trades.map(function(t){return parseFloat(t.capital||1000);}));
+      var W=460,H=80,P=6;
+      var minC=Math.min.apply(null,caps),maxC=Math.max.apply(null,caps),rangeC=maxC-minC||1;
       var cw=(W-P*2)/(caps.length-1);
-      var py=function(v){return P+(H-P*2)-(v-min)/range*(H-P*2);};
+      var py=function(v){return P+(H-P*2)-(v-minC)/rangeC*(H-P*2);};
       var path='M '+P+' '+py(caps[0]);
       caps.forEach(function(v,i){if(i>0)path+=' L '+(P+i*cw)+' '+py(v);});
-      var col=d.ret>=0?'var(--green)':'var(--red)';
+      var col=isPos?'var(--green)':'var(--red)';
       html+='<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="display:block;margin-bottom:10px">'
         +'<path d="'+path+' L '+(P+(caps.length-1)*cw)+' '+(H-P)+' L '+P+' '+(H-P)+' Z" fill="'+col+'" opacity="0.15"/>'
         +'<path d="'+path+'" fill="none" stroke="'+col+'" stroke-width="1.5"/>'
         +'<line x1="'+P+'" x2="'+(W-P)+'" y1="'+py(1000)+'" y2="'+py(1000)+'" stroke="var(--border2)" stroke-width="1" stroke-dasharray="4 4"/>'
         +'</svg>';
+
       html += '<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">ULTIMOS 20 TRADES</div>';
       html += '<div style="max-height:200px;overflow-y:auto">';
       html += '<div class="bt-trade-row" style="color:var(--muted);font-size:8px;letter-spacing:1px"><span>DATA</span><span>SINAL</span><span>ENTRADA</span><span>SAIDA</span><span>P&L</span></div>';
       d.trades.slice(-20).reverse().forEach(function(t){
-        var isW=t.outcome==='WIN';
-        var d2=new Date(t.time);
-        var date=(d2.getDate()<10?'0':'')+d2.getDate()+'/'+(d2.getMonth()+1);
+        // BacktestEngine usa t.outcome ("WIN"/"LOSS"), t.entry, t.exit, t.pnl, t.time
+        var isW = (t.outcome === 'WIN' || t.result === 'WIN');
+        var d2 = new Date(t.time);
+        var date = (d2.getDate()<10?'0':'')+d2.getDate()+'/'+(d2.getMonth()+1<10?'0':'')+(d2.getMonth()+1);
         var entry = parseFloat(t.entry || 0).toFixed(0);
-        var exit = parseFloat(t.exit || 0).toFixed(0);
+        var exit = parseFloat(t.exit || t.exitPrice || 0).toFixed(0);
         var pnl = parseFloat(t.pnl || 0).toFixed(1);
-        html+='<div class="bt-trade-row '+(isW?'bt-win':'bt-loss')+'"><span style="color:var(--muted)">'+date+'</span><span>'+t.signal+'</span><span>$'+entry+'</span><span>$'+exit+'</span><span>'+(t.pnl>=0?'+':'')+pnl+'</span></div>';
+        html+='<div class="bt-trade-row '+(isW?'bt-win':'bt-loss')+'">'
+          +'<span style="color:var(--muted)">'+date+'</span>'
+          +'<span style="color:'+(t.signal==='BUY'?'var(--green)':'var(--red)')+'">'+(t.signal==='BUY'?'&#9650;':'&#9660;')+' '+t.signal+'</span>'
+          +'<span>$'+entry+'</span>'
+          +'<span>$'+exit+'</span>'
+          +'<span>'+(parseFloat(t.pnl||0)>=0?'+':'')+pnl+'</span>'
+          +'</div>';
       });
       html += '</div>';
+    } else {
+      html += '<div style="color:var(--muted);font-size:10px;text-align:center;padding:16px">Nenhum trade gerado no periodo. Tenta um timeframe diferente ou mais dias.</div>';
     }
-    var isProfitable = ret > 0 || (d.profitFactor && parseFloat(d.profitFactor) > 1.1);
-    var evalMsg = isProfitable ? 'Estrategia LUCRATIVA (' + retStr + '%)' : 'Estrategia precisa de ajuste';
-    if (isProfitable && winRate < 45) evalMsg += ' - Win Rate baixo, mas ganhos superam perdas';
-    if (!isProfitable && winRate > 55) evalMsg += ' - Win Rate alto, mas perdas sao muito grandes';
-    
+
+    var isProfitable = ret > 0 || parseFloat(profitFactor) > 1.1;
+    var evalMsg = isProfitable
+      ? '&#9650; Estrategia LUCRATIVA (' + retStr + '%) &mdash; PF: ' + profitFactor
+      : '&#9660; Estrategia precisa de ajuste (' + retStr + '%) &mdash; PF: ' + profitFactor;
+    if (isProfitable && winRate < 45) evalMsg += ' &mdash; Win Rate baixo, mas ganhos superam perdas';
+    if (!isProfitable && winRate > 55) evalMsg += ' &mdash; Win Rate alto, mas perdas sao grandes';
+
     html += '<div style="margin-top:10px;padding:8px;border-radius:2px;font-size:10px;text-align:center;border:1px solid '+(isProfitable?'rgba(0,230,118,.3)':'rgba(255,61,87,.3)')+';color:'+(isProfitable?'var(--green)':'var(--red)')+';">'+evalMsg+'</div>';
     document.getElementById('btResult').innerHTML = html;
   } catch(e) {
-    document.getElementById('btResult').innerHTML = '<div style="color:var(--red);font-size:10px">Erro: '+e.message+'</div>';
+    document.getElementById('btResult').innerHTML = '<div style="color:var(--red);font-size:10px;padding:12px">&#9888; Erro: '+e.message+'<br><span style="color:var(--muted)">Verifica se o servidor esta online.</span></div>';
   }
   btn.disabled = false; btn.textContent = 'CORRER BACKTEST';
 }

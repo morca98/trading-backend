@@ -16,64 +16,80 @@ class BacktestEngine {
     this.maxCapital = this.capital;
     this.maxDD = 0;
     
-    // Binance endpoints (with fallback)
+    // Endpoints por ordem de preferência
+    // MEXC é prioritário porque a Binance está bloqueada em alguns servidores
     this.endpoints = [
-      'https://api.binance.com',
-      'https://api1.binance.com',
-      'https://api2.binance.com',
-      'https://api3.binance.com',
-      'https://api.mexc.com'
+      { base: 'https://api.mexc.com', type: 'mexc' },
+      { base: 'https://api.binance.com', type: 'binance' },
+      { base: 'https://api1.binance.com', type: 'binance' },
+      { base: 'https://api2.binance.com', type: 'binance' },
+      { base: 'https://api3.binance.com', type: 'binance' },
     ];
   }
 
-  async fetchCandles() {
-    const maxPerRequest = 1000;
-    const totalNeeded = this.limit;
-    let allCandles = [];
-    let endTime = Date.now();
+  async fetchCandlesBatch(base, type, symbol, interval, limit, endTime) {
+    const maxPerRequest = type === 'mexc' ? 500 : 1000;
+    const batchLimit = Math.min(maxPerRequest, limit);
+    let url;
+    if (type === 'mexc') {
+      url = `${base}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${batchLimit}&endTime=${endTime}`;
+    } else {
+      url = `${base}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${batchLimit}&endTime=${endTime}`;
+    }
+    const r = await axios.get(url, { timeout: 8000 });
+    return r.data.map(k => ({
+      time: +k[0],
+      open: +k[1],
+      high: +k[2],
+      low: +k[3],
+      close: +k[4],
+      volume: +k[5]
+    }));
+  }
 
-    for (const base of this.endpoints) {
+  async fetchCandles() {
+    const totalNeeded = this.limit;
+    
+    for (const ep of this.endpoints) {
       try {
-        allCandles = [];
-        let currentEndTime = endTime;
+        let allCandles = [];
+        let currentEndTime = Date.now();
+        const maxPerRequest = ep.type === 'mexc' ? 500 : 1000;
         
         while (allCandles.length < totalNeeded) {
-          const limit = Math.min(maxPerRequest, totalNeeded - allCandles.length);
-          let url;
-          if (base.includes('mexc')) {
-            const mexcInterval = this.interval.replace('m', 'm').replace('h', 'h').replace('d', 'd');
-            url = `${base}/api/v3/klines?symbol=${this.symbol}&interval=${mexcInterval}&limit=${limit}&endTime=${currentEndTime}`;
-          } else {
-            url = `${base}/api/v3/klines?symbol=${this.symbol}&interval=${this.interval}&limit=${limit}&endTime=${currentEndTime}`;
-          }
+          const remaining = totalNeeded - allCandles.length;
+          const batchLimit = Math.min(maxPerRequest, remaining);
           
+          const batch = await this.fetchCandlesBatch(
+            ep.base, ep.type, this.symbol, this.interval, batchLimit, currentEndTime
+          );
           
-          const r = await axios.get(url, { timeout: 5000 });
-          const batch = r.data.map(k => ({
-            time: +k[0],
-            open: +k[1],
-            high: +k[2],
-            low: +k[3],
-            close: +k[4],
-            volume: +k[5]
-          }));
+          if (!batch || batch.length === 0) break;
           
-          if (batch.length === 0) break;
-          
+          // Prepend (dados mais antigos primeiro)
           allCandles = [...batch, ...allCandles];
           currentEndTime = batch[0].time - 1;
           
-          if (batch.length < limit) break;
+          if (batch.length < batchLimit) break;
+          if (allCandles.length >= totalNeeded) break;
         }
         
         if (allCandles.length > 0) {
-          return allCandles.sort((a, b) => a.time - b.time);
+          // Remover duplicados e ordenar
+          const seen = new Set();
+          const unique = allCandles.filter(c => {
+            if (seen.has(c.time)) return false;
+            seen.add(c.time);
+            return true;
+          });
+          console.log(`[BacktestEngine] ${ep.type} (${ep.base}): ${unique.length} candles carregados`);
+          return unique.sort((a, b) => a.time - b.time);
         }
       } catch (e) {
-        console.log(`Failed to fetch from ${base}: ${e.message}`);
+        console.log(`[BacktestEngine] Falhou ${ep.base}: ${e.message}`);
       }
     }
-    throw new Error('All data sources failed');
+    throw new Error('Todos os endpoints falharam ao buscar dados históricos');
   }
 
   // Helper to calculate indicators on the fly
@@ -92,6 +108,7 @@ class BacktestEngine {
   }
 
   calcEMA(data, period) {
+    if (!data || data.length === 0) return 0;
     const k = 2 / (period + 1);
     let ema = data[0];
     for (let i = 1; i < data.length; i++) ema = data[i] * k + ema * (1 - k);
@@ -128,16 +145,21 @@ class BacktestEngine {
 
   async run(generateSignalFn) {
     const candles = await this.fetchCandles();
+    console.log(`[BacktestEngine] Total candles para backtest: ${candles.length}`);
     
     // Fetch 4h candles for macro trend
     let candles4h = [];
     try {
-      const oldInterval = this.interval;
+      const savedInterval = this.interval;
+      const savedLimit = this.limit;
       this.interval = '4h';
+      this.limit = Math.min(200, Math.ceil(this.limit / 8)); // 4h = 8x menos candles
       candles4h = await this.fetchCandles();
-      this.interval = oldInterval;
+      this.interval = savedInterval;
+      this.limit = savedLimit;
+      console.log(`[BacktestEngine] Candles 4h: ${candles4h.length}`);
     } catch (e) {
-      console.log("Failed to fetch 4h candles, macro trend will be less accurate");
+      console.log('[BacktestEngine] Falhou a buscar candles 4h, macro trend menos preciso');
     }
 
     this.history = [];
@@ -189,7 +211,10 @@ class BacktestEngine {
       if (outcome) {
         // Calculate PnL with fees
         const rawPnlPct = signalResult.signal === 'BUY' ? (exitPrice - entryPrice) / entryPrice : (entryPrice - exitPrice) / entryPrice;
-        const pnlAmount = this.capital * this.riskPerTrade * (rawPnlPct / (Math.abs(entryPrice - signalResult.sl) / entryPrice));
+        const slDistPct = Math.abs(entryPrice - signalResult.sl) / entryPrice;
+        const pnlAmount = slDistPct > 0 
+          ? this.capital * this.riskPerTrade * (rawPnlPct / slDistPct)
+          : this.capital * this.riskPerTrade * (outcome === 'WIN' ? 2.2 : -1);
         const feeAmount = this.capital * this.fee * 2; // Entry + Exit
         const netPnl = pnlAmount - feeAmount;
         
@@ -207,7 +232,8 @@ class BacktestEngine {
           outcome: outcome,
           pnl: netPnl,
           pnlPct: (netPnl / (this.capital - netPnl)) * 100,
-          capital: this.capital
+          capital: this.capital,
+          conf: signalResult.conf
         });
         
         // Skip to exit time to avoid overlapping trades on same symbol
@@ -243,7 +269,7 @@ class BacktestEngine {
   calculateProfitFactor() {
     const grossProfit = this.trades.filter(t => t.pnl > 0).reduce((s, t) => s + t.pnl, 0);
     const grossLoss = Math.abs(this.trades.filter(t => t.pnl < 0).reduce((s, t) => s + t.pnl, 0));
-    return grossLoss === 0 ? grossProfit : grossProfit / grossLoss;
+    return grossLoss === 0 ? (grossProfit > 0 ? grossProfit : 0) : grossProfit / grossLoss;
   }
 }
 

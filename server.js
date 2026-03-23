@@ -549,7 +549,10 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
 
   var signal = null;
   var score = Math.max(buy, sell);
-  var conf = Math.round((score / 25) * 100); 
+  // MAX_SCORE = 16 (sem liqData) ou 21 (com liqData)
+  // Usar MAX_SCORE definido no topo para calcular confiança corretamente
+  var effectiveMax = liqData ? 21 : MAX_SCORE;
+  var conf = Math.min(99, Math.round((score / effectiveMax) * 100)); 
 
   if (buy >= MIN_SCORE && buy > sell + 2) signal = 'BUY';
   if (sell >= MIN_SCORE && sell > buy + 2) signal = 'SELL';
