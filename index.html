@@ -317,7 +317,6 @@ var ema20Line = [], ema50Line = [];
 var currentPrice = 0, prevPrice = 0, currentChange = 0;
 var logEntries = [], localAlerts = [];
 var isDark = true, notifEnabled = false;
-var countdownSec = 30 * 60;
 var analysisRunning = false;
 var liqMapData = null;
 
@@ -344,14 +343,29 @@ if ('Notification' in window && Notification.permission === 'granted') {
 
 // ── Countdown ─────────────────────────────────────────────────────────────────
 function updateCountdown() {
-  countdownSec--;
-  if (countdownSec <= 0) { countdownSec = 30 * 60; if (vpData && candles.length) runAnalysis(); }
-  var m = Math.floor(countdownSec / 60), s = countdownSec % 60;
+  var now = new Date();
+  var mins = now.getUTCMinutes();
+  var secs = now.getUTCSeconds();
+  
+  // Calcula quanto tempo falta para o próximo fechamento de 30 minutos (00 ou 30)
+  var remainingMins = 29 - (mins % 30);
+  var remainingSecs = 59 - secs;
+  
+  var totalRemainingSecs = (remainingMins * 60) + remainingSecs;
+  
+  if (totalRemainingSecs <= 0) { 
+    if (vpData && candles.length && !analysisRunning) runAnalysis(); 
+  }
+  
+  var m = remainingMins, s = remainingSecs;
   var el = document.getElementById('countdown');
-  el.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
-  el.className = 'countdown' + (countdownSec <= 60 ? ' soon' : '');
+  if (el) {
+    el.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    el.className = 'countdown' + (totalRemainingSecs <= 60 ? ' soon' : '');
+  }
 }
 setInterval(updateCountdown, 1000);
+updateCountdown(); // Inicializa imediatamente
 
 // ── Audio ─────────────────────────────────────────────────────────────────────
 var audioCtx = null;
@@ -907,7 +921,6 @@ async function runAnalysis(){
   var sc2={BUY:'var(--green)',SELL:'var(--red)',HOLD:'var(--accent)',WAIT:'var(--yellow)'};
   document.getElementById('logList').innerHTML=logEntries.map(function(e,i){return '<div class="log-row" style="opacity:'+Math.max(.15,1-i*.07)+'"><span style="color:var(--muted)">'+e.time+'</span><span style="color:var(--border2)">'+e.sym+'</span><span style="color:'+sc2[e.signal]+';font-weight:700">'+e.signal+'</span><span style="color:var(--muted)">$'+e.price+'</span><span style="color:var(--border2)">'+e.reason+'</span></div>';}).join('');
   document.getElementById('logCard').style.display='block';
-  countdownSec=30*60;
 }
 
 function localSignal(){
