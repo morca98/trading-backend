@@ -720,8 +720,8 @@ async function runBot() {
       var atr = calcATR(candles, 14);
       var result = generateSignal(candles, price, macroTrend, trend15m, atr, liqData);
       var pair = symbol.replace('USDT', '/USDT');
-      // Baixado de 80 para 70 para capturar mais sinais de qualidade
-      if (!result || result.conf < 70) { console.log(pair + ': WAIT'); continue; }
+      // Baixado para 55 para sincronizar com o backtest e capturar mais sinais
+      if (!result || result.conf < 55) { console.log(pair + ': WAIT'); continue; }
       var now = Date.now();
       if (lastSignal[symbol] === result.signal && (now - lastSignalTime[symbol]) < SIGNAL_COOLDOWN) continue;
       lastSignal[symbol] = result.signal; lastSignalTime[symbol] = now;

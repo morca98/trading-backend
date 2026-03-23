@@ -186,8 +186,8 @@ class BacktestEngine {
       
       const signalResult = generateSignalFn(window, price, indicators.macroTrend, indicators.trend15m, indicators.atr, null);
       
-      // Usar o mesmo limiar do bot real (70%) para consistência
-      if (!signalResult || signalResult.conf < 70) continue;
+      // Sincronizado com o bot real (55%) para capturar mais sinais
+      if (!signalResult || signalResult.conf < 55) continue;
       
       // Simulate Trade
       let outcome = null;
