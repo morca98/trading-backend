@@ -151,7 +151,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="sym-row">
     <button class="sym-btn active" id="btnBTC" onclick="setSym('BTC/USDT')">BTC / USDT</button>
     <button class="sym-btn" id="btnETH" onclick="setSym('ETH/USDT')">ETH / USDT</button>
-    <button class="sym-btn" id="btnSOL" onclick="setSym('SOL/USDT')">SOL / USDT</button>
+
   </div>
   <div class="tf-row">
     <span style="font-size:9px;color:var(--muted);letter-spacing:1px">TF:</span>
@@ -198,7 +198,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="sym-row" style="margin-bottom:10px">
     <button class="sym-btn active" id="liqBTC" onclick="setLiqSym('BTCUSDT')">BTC / USDT</button>
     <button class="sym-btn" id="liqETH" onclick="setLiqSym('ETHUSDT')">ETH / USDT</button>
-    <button class="sym-btn" id="liqSOL" onclick="setLiqSym('SOLUSDT')">SOL / USDT</button>
+
   </div>
 
   <!-- Campo API Key Coinglass -->
@@ -260,7 +260,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="card">
     <div class="card-title">Backtest em Tempo Real</div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <select class="asel" id="btSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option><option value="SOLUSDT">SOL/USDT</option></select>
+      <select class="asel" id="btSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option></select>
       <button class="btn primary" onclick="runBacktest()" id="btnBt">CORRER</button>
     </div>
     <div id="btResult"><div style="color:var(--muted);font-size:10px">Clica "CORRER BACKTEST" para testar a estrategia com dados reais dos ultimos 30 dias.</div></div>
@@ -285,7 +285,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="card">
     <div class="card-title">Novo Alerta</div>
     <div class="alert-form">
-      <select class="asel" id="alertSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option><option value="SOLUSDT">SOL/USDT</option></select>
+      <select class="asel" id="alertSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option></select>
       <select class="asel" id="alertDir"><option value="above">Acima de</option><option value="below">Abaixo de</option></select>
       <input class="ainput" type="number" id="alertPrice" placeholder="Preco $">
       <button class="btn primary" onclick="addAlert()">+ ADICIONAR</button>
@@ -308,7 +308,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 var BACKEND = 'https://trading-backend-production-5dd4.up.railway.app';
 var TELEGRAM_TOKEN = 'coloca_aqui_o_teu_token';
 var TELEGRAM_CHAT_ID = '1354621810';
-var SYM_MAP={'BTC/USDT':'BTCUSDT','ETH/USDT':'ETHUSDT','SOL/USDT':'SOLUSDT'};
+var SYM_MAP={'BTC/USDT':'BTCUSDT','ETH/USDT':'ETHUSDT'};
 var currentSym = 'BTC/USDT', currentTF = '30m', currentLiqSym = 'BTCUSDT';
 var candles = [], vpData = null, levelsData = [], cloudsData = [];
 var ema20Line = [], ema50Line = [];
