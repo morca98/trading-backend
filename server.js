@@ -739,7 +739,8 @@ async function getLiqData(symbol) {
 }
 
 async function runBot() {
-  if (!isGoodSession()) return;
+  // Filtro de sessão removido para garantir consistência com o backtest
+  // if (!isGoodSession()) return;
   await checkActiveTrades();
   await checkPriceAlerts();
   for (var i = 0; i < SYMBOLS.length; i++) {
