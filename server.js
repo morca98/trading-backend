@@ -17,9 +17,10 @@ const BINANCE = 'https://api.binance.com';
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
-const SIGNAL_COOLDOWN = 30 * 60 * 1000; // Reduzido para 30 minutos
-const MIN_SCORE = 9; // Aumentado para filtrar sinais fracos
-const MAX_SCORE = 25; // Reflete o novo sistema de scoring
+const SIGNAL_COOLDOWN = 90 * 60 * 1000; // 90 minutos = 3 velas de 30m (igual ao cooldown do backtest)
+// Limite de 1 sinal por dia por direção (espelha o backtest-engine)
+var lastSignalDateBuy = { BTCUSDT: '', ETHUSDT: '' };
+var lastSignalDateSell = { BTCUSDT: '', ETHUSDT: '' };
 const STATS_FILE = '/tmp/stats.json';
 
 var lastSignal = { BTCUSDT: null, ETHUSDT: null };
@@ -779,7 +780,13 @@ async function runBot() {
       if (!result || result.conf < 55) { console.log(pair + ': WAIT'); continue; }
       var now = Date.now();
       if (lastSignal[symbol] === result.signal && (now - lastSignalTime[symbol]) < SIGNAL_COOLDOWN) continue;
+      // Limite de 1 sinal por dia por direção (espelha o backtest)
+      var todayDate = new Date().toISOString().slice(0,10);
+      if (result.signal === 'BUY' && lastSignalDateBuy[symbol] === todayDate) { console.log(pair + ': BUY já enviado hoje'); continue; }
+      if (result.signal === 'SELL' && lastSignalDateSell[symbol] === todayDate) { console.log(pair + ': SELL já enviado hoje'); continue; }
       lastSignal[symbol] = result.signal; lastSignalTime[symbol] = now;
+      if (result.signal === 'BUY') lastSignalDateBuy[symbol] = todayDate;
+      else lastSignalDateSell[symbol] = todayDate;
       dailyResults[symbol].push({ signal: result.signal, conf: result.conf });
       activeTrades[symbol] = { pair: pair, signal: result.signal, entry: price, sl: result.sl, tp: result.tp, time: now };
       var msg = '<b>' + result.signal + ' ' + pair + '</b>\n\nPreco: $' + price.toFixed(2) + '\nStop: $' + result.sl.toFixed(0) + ' (-' + result.slPct + '%)\nAlvo: $' + result.tp.toFixed(0) + ' (+' + result.tpPct + '%)\nConf: ' + result.conf + '%\nRSI: ' + result.rsi + ' | ADX: ' + result.adx + ' | ATR: $' + result.atr + '\nEMA9: $' + result.ema9 + ' | EMA21: $' + result.ema21 + '\nMacro: ' + result.macroTrend + ' | 15m: ' + result.trend15m + '\n' + new Date().toLocaleTimeString('pt-PT');
