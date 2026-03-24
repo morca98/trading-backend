@@ -18,8 +18,8 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
 const SIGNAL_COOLDOWN = 30 * 60 * 1000; // Reduzido para 30 minutos
-const MIN_SCORE = 7; // Reduzido para 7 para aumentar volume de sinais
-const MAX_SCORE = 18; // Aumentado para refletir novos pesos
+const MIN_SCORE = 9; // Aumentado para filtrar sinais fracos
+const MAX_SCORE = 25; // Reflete o novo sistema de scoring
 const STATS_FILE = '/tmp/stats.json';
 
 var lastSignal = { BTCUSDT: null, ETHUSDT: null };
@@ -89,19 +89,31 @@ app.get('/api/signal', async function(req, res) {
     var candles4h = results[2].data.map(function(k) { return { close: +k[4] }; });
     var candles15m = results[3].data.map(function(k) { return { close: +k[4] }; });
 
-    var macroTrend = calcTrend(candles4h.map(function(c){return c.close;}));
+    // macroTrend baseado em EMA50 e EMA200 dos 4h (mais preciso)
+    var closes4h = candles4h.map(function(c){return c.close;});
+    var macroEma50 = closes4h.length >= 50 ? calcEMA(closes4h.slice(-50), 50) : calcEMA(closes4h, closes4h.length);
+    var macroEma200 = closes4h.length >= 200 ? calcEMA(closes4h.slice(-200), 200) : macroEma50;
+    var lastPrice4h = closes4h[closes4h.length - 1];
+    var macroTrend;
+    if (lastPrice4h > macroEma50 && macroEma50 > macroEma200) macroTrend = 'BULL';
+    else if (lastPrice4h < macroEma50 && macroEma50 < macroEma200) macroTrend = 'BEAR';
+    else if (lastPrice4h > macroEma200) macroTrend = 'UP';
+    else macroTrend = 'DOWN';
+    
     var trend15m = calcTrend(candles15m.map(function(c){return c.close;}));
     var atr = calcATR(candles, 14);
     var signal = generateSignal(candles, price, macroTrend, trend15m, atr, null);
 
     var closes = candles.map(function(c) { return c.close; });
-    var ema20vals = calcEMALine(closes, 20);
+    var ema9vals = calcEMALine(closes, 9);
+    var ema21vals = calcEMALine(closes, 21);
     var ema50vals = calcEMALine(closes, 50);
 
     res.json({
       success: true, signal: signal, price: price,
       candles: candles.slice(-60),
-      ema20: ema20vals.slice(-60),
+      ema9: ema9vals.slice(-60),
+      ema21: ema21vals.slice(-60),
       ema50: ema50vals.slice(-60),
       macroTrend: macroTrend, trend15m: trend15m
     });
@@ -454,12 +466,44 @@ function calcKeyLevels(candles, vp) {
   }).slice(0, 8);
 }
 
+function calcADX(candles, period) {
+  period = period || 14;
+  if (candles.length < period * 2) return 0;
+  var plusDMs = [], minusDMs = [], trs = [];
+  for (var i = 1; i < candles.length; i++) {
+    var high = candles[i].high, low = candles[i].low;
+    var prevHigh = candles[i-1].high, prevLow = candles[i-1].low, prevClose = candles[i-1].close;
+    var plusDM = high - prevHigh > prevLow - low ? Math.max(high - prevHigh, 0) : 0;
+    var minusDM = prevLow - low > high - prevHigh ? Math.max(prevLow - low, 0) : 0;
+    var tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+    plusDMs.push(plusDM); minusDMs.push(minusDM); trs.push(tr);
+  }
+  var smoothPlusDM = plusDMs.slice(0, period).reduce(function(s,v){return s+v;}, 0);
+  var smoothMinusDM = minusDMs.slice(0, period).reduce(function(s,v){return s+v;}, 0);
+  var smoothTR = trs.slice(0, period).reduce(function(s,v){return s+v;}, 0);
+  var dxValues = [];
+  for (var j = period; j < trs.length; j++) {
+    smoothPlusDM = smoothPlusDM - smoothPlusDM / period + plusDMs[j];
+    smoothMinusDM = smoothMinusDM - smoothMinusDM / period + minusDMs[j];
+    smoothTR = smoothTR - smoothTR / period + trs[j];
+    var plusDI = smoothTR > 0 ? (smoothPlusDM / smoothTR) * 100 : 0;
+    var minusDI = smoothTR > 0 ? (smoothMinusDM / smoothTR) * 100 : 0;
+    var diSum = plusDI + minusDI;
+    var dx = diSum > 0 ? Math.abs(plusDI - minusDI) / diSum * 100 : 0;
+    dxValues.push(dx);
+  }
+  if (dxValues.length < period) return dxValues.length > 0 ? dxValues[dxValues.length - 1] : 0;
+  var adx = dxValues.slice(0, period).reduce(function(s,v){return s+v;}, 0) / period;
+  for (var k = period; k < dxValues.length; k++) adx = (adx * (period - 1) + dxValues[k]) / period;
+  return adx;
+}
+
 function calcDynamicSL(candles, signal, price, atr) {
-  var slDist = atr * 1.5;
-  var lows = candles.slice(-5).map(function(c) { return c.low; });
-  var highs = candles.slice(-5).map(function(c) { return c.high; });
-  if (signal === 'BUY') return Math.max(Math.min(Math.min.apply(null, lows) * 0.999, price - slDist), price * 0.97);
-  return Math.min(Math.max(Math.max.apply(null, highs) * 1.001, price + slDist), price * 1.03);
+  var slDist = atr * 1.2; // Mais apertado: 1.2x ATR em vez de 1.5x
+  var lows = candles.slice(-8).map(function(c) { return c.low; }); // Últimas 8 velas para melhor suporte
+  var highs = candles.slice(-8).map(function(c) { return c.high; });
+  if (signal === 'BUY') return Math.max(Math.min(Math.min.apply(null, lows) * 0.999, price - slDist), price * 0.98);
+  return Math.min(Math.max(Math.max.apply(null, highs) * 1.001, price + slDist), price * 1.02);
 }
 
 function calcRSIDivergence(candles, rsi) {
@@ -497,101 +541,97 @@ function confirmCandle(candles, signal) {
 }
 
 function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
+  if (candles.length < 60) return null;
+  
   var closes = candles.map(function(c) { return c.close; });
-  var vp = calcVP(candles.slice(-200));
-  var keyLevels = calcKeyLevels(candles, vp);
   var rsi = calcRSI(closes);
-  var ema20 = calcEMA(closes.slice(-20), 20);
-  var ema50 = closes.length >= 50 ? calcEMA(closes.slice(-50), 50) : ema20;
-  var trend30m = closes[closes.length - 1] > closes[closes.length - 10] ? 'UP' : 'DOWN';
-  var rv = candles.slice(-5).reduce(function(s, c) { return s + c.volume; }, 0);
-  var pv = candles.slice(-10, -5).reduce(function(s, c) { return s + c.volume; }, 0);
-  var inVA = price >= vp.val && price <= vp.vah, abovePoc = price > vp.poc;
-  var divergence = calcRSIDivergence(candles, rsi);
-  var pattern = detectPattern(candles);
+  var adx = calcADX(candles);
   
-  // Detecção de proximidade de níveis chave
-  var nearSupport = keyLevels.filter(function(l) { return (l.type === 'SUP' || l.type === 'VAL' || l.type === 'POC') && price > l.price && (price - l.price) / price < 0.01; });
-  var nearResistance = keyLevels.filter(function(l) { return (l.type === 'RES' || l.type === 'VAH' || l.type === 'POC') && price < l.price && (l.price - price) / price < 0.01; });
-
-  var buy = 0, sell = 0; 
+  // Calcular linhas EMA completas para detetar crossover
+  var ema9Line = calcEMALine(closes, 9);
+  var ema21Line = calcEMALine(closes, 21);
+  var ema50Line = calcEMALine(closes, 50);
   
-  // 1. Contexto de Volume Profile (Pesos aumentados para PF)
-  if (abovePoc && inVA) buy += 3; if (!abovePoc && inVA) sell += 3;
-  if (price > vp.vah) buy += 2; 
-  if (price < vp.val) sell += 2;
+  var len = ema9Line.length;
+  if (len < 3) return null;
   
-  // 2. RSI e Divergências
-  if (rsi < 32) buy += 4; else if (rsi < 42) buy += 2;
-  if (rsi > 68) sell += 4; else if (rsi > 58) sell += 2;
-  if (divergence === 'BULLISH') buy += 4; if (divergence === 'BEARISH') sell += 4;
+  var ema9 = ema9Line[len-1];
+  var ema21 = ema21Line[len-1];
+  var ema50 = ema50Line.length > 0 ? ema50Line[len-1] : ema21;
+  var ema200 = closes.length >= 200 ? calcEMA(closes.slice(-200), 200) : ema50;
   
-  // 3. Médias Móveis e Tendência
-  if (price > ema20 && price > ema50) buy += 2; else if (price < ema20 && price < ema50) sell += 2;
-  if (ema20 > ema50) buy += 2; else sell += 2;
-  if (macroTrend === 'BULL') buy += 3; if (macroTrend === 'BEAR') sell += 3;
-  if (trend15m === 'UP') buy += 1; if (trend15m === 'DOWN') sell += 1;
+  // Crossover: EMA9 cruzou EMA21 na última vela
+  var ema9PrevAbove = ema9Line[len-2] > ema21Line[len-2];
+  var ema9CurrAbove = ema9 > ema21;
+  var crossedUp = !ema9PrevAbove && ema9CurrAbove;
+  var crossedDown = ema9PrevAbove && !ema9CurrAbove;
   
-  // 4. Volume e Padrões de Candles
-  if (rv > pv * 1.1) { if (trend30m === 'UP') buy += 2; else sell += 2; }
-  if (pattern === 'BULL_ENGULF' || pattern === 'HAMMER' || pattern === 'PIN_BULL') buy += 4;
-  if (pattern === 'BEAR_ENGULF' || pattern === 'SHOOT_STAR' || pattern === 'PIN_BEAR') sell += 4;
+  // Tendência estabelecida
+  var trendingUp = ema9 > ema21 && ema21 > ema50;
+  var trendingDown = ema9 < ema21 && ema21 < ema50;
   
-  // 5. Níveis Chave (Suporte/Resistência)
-  if (nearSupport.length > 0) buy += 4;
-  if (nearResistance.length > 0) sell += 4;
+  // Volume
+  var rv = candles.slice(-3).reduce(function(s,c){return s+c.volume;},0) / 3;
+  var pv = candles.slice(-15,-3).reduce(function(s,c){return s+c.volume;},0) / 12;
+  var volHigh = pv > 0 && rv > pv * 1.2;
   
-  // 6. Liquidation Map (Sentimento e Liquidez)
-  if (liqData) {
-    if (liqData.lsRatio < 0.45) buy += 2; // Muitos shorts, possível short squeeze
-    if (liqData.lsRatio > 0.55) sell += 2; // Muitos longs, possível long flush
-  }
-
+  // Filtro ADX
+  if (adx < 20) return null;
+  
+  // ── GERAÇÃO DE SINAL ──────────────────────────────────────────────────────────────
   var signal = null;
-  var score = Math.max(buy, sell);
-  // MAX_SCORE = 18 (sem liqData) ou 23 (com liqData)
-  var effectiveMax = liqData ? 23 : MAX_SCORE;
-  var conf = Math.min(99, Math.round((score / effectiveMax) * 100)); 
-
-  // Volume de sinais: baixamos o diferencial necessário de 2 para 1
-  if (buy >= MIN_SCORE && buy > sell + 1) signal = 'BUY';
-  if (sell >= MIN_SCORE && sell > buy + 1) signal = 'SELL';
+  
+  // BUY: crossover para cima OU tendência de alta com pullback para EMA21
+  if (crossedUp && ema21 > ema50 && macroTrend !== 'BEAR') {
+    signal = 'BUY';
+  } else if (trendingUp && macroTrend === 'BULL' && rsi > 45 && rsi < 65 && volHigh) {
+    var nearEma21 = Math.abs(price - ema21) / price < 0.008;
+    if (nearEma21) signal = 'BUY';
+  }
+  
+  // SELL: crossover para baixo OU tendência de baixa com pullback para EMA21
+  if (crossedDown && ema21 < ema50 && macroTrend !== 'BULL') {
+    signal = 'SELL';
+  } else if (trendingDown && macroTrend === 'BEAR' && rsi > 35 && rsi < 55 && volHigh) {
+    var nearEma21Sell = Math.abs(price - ema21) / price < 0.008;
+    if (nearEma21Sell) signal = 'SELL';
+  }
   
   if (!signal) return null;
   
-  // Confluência Dinâmica: Filtros mais inteligentes
-  // Se houver uma divergência forte ou padrão de candle, ignoramos o filtro de tendência macro
-  var hasStrongTrigger = (divergence !== 'NONE' || pattern !== 'NONE' || score >= 12);
-  
-  if (!hasStrongTrigger) {
-    if (signal === 'BUY' && macroTrend === 'BEAR' && buy < 10) return null;
-    if (signal === 'SELL' && macroTrend === 'BULL' && sell < 10) return null;
+  // ── FILTROS DE QUALIDADE ──────────────────────────────────────────────────────────────
+  if (signal === 'BUY') {
+    if (rsi > 70) return null;
+    if (price < ema200 && macroTrend !== 'BULL') return null;
+    var ema9DistFromEma21 = (ema9 - ema21) / ema21 * 100;
+    if (ema9DistFromEma21 > 1.5) return null; // Entrada tardia
+    if (!volHigh) return null;
   }
   
-  // Filtros de RSI mais flexíveis se houver volume alto
-  var rsiLimitBuy = (rv > pv * 1.5) ? 75 : 70;
-  var rsiLimitSell = (rv > pv * 1.5) ? 25 : 30;
-  
-  if (signal === 'BUY' && rsi > rsiLimitBuy) return null;
-  if (signal === 'SELL' && rsi < rsiLimitSell) return null;
-  
-  // Confirmação de vela apenas para sinais mais fracos
-  if (score < 12 && !confirmCandle(candles, signal)) return null;
-
-  var sl = calcDynamicSL(candles, signal, price, atr);
-  
-  if (signal === 'BUY' && nearSupport.length > 0) {
-    var bestSup = nearSupport[0].price * 0.998;
-    if (bestSup < price && bestSup > sl) sl = bestSup;
-  } else if (signal === 'SELL' && nearResistance.length > 0) {
-    var bestRes = nearResistance[0].price * 1.002;
-    if (bestRes > price && bestRes < sl) sl = bestRes;
+  if (signal === 'SELL') {
+    if (rsi < 30) return null;
+    if (price > ema200 && macroTrend !== 'BEAR') return null;
+    var ema9DistFromEma21Sell = (ema21 - ema9) / ema21 * 100;
+    if (ema9DistFromEma21Sell > 1.5) return null; // Entrada tardia
+    if (!volHigh) return null;
   }
+  
+  // Confirmação de vela
+  if (!confirmCandle(candles, signal)) return null;
+  
+  // ── CÁLCULO DE SL/TP ──────────────────────────────────────────────────────────────
+  var atrPct = atr / price;
+  var slPct = Math.max(0.005, Math.min(0.015, atrPct * 1.8));
+  
+  var sl = signal === 'BUY' ? price * (1 - slPct) : price * (1 + slPct);
+  
+  // R:R baseado em ADX
+  var rrMultiplier = adx > 30 ? 3.0 : (adx > 25 ? 2.5 : 2.0);
+  var tp = signal === 'BUY' ? price * (1 + slPct * rrMultiplier) : price * (1 - slPct * rrMultiplier);
+  
+  var conf = Math.min(99, Math.round(55 + (adx - 20) * 1.5 + (volHigh ? 5 : 0)));
 
-  var slPct = Math.abs(price - sl) / price;
-  var tp = signal === 'BUY' ? price * (1 + slPct * 2.5) : price * (1 - slPct * 2.5);
-
-  return { signal: signal, conf: conf, price: price, sl: sl, tp: tp, rsi: rsi.toFixed(1), ema20: ema20.toFixed(2), ema50: ema50.toFixed(2), poc: vp.poc, val: vp.val, vah: vp.vah, macroTrend: macroTrend, trend15m: trend15m, trend30m: trend30m, divergence: divergence, pattern: pattern, atr: atr.toFixed(2), slPct: (slPct * 100).toFixed(2), tpPct: (slPct * 2.5 * 100).toFixed(2), buyScore: buy, sellScore: sell };
+  return { signal: signal, conf: conf, price: price, sl: sl, tp: tp, rsi: rsi.toFixed(1), ema9: ema9.toFixed(2), ema21: ema21.toFixed(2), ema50: ema50.toFixed(2), macroTrend: macroTrend, trend15m: trend15m, adx: adx.toFixed(1), atr: atr.toFixed(2), slPct: (slPct * 100).toFixed(2), tpPct: (slPct * rrMultiplier * 100).toFixed(2) };
 }
 
 async function checkActiveTrades() {
@@ -714,20 +754,29 @@ async function runBot() {
       ]);
       var candles = results[0].data.map(function(k) { return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }; });
       var price = parseFloat(results[1].data.price);
-      var macroTrend = calcTrend(results[2].data.map(function(k) { return +k[4]; }));
+      // macroTrend baseado em EMA50 e EMA200 dos 4h
+      var closes4h = results[2].data.map(function(k) { return +k[4]; });
+      var macroEma50 = closes4h.length >= 50 ? calcEMA(closes4h.slice(-50), 50) : calcEMA(closes4h, closes4h.length);
+      var macroEma200 = closes4h.length >= 200 ? calcEMA(closes4h.slice(-200), 200) : macroEma50;
+      var lastPrice4h = closes4h[closes4h.length - 1];
+      var macroTrend;
+      if (lastPrice4h > macroEma50 && macroEma50 > macroEma200) macroTrend = 'BULL';
+      else if (lastPrice4h < macroEma50 && macroEma50 < macroEma200) macroTrend = 'BEAR';
+      else if (lastPrice4h > macroEma200) macroTrend = 'UP';
+      else macroTrend = 'DOWN';
       var trend15m = calcTrend(results[3].data.map(function(k) { return +k[4]; }));
       var liqData = results[4];
       var atr = calcATR(candles, 14);
       var result = generateSignal(candles, price, macroTrend, trend15m, atr, liqData);
       var pair = symbol.replace('USDT', '/USDT');
-      // Baixado para 55 para sincronizar com o backtest e capturar mais sinais
+      // Limiar 55% sincronizado com backtest
       if (!result || result.conf < 55) { console.log(pair + ': WAIT'); continue; }
       var now = Date.now();
       if (lastSignal[symbol] === result.signal && (now - lastSignalTime[symbol]) < SIGNAL_COOLDOWN) continue;
       lastSignal[symbol] = result.signal; lastSignalTime[symbol] = now;
       dailyResults[symbol].push({ signal: result.signal, conf: result.conf });
       activeTrades[symbol] = { pair: pair, signal: result.signal, entry: price, sl: result.sl, tp: result.tp, time: now };
-      var msg = '<b>' + result.signal + ' ' + pair + '</b>\n\nPreco: $' + price.toFixed(2) + '\nStop: $' + result.sl.toFixed(0) + ' (-' + result.slPct + '%)\nAlvo: $' + result.tp.toFixed(0) + ' (+' + result.tpPct + '%)\nConf: ' + result.conf + '%\nScore: ' + Math.max(result.buyScore, result.sellScore) + '/25\nRSI: ' + result.rsi + ' | ATR: $' + result.atr + '\nMacro: ' + result.macroTrend + ' | 15m: ' + result.trend15m + '\nPOC: $' + result.poc.toFixed(0) + ' VA: $' + result.val.toFixed(0) + '-$' + result.vah.toFixed(0) + '\n' + new Date().toLocaleTimeString('pt-PT');
+      var msg = '<b>' + result.signal + ' ' + pair + '</b>\n\nPreco: $' + price.toFixed(2) + '\nStop: $' + result.sl.toFixed(0) + ' (-' + result.slPct + '%)\nAlvo: $' + result.tp.toFixed(0) + ' (+' + result.tpPct + '%)\nConf: ' + result.conf + '%\nRSI: ' + result.rsi + ' | ADX: ' + result.adx + ' | ATR: $' + result.atr + '\nEMA9: $' + result.ema9 + ' | EMA21: $' + result.ema21 + '\nMacro: ' + result.macroTrend + ' | 15m: ' + result.trend15m + '\n' + new Date().toLocaleTimeString('pt-PT');
       await sendTelegram(msg);
       console.log(pair + ': ' + result.signal + ' conf=' + result.conf);
     } catch (e) { console.error('Erro ' + symbol + ':', e.message); }

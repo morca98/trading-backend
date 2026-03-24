@@ -17,13 +17,14 @@ class BacktestEngine {
     this.maxDD = 0;
     
     // Endpoints por ordem de preferência
-    // MEXC é prioritário porque a Binance está bloqueada em alguns servidores
+    // data-api.binance.vision é o mais estável e sem restrições geográficas
     this.endpoints = [
-      { base: 'https://api.mexc.com', type: 'mexc' },
+      { base: 'https://data-api.binance.vision', type: 'binance' },
       { base: 'https://api.binance.com', type: 'binance' },
       { base: 'https://api1.binance.com', type: 'binance' },
       { base: 'https://api2.binance.com', type: 'binance' },
       { base: 'https://api3.binance.com', type: 'binance' },
+      { base: 'https://api.mexc.com', type: 'mexc' }, // Fallback: limite de 500 velas
     ];
   }
 
@@ -55,8 +56,11 @@ class BacktestEngine {
         let allCandles = [];
         let currentEndTime = Date.now();
         const maxPerRequest = ep.type === 'mexc' ? 500 : 1000;
+        let attempts = 0;
+        const maxAttempts = Math.ceil(totalNeeded / maxPerRequest) + 2;
         
-        while (allCandles.length < totalNeeded) {
+        while (allCandles.length < totalNeeded && attempts < maxAttempts) {
+          attempts++;
           const remaining = totalNeeded - allCandles.length;
           const batchLimit = Math.min(maxPerRequest, remaining);
           
@@ -70,8 +74,8 @@ class BacktestEngine {
           allCandles = [...batch, ...allCandles];
           currentEndTime = batch[0].time - 1;
           
+          // Se o batch retornou menos do que pedimos, não há mais dados
           if (batch.length < batchLimit) break;
-          if (allCandles.length >= totalNeeded) break;
         }
         
         if (allCandles.length > 0) {
@@ -82,7 +86,7 @@ class BacktestEngine {
             seen.add(c.time);
             return true;
           });
-          console.log(`[BacktestEngine] ${ep.type} (${ep.base}): ${unique.length} candles carregados`);
+          console.log(`[BacktestEngine] ${ep.type} (${ep.base}): ${unique.length} candles carregados (pedidos: ${attempts})`);
           return unique.sort((a, b) => a.time - b.time);
         }
       } catch (e) {
@@ -153,7 +157,7 @@ class BacktestEngine {
       const savedInterval = this.interval;
       const savedLimit = this.limit;
       this.interval = '4h';
-      this.limit = Math.min(200, Math.ceil(this.limit / 8)); // 4h = 8x menos candles
+      this.limit = Math.min(500, Math.ceil(this.limit / 8) + 100); // 4h = 8x menos candles, extra para EMA50
       candles4h = await this.fetchCandles();
       this.interval = savedInterval;
       this.limit = savedLimit;
@@ -164,6 +168,8 @@ class BacktestEngine {
 
     this.history = [];
     this.trades = [];
+    let lastLossCandle = -1; // Cooldown após perda
+    let lastTradeDate = ''; // Limite de 1 trade por dia
     
     for (let i = 60; i < candles.length - 1; i++) {
       const window = candles.slice(0, i + 1);
@@ -172,17 +178,36 @@ class BacktestEngine {
       
       // Get macro trend from 4h candles up to current time
       let macroTrend = 'NEUTRAL';
+      let macroEma50 = 0;
+      let macroEma200 = 0;
       if (candles4h.length > 0) {
         const relevant4h = candles4h.filter(c => c.time <= currentCandle.time);
         if (relevant4h.length >= 20) {
           const closes4h = relevant4h.map(c => c.close);
-          macroTrend = this.calcTrend(closes4h, 20);
+          // EMA50 e EMA200 dos 4h para regime mais preciso
+          macroEma50 = relevant4h.length >= 50 ? this.calcEMA(closes4h.slice(-50), 50) : this.calcEMA(closes4h.slice(-20), 20);
+          macroEma200 = relevant4h.length >= 200 ? this.calcEMA(closes4h.slice(-200), 200) : macroEma50;
+          const lastPrice4h = closes4h[closes4h.length - 1];
+          // Regime baseado em EMA50 e EMA200 dos 4h
+          if (lastPrice4h > macroEma50 && macroEma50 > macroEma200) macroTrend = 'BULL';
+          else if (lastPrice4h < macroEma50 && macroEma50 < macroEma200) macroTrend = 'BEAR';
+          else if (lastPrice4h > macroEma200) macroTrend = 'UP';
+          else macroTrend = 'DOWN';
         }
       }
       
       const indicators = this.calculateIndicators(window);
       // Override macroTrend with the one from 4h candles
       indicators.macroTrend = macroTrend;
+      indicators.macroEma50 = macroEma50;
+      indicators.macroEma200 = macroEma200;
+      
+      // Cooldown: aguardar 6 velas (3h) após uma perda antes de nova entrada
+      if (lastLossCandle > 0 && i - lastLossCandle < 6) continue;
+      
+      // Limite de 1 trade por dia
+      const currentDate = new Date(currentCandle.time).toISOString().slice(0,10);
+      if (currentDate === lastTradeDate) continue;
       
       const signalResult = generateSignalFn(window, price, indicators.macroTrend, indicators.trend15m, indicators.atr, null);
       
@@ -197,14 +222,18 @@ class BacktestEngine {
       // Entry with slippage
       const entryPrice = signalResult.signal === 'BUY' ? price * (1 + this.slippage) : price * (1 - this.slippage);
       
-      for (let j = i + 1; j < Math.min(i + 48, candles.length); j++) {
+      // SL/TP fixos - janela de 96 velas (48h em 30m)
+      const sl = signalResult.sl;
+      const tp = signalResult.tp;
+      
+      for (let j = i + 1; j < Math.min(i + 96, candles.length); j++) {
         const next = candles[j];
         if (signalResult.signal === 'BUY') {
-          if (next.low <= signalResult.sl) { outcome = 'LOSS'; exitPrice = signalResult.sl; exitTime = next.time; break; }
-          if (next.high >= signalResult.tp) { outcome = 'WIN'; exitPrice = signalResult.tp; exitTime = next.time; break; }
+          if (next.low <= sl) { outcome = 'LOSS'; exitPrice = sl; exitTime = next.time; break; }
+          if (next.high >= tp) { outcome = 'WIN'; exitPrice = tp; exitTime = next.time; break; }
         } else {
-          if (next.high >= signalResult.sl) { outcome = 'LOSS'; exitPrice = signalResult.sl; exitTime = next.time; break; }
-          if (next.low <= signalResult.tp) { outcome = 'WIN'; exitPrice = signalResult.tp; exitTime = next.time; break; }
+          if (next.high >= sl) { outcome = 'LOSS'; exitPrice = sl; exitTime = next.time; break; }
+          if (next.low <= tp) { outcome = 'WIN'; exitPrice = tp; exitTime = next.time; break; }
         }
       }
       
@@ -221,6 +250,11 @@ class BacktestEngine {
         this.capital += netPnl;
         this.maxCapital = Math.max(this.maxCapital, this.capital);
         this.maxDD = Math.max(this.maxDD, (this.maxCapital - this.capital) / this.maxCapital * 100);
+        
+        if (outcome === 'LOSS') {
+          lastLossCandle = i; // Registar a vela da perda para cooldown
+        }
+        lastTradeDate = new Date(currentCandle.time).toISOString().slice(0,10);
         
         this.trades.push({
           time: currentCandle.time,
