@@ -22,6 +22,7 @@ const SIGNAL_COOLDOWN = 90 * 60 * 1000; // 90 minutos = 3 velas de 30m (igual ao
 var lastSignalDateBuy = { BTCUSDT: '', ETHUSDT: '' };
 var lastSignalDateSell = { BTCUSDT: '', ETHUSDT: '' };
 const STATS_FILE = '/tmp/stats.json';
+const TRADES_FILE = '/tmp/trades.json';
 
 var lastSignal = { BTCUSDT: null, ETHUSDT: null };
 var lastSignalTime = { BTCUSDT: 0, ETHUSDT: 0 };
@@ -44,8 +45,20 @@ function saveStats(wins, losses, pnl) {
   try { fs.writeFileSync(STATS_FILE, JSON.stringify({ wins: wins, losses: losses, totalPnl: pnl })); } catch(e) {}
 }
 
+function loadTrades() {
+  try {
+    if (fs.existsSync(TRADES_FILE)) return JSON.parse(fs.readFileSync(TRADES_FILE, 'utf8'));
+  } catch(e) {}
+  return [];
+}
+
+function saveTrades() {
+  try { fs.writeFileSync(TRADES_FILE, JSON.stringify(tradeHistory)); } catch(e) {}
+}
+
 var stats = loadStats();
 var winCount = stats.wins, lossCount = stats.losses, totalPnl = stats.totalPnl;
+var tradeHistory = loadTrades();
 
 // ── API ───────────────────────────────────────────────────────────────────────
 app.get('/api/candles', async function(req, res) {
@@ -315,7 +328,11 @@ app.get('/api/backtest', async function(req, res) {
 
 app.get('/api/stats', function(req, res) {
   var total = winCount + lossCount;
-  res.json({ success: true, wins: winCount, losses: lossCount, total: total, winRate: total > 0 ? Math.round(winCount / total * 100) : 0, totalPnl: totalPnl, activeTrades: Object.keys(activeTrades).length, dailyResults: dailyResults });
+  // Calcular Profit Factor real a partir do histórico
+  var grossWins = tradeHistory.filter(function(t){return t.outcome==='WIN';}).reduce(function(s,t){return s+Math.abs(t.pnl);},0);
+  var grossLoss = tradeHistory.filter(function(t){return t.outcome==='LOSS';}).reduce(function(s,t){return s+Math.abs(t.pnl);},0);
+  var profitFactor = grossLoss > 0 ? parseFloat((grossWins/grossLoss).toFixed(2)) : (grossWins > 0 ? 99 : 0);
+  res.json({ success: true, wins: winCount, losses: lossCount, total: total, winRate: total > 0 ? Math.round(winCount / total * 100) : 0, totalPnl: totalPnl, profitFactor: profitFactor, activeTrades: Object.keys(activeTrades).length, dailyResults: dailyResults, tradeHistory: tradeHistory.slice(-50) });
 });
 
 app.post('/api/alert', function(req, res) { priceAlerts.push(req.body); res.json({ success: true }); });
@@ -683,6 +700,15 @@ async function checkActiveTrades() {
         if (outcome.startsWith('WIN')) winCount++; else lossCount++;
         totalPnl += pnl;
         saveStats(winCount, lossCount, totalPnl);
+        // Atualizar o trade no histórico com o resultado final
+        var tradeRecord = tradeHistory.find(function(t) { return t.id === trade.id; });
+        if (tradeRecord) {
+          tradeRecord.outcome = outcome.startsWith('WIN') ? 'WIN' : 'LOSS';
+          tradeRecord.pnl = parseFloat(pnl.toFixed(2));
+          tradeRecord.exitPrice = price;
+          tradeRecord.exitTime = Date.now();
+          saveTrades();
+        }
         delete activeTrades[symbol];
         await sendTelegram('<b>' + outcome + ' ' + pair + '</b>\nP&L: ' + (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%\nWin Rate: ' + Math.round(winCount / (winCount + lossCount) * 100) + '%');
       }
@@ -788,7 +814,11 @@ async function runBot() {
       if (result.signal === 'BUY') lastSignalDateBuy[symbol] = todayDate;
       else lastSignalDateSell[symbol] = todayDate;
       dailyResults[symbol].push({ signal: result.signal, conf: result.conf });
-      activeTrades[symbol] = { pair: pair, signal: result.signal, entry: price, sl: result.sl, tp: result.tp, time: now };
+      var tradeId = symbol + '_' + now;
+      activeTrades[symbol] = { id: tradeId, pair: pair, signal: result.signal, entry: price, sl: result.sl, tp: result.tp, time: now };
+      // Gravar sinal no histórico de trades
+      tradeHistory.push({ id: tradeId, symbol: symbol, pair: pair, signal: result.signal, entry: price, sl: result.sl, tp: result.tp, slPct: result.slPct, tpPct: result.tpPct, conf: result.conf, rsi: result.rsi, adx: result.adx, macroTrend: result.macroTrend, time: now, outcome: 'OPEN', pnl: 0, exitPrice: 0, exitTime: 0 });
+      saveTrades();
       var msg = '<b>' + result.signal + ' ' + pair + '</b>\n\nPreco: $' + price.toFixed(2) + '\nStop: $' + result.sl.toFixed(0) + ' (-' + result.slPct + '%)\nAlvo: $' + result.tp.toFixed(0) + ' (+' + result.tpPct + '%)\nConf: ' + result.conf + '%\nRSI: ' + result.rsi + ' | ADX: ' + result.adx + ' | ATR: $' + result.atr + '\nEMA9: $' + result.ema9 + ' | EMA21: $' + result.ema21 + '\nMacro: ' + result.macroTrend + ' | 15m: ' + result.trend15m + '\n' + new Date().toLocaleTimeString('pt-PT');
       await sendTelegram(msg);
       console.log(pair + ': ' + result.signal + ' conf=' + result.conf);

@@ -288,9 +288,11 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
     <div class="stat c-purple"><div class="stat-val" id="pTotal">0</div><div class="stat-lbl">TRADES</div></div>
     <div class="stat c-yellow"><div class="stat-val" id="pPnl">0%</div><div class="stat-lbl">P&L</div></div>
     <div class="stat c-cyan"><div class="stat-val" id="pActive">0</div><div class="stat-lbl">ATIVOS</div></div>
+    <div class="stat c-green"><div class="stat-val" id="pPF">--</div><div class="stat-lbl">PROFIT FACTOR</div></div>
   </div>
   <div class="card"><div class="card-title">Curva de Capital</div><div id="perfChart"><div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">A carregar...</div></div></div>
   <div class="card"><div class="card-title">Sinais do Dia</div><div id="dailySig"><div style="color:var(--muted);font-size:10px">A carregar...</div></div></div>
+  <div class="card"><div class="card-title">Histórico de Trades Reais</div><div id="tradeHistoryList"><div style="color:var(--muted);font-size:10px;text-align:center;padding:8px">A carregar...</div></div></div>
   <button class="btn primary" onclick="loadPerf()">ATUALIZAR</button>
 </div>
 
@@ -729,9 +731,26 @@ async function loadPerf() {
       document.getElementById('pTotal').textContent=d.total;
       document.getElementById('pPnl').textContent=(pnl>=0?'+':'')+pnl.toFixed(1)+'%'; document.getElementById('pPnl').style.color=pnl>=0?'var(--green)':'var(--red)';
       document.getElementById('pActive').textContent=d.activeTrades;
+      // Mostrar Profit Factor real se disponivel
+      var pfEl=document.getElementById('pPF');
+      if(pfEl && d.profitFactor!==undefined){ pfEl.textContent=d.profitFactor; pfEl.style.color=d.profitFactor>=1?'var(--green)':'var(--red)'; }
       renderPerfChart(d.wins,d.losses);
       var ds=''; Object.keys(d.dailyResults||{}).forEach(function(sym){var res=d.dailyResults[sym]||[];if(res.length){var b=res.filter(function(r){return r.signal==='BUY';}).length;ds+='<div class="lvl-row"><span>'+sym.replace('USDT','/USDT')+'</span><span style="color:var(--green)">'+b+'B</span><span style="color:var(--red)">'+(res.length-b)+'S</span><span style="color:var(--muted)">'+res.length+' total</span></div>';}});
       document.getElementById('dailySig').innerHTML=ds||'<div style="color:var(--muted);font-size:10px">Sem sinais hoje</div>';
+      // Renderizar histórico de trades reais
+      var hist=d.tradeHistory||[]; var hEl=document.getElementById('tradeHistoryList');
+      if(hEl){
+        if(!hist.length){hEl.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:8px">Sem trades gravados</div>';}
+        else{
+          var rows=hist.slice().reverse().slice(0,20).map(function(t){
+            var dt=new Date(t.time).toISOString().slice(5,16).replace('T',' ');
+            var col=t.outcome==='WIN'?'var(--green)':t.outcome==='LOSS'?'var(--red)':'var(--muted)';
+            var pnlStr=t.outcome==='OPEN'?'ABERTO':(t.pnl>=0?'+':'')+t.pnl.toFixed(2)+'%';
+            return '<div class="lvl-row" style="font-size:10px"><span style="color:var(--muted)">'+dt+'</span><span>'+t.pair+'</span><span style="color:'+(t.signal==='BUY'?'var(--green)':'var(--red)')+'">'+t.signal+'</span><span style="color:'+col+'">'+t.outcome+'</span><span style="color:'+col+'">'+pnlStr+'</span></div>';
+          });
+          hEl.innerHTML=rows.join('');
+        }
+      }
     }
   } catch(e) { document.getElementById('dailySig').innerHTML='<div style="color:var(--muted);font-size:10px">Servidor offline</div>'; }
 }
