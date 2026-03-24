@@ -27,6 +27,7 @@ var lastSignalTime = { BTCUSDT: 0, ETHUSDT: 0 };
 var dailyResults = { BTCUSDT: [], ETHUSDT: [] };
 var activeTrades = {};
 var priceAlerts = [];
+var dailyReportSentDate = '';
 
 function loadStats() {
   try {
@@ -78,7 +79,7 @@ app.get('/api/signal', async function(req, res) {
     var results = await Promise.all([
       axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=' + interval + '&limit=200'),
       axios.get(BINANCE + '/api/v3/ticker/price?symbol=' + symbol),
-      axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=4h&limit=50'),
+      axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=4h&limit=200'),
       axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=15m&limit=30')
     ]);
 
@@ -678,7 +679,7 @@ async function checkActiveTrades() {
         if (price <= trade.tp) { pnl = (trade.entry - price) / trade.entry * 100; outcome = 'WIN (TP)'; closed = true; }
       }
       if (closed) {
-        if (outcome === 'WIN') winCount++; else lossCount++;
+        if (outcome.startsWith('WIN')) winCount++; else lossCount++;
         totalPnl += pnl;
         saveStats(winCount, lossCount, totalPnl);
         delete activeTrades[symbol];
@@ -742,7 +743,8 @@ async function getLiqData(symbol) {
 }
 
 async function runBot() {
-  if (!isGoodSession()) return;
+  // Filtro de sessão removido para garantir consistência com o backtest
+  // if (!isGoodSession()) return;
   await checkActiveTrades();
   await checkPriceAlerts();
   for (var i = 0; i < SYMBOLS.length; i++) {
@@ -752,7 +754,7 @@ async function runBot() {
       var results = await Promise.all([
         axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=30m&limit=200'),
         axios.get(BINANCE + '/api/v3/ticker/price?symbol=' + symbol),
-        axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=4h&limit=50'),
+        axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=4h&limit=200'),
         axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=15m&limit=30'),
         getLiqData(symbol)
       ]);
@@ -790,6 +792,9 @@ async function runBot() {
 async function sendDailyReport() {
   var h = new Date().getUTCHours(), m = new Date().getUTCMinutes();
   if (h !== 8 || m > 5) return;
+  var today = new Date().toISOString().slice(0, 10);
+  if (dailyReportSentDate === today) return;
+  dailyReportSentDate = today;
   var total = winCount + lossCount, wr = total > 0 ? Math.round(winCount / total * 100) : 0;
   var msg = '<b>Relatorio Diario</b>\nWin Rate: ' + wr + '% | P&L: ' + (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(2) + '%\n\n';
   for (var i = 0; i < SYMBOLS.length; i++) {
