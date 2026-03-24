@@ -404,19 +404,18 @@ function renderResults(trades, capital, maxDrawdown, sym, profitFactor) {
   document.getElementById("statMaxDD").textContent = `${(maxDrawdown || 0).toFixed(1)}%`;
   
   if (profitFactor) {
-    // Adicionar Profit Factor na UI se disponível
-    const pfBox = document.getElementById("statMaxDD").parentElement;
-    pfBox.innerHTML = `<div class="stat-val" id="statPF" style="color:${parseFloat(profitFactor) > 1 ? '#10b981' : '#ef4444'}">${profitFactor}</div><div class="stat-lbl">PROFIT FACTOR</div>`;
-    
-    // Mover Max DD para outro lugar ou adicionar novo box
+    // Adicionar/atualizar Profit Factor sem destruir statMaxDD
     const grid = document.getElementById("statsGrid2");
-    if (!document.getElementById("statMaxDD_new")) {
-      const newBox = document.createElement("div");
-      newBox.className = "stat-box";
-      newBox.innerHTML = `<div class="stat-val" id="statMaxDD_new" style="color:#f59e0b">${maxDrawdown.toFixed(1)}%</div><div class="stat-lbl">MAX DRAWDOWN</div>`;
-      grid.appendChild(newBox);
+    let pfBox = document.getElementById("statPF_box");
+    if (!pfBox) {
+      pfBox = document.createElement("div");
+      pfBox.className = "stat-box";
+      pfBox.id = "statPF_box";
+      pfBox.innerHTML = `<div class="stat-val" id="statPF" style="color:${parseFloat(profitFactor) > 1 ? '#10b981' : '#ef4444'}">${profitFactor}</div><div class="stat-lbl">PROFIT FACTOR</div>`;
+      grid.appendChild(pfBox);
     } else {
-      document.getElementById("statMaxDD_new").textContent = `${maxDrawdown.toFixed(1)}%`;
+      const pfVal = document.getElementById("statPF");
+      if (pfVal) { pfVal.textContent = profitFactor; pfVal.style.color = parseFloat(profitFactor) > 1 ? '#10b981' : '#ef4444'; }
     }
   }
 

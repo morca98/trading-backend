@@ -2,7 +2,8 @@ const axios = require('axios');
 
 class BacktestEngine {
   constructor(options = {}) {
-    this.capital = options.initialCapital || 1000;
+    this.initialCapital = options.initialCapital || 1000;
+    this.capital = this.initialCapital;
     this.riskPerTrade = options.riskPerTrade || 0.02;
     this.fee = options.fee || 0.001; // 0.1%
     this.slippage = options.slippage || 0.0005; // 0.05%
@@ -13,7 +14,7 @@ class BacktestEngine {
     
     this.trades = [];
     this.history = [];
-    this.maxCapital = this.capital;
+    this.maxCapital = this.initialCapital;
     this.maxDD = 0;
     
     // Endpoints por ordem de preferência
@@ -293,7 +294,7 @@ class BacktestEngine {
       losses,
       winRate: winRate.toFixed(2),
       finalCapital: this.capital.toFixed(2),
-      returnPct: (((this.capital - 1000) / 1000) * 100).toFixed(2),
+      returnPct: (((this.capital - (this.initialCapital || 1000)) / (this.initialCapital || 1000)) * 100).toFixed(2),
       maxDD: this.maxDD.toFixed(2),
       profitFactor: profitFactor.toFixed(2),
       trades: this.trades

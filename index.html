@@ -178,7 +178,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
       <span style="color:var(--yellow)">&#9472; POC</span>
       <span style="color:var(--green)">&#8230; VAH</span>
       <span style="color:var(--red)">&#8230; VAL</span>
-      <span style="color:#ff9800">&#9472; EMA20</span>
+      <span style="color:#ff9800">&#9472; EMA9</span>
       <span style="color:#e040fb">&#9472; EMA50</span>
       <span style="color:var(--purple)">&#9612; LVN</span>
       <span style="color:var(--cyan)">&#9612; LIQZ</span>
@@ -860,7 +860,7 @@ function renderPrice(){
   if(currentPrice){el.textContent='$'+currentPrice.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});if(prevPrice&&prevPrice!==currentPrice){el.className='price-main '+(currentPrice>prevPrice?'fu':'fd');setTimeout(function(){el.className='price-main';},500);}}
   var up=currentChange>=0;ch.innerHTML=(up?'&#9650;':'&#9660;')+' '+Math.abs(currentChange).toFixed(2)+'%';ch.className='price-ch '+(up?'up':'dn');
   document.getElementById('priceTime').textContent='ATT: '+new Date().toLocaleTimeString('pt-PT');
-  if(ema20Line.length&&ema50Line.length){var e20=ema20Line[ema20Line.length-1],e50=ema50Line[ema50Line.length-1];document.getElementById('emaDisplay').textContent='EMA20:$'+Math.round(e20).toLocaleString()+' EMA50:$'+Math.round(e50).toLocaleString();}
+  if(ema20Line.length&&ema50Line.length){var e20=ema20Line[ema20Line.length-1],e50=ema50Line[ema50Line.length-1];document.getElementById('emaDisplay').textContent='EMA9:$'+Math.round(e20).toLocaleString()+' EMA50:$'+Math.round(e50).toLocaleString();}
 }
 
 function setLive(live){var b=document.getElementById('liveBadge');b.className='live-badge'+(live?' on':'');document.getElementById('liveText').textContent=live?'LIVE':'SIM';}
@@ -895,7 +895,7 @@ async function runAnalysis(){
 
   if(serverData&&serverData.success){
     result=serverData.signal;fromServer=true;
-    if(serverData.ema20&&serverData.ema20.length){ema20Line=serverData.ema20;ema50Line=serverData.ema50||[];}
+    if(serverData.ema9&&serverData.ema9.length){ema20Line=serverData.ema9;ema50Line=serverData.ema50||[];}else if(serverData.ema20&&serverData.ema20.length){ema20Line=serverData.ema20;ema50Line=serverData.ema50||[];}
     if(serverData.candles&&serverData.candles.length){candles=serverData.candles;vpData=calcVP(candles);levelsData=calcLevels(candles);cloudsData=calcClouds(candles,vpData);}
     renderAll();
   }
@@ -911,7 +911,7 @@ async function runAnalysis(){
   var bias=result?result.macroTrend||'NEUTRAL':'NEUTRAL';
   var rsi=result?result.rsi:'--',pattern=result?result.pattern:'NONE',divergence=result?result.divergence:'NONE';
   var macro=result?result.macroTrend:'--',tf15m=result?result.trend15m:'--';
-  var score=result?(Math.max(result.buyScore||0,result.sellScore||0)+'/16'):'--';
+  var score=result?(result.buyScore!==undefined||result.sellScore!==undefined?(Math.max(result.buyScore||0,result.sellScore||0)+'/16'):(result.conf||0)+'%'):'--';
 
   if(signal==='BUY'||signal==='SELL'){
     playSignal(signal);
