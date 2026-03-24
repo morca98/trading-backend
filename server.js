@@ -601,23 +601,27 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   
   // ── FILTROS DE QUALIDADE ──────────────────────────────────────────────────────────────
   if (signal === 'BUY') {
-    if (rsi > 70) return null;
-    if (price < ema200 && macroTrend !== 'BULL') return null;
+    if (rsi > 70) return null;  // Overbought
+    if (price < ema200 && macroTrend !== 'BULL') return null; // Abaixo da EMA200 sem macro bull
     var ema9DistFromEma21 = (ema9 - ema21) / ema21 * 100;
     if (ema9DistFromEma21 > 1.5) return null; // Entrada tardia
-    if (!volHigh) return null;
   }
   
   if (signal === 'SELL') {
-    if (rsi < 30) return null;
-    if (price > ema200 && macroTrend !== 'BEAR') return null;
+    if (rsi < 30) return null;  // Oversold
+    if (price > ema200 && macroTrend !== 'BEAR') return null; // Acima da EMA200 sem macro bear
     var ema9DistFromEma21Sell = (ema21 - ema9) / ema21 * 100;
     if (ema9DistFromEma21Sell > 1.5) return null; // Entrada tardia
-    if (!volHigh) return null;
   }
   
-  // Confirmação de vela
-  if (!confirmCandle(candles, signal)) return null;
+  // Confirmação de vela (inline — mesma lógica do test-v3)
+  var prevCandle = candles[candles.length - 2];
+  if (!prevCandle) return null;
+  if (signal === 'BUY' && prevCandle.close < prevCandle.open) return null;
+  if (signal === 'SELL' && prevCandle.close > prevCandle.open) return null;
+  
+  // Filtro de volume: exigir volume acima da média para TODOS os sinais
+  if (!volHigh) return null;
   
   // ── CÁLCULO DE SL/TP ──────────────────────────────────────────────────────────────
   var atrPct = atr / price;

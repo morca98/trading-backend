@@ -15,6 +15,8 @@ class BacktestEngine {
     this.history = [];
     this.maxCapital = this.capital;
     this.maxDD = 0;
+    this.lastTradeDateBuy = '';
+    this.lastTradeDateSell = '';
     
     // Endpoints por ordem de preferência
     // data-api.binance.vision é o mais estável e sem restrições geográficas
@@ -202,17 +204,18 @@ class BacktestEngine {
       indicators.macroEma50 = macroEma50;
       indicators.macroEma200 = macroEma200;
       
-      // Cooldown: aguardar 6 velas (3h) após uma perda antes de nova entrada
-      if (lastLossCandle > 0 && i - lastLossCandle < 6) continue;
-      
-      // Limite de 1 trade por dia
-      const currentDate = new Date(currentCandle.time).toISOString().slice(0,10);
-      if (currentDate === lastTradeDate) continue;
+      // Cooldown: aguardar 3 velas (1.5h) após uma perda antes de nova entrada
+      if (lastLossCandle > 0 && i - lastLossCandle < 3) continue;
       
       const signalResult = generateSignalFn(window, price, indicators.macroTrend, indicators.trend15m, indicators.atr, null);
       
       // Sincronizado com o bot real (55%) para capturar mais sinais
       if (!signalResult || signalResult.conf < 55) continue;
+      
+      // Limite de 1 trade por dia por direção (evita overtrading no mesmo dia)
+      const currentDate = new Date(currentCandle.time).toISOString().slice(0,10);
+      if (signalResult.signal === 'BUY' && currentDate === this.lastTradeDateBuy) continue;
+      if (signalResult.signal === 'SELL' && currentDate === this.lastTradeDateSell) continue;
       
       // Simulate Trade
       let outcome = null;
@@ -239,11 +242,10 @@ class BacktestEngine {
       
       if (outcome) {
         // Calculate PnL with fees
-        const rawPnlPct = signalResult.signal === 'BUY' ? (exitPrice - entryPrice) / entryPrice : (entryPrice - exitPrice) / entryPrice;
+        // PnL fixo baseado no R:R dinâmico do sinal (mesmo método do test-v3)
         const slDistPct = Math.abs(entryPrice - signalResult.sl) / entryPrice;
-        const pnlAmount = slDistPct > 0 
-          ? this.capital * this.riskPerTrade * (rawPnlPct / slDistPct)
-          : this.capital * this.riskPerTrade * (outcome === 'WIN' ? 2.2 : -1);
+        const rrMultiplier = parseFloat(signalResult.tpPct) / parseFloat(signalResult.slPct) || 2.2;
+        const pnlAmount = this.capital * this.riskPerTrade * (outcome === 'WIN' ? rrMultiplier : -1);
         const feeAmount = this.capital * this.fee * 2; // Entry + Exit
         const netPnl = pnlAmount - feeAmount;
         
@@ -254,7 +256,10 @@ class BacktestEngine {
         if (outcome === 'LOSS') {
           lastLossCandle = i; // Registar a vela da perda para cooldown
         }
-        lastTradeDate = new Date(currentCandle.time).toISOString().slice(0,10);
+        // Registar data do trade por direção
+        const tradeDate = new Date(currentCandle.time).toISOString().slice(0,10);
+        if (signalResult.signal === 'BUY') this.lastTradeDateBuy = tradeDate;
+        else this.lastTradeDateSell = tradeDate;
         
         this.trades.push({
           time: currentCandle.time,
