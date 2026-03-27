@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const fs = require('fs');
+const path = require('path');
 const BacktestEngine = require('./backtest-engine');
 const app = express();
 
@@ -337,7 +338,10 @@ app.get('/api/stats', function(req, res) {
 
 app.post('/api/alert', function(req, res) { priceAlerts.push(req.body); res.json({ success: true }); });
 
-app.get('/', function(req, res) { res.json({ status: 'ok', version: 'v7' }); });
+app.get('/api/health', function(req, res) { res.json({ status: 'ok', version: 'v7' }); });
+
+app.get('/', function(req, res) { res.sendFile(path.join(__dirname, 'index.html')); });
+app.get('/backtest.html', function(req, res) { res.sendFile(path.join(__dirname, 'backtest.html')); });
 
 app.post('/telegram', async function(req, res) {
   try {
