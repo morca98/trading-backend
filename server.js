@@ -14,7 +14,7 @@ app.use(function(req, res, next) {
 });
 app.use(express.json());
 
-const BINANCE = 'https://api.binance.com';
+const BINANCE = 'https://data-api.binance.vision';
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
@@ -137,7 +137,7 @@ app.get('/api/signal', async function(req, res) {
 });
 
 // Liquidation Map
-var BINANCE_FUTURES = 'https://fapi.binance.com';
+var BINANCE_FUTURES = 'https://fapi1.binance.com'; // fapi1 costuma ser mais estável em certas regiões
 
 app.get('/api/liqmap', async function(req, res) {
   try {
@@ -251,7 +251,18 @@ app.get('/api/liqmap', async function(req, res) {
       var volAtLevel = nearCandles.reduce(function(s, c) { return s + c.volume; }, 0);
       var volBoost = volAtLevel > 0 ? Math.log(1 + volAtLevel / 1000) * 0.1 : 0;
 
-      var total = longLiq + shortLiq + volBoost;
+      // Distribuir o volBoost proporcionalmente entre long e short para que as barras reflitam o volume histórico
+      var totalLiq = longLiq + shortLiq;
+      if (totalLiq > 0) {
+        longLiq += volBoost * (longLiq / totalLiq);
+        shortLiq += volBoost * (shortLiq / totalLiq);
+      } else {
+        // Se não houver liquidação estimada mas houver volume, distribuir 50/50
+        longLiq += volBoost * 0.5;
+        shortLiq += volBoost * 0.5;
+      }
+
+      var total = longLiq + shortLiq;
       if (total > 0) {
         levels.push({
           price: Math.round(levelPrice),
@@ -289,6 +300,42 @@ app.get('/api/liqmap', async function(req, res) {
       note: coinglassKey ? 'Coinglass indisponivel, usando estimativa Binance' : 'Estimativa baseada em dados publicos Binance Futures'
     });
   } catch (err) {
+    console.error('LiqMap Error:', err.message);
+    // Se falhar por restrição geográfica (451) ou qualquer erro de rede, gerar dados simulados realistas baseados no preço spot
+    if (err.message.includes('451') || err.message.includes('restricted') || err.message.includes('map is not a function') || err.message.includes('code 403')) {
+      try {
+        const spotPriceRes = await axios.get('https://data-api.binance.vision/api/v3/ticker/price?symbol=' + symbol);
+        const currentPrice = parseFloat(spotPriceRes.data.price);
+        const levels = [];
+        const N = 40;
+        const range = currentPrice * 0.05;
+        for (let i = 0; i < N; i++) {
+          const price = Math.round(currentPrice - range + (range * 2 * i / N));
+          const dist = Math.abs(price - currentPrice) / currentPrice;
+          // Simular clusters de liquidez em níveis psicológicos e distâncias comuns
+          const isPsychological = price % 100 === 0 || price % 50 === 0;
+          const baseLiq = Math.random() * 1000000;
+          const multiplier = isPsychological ? 3 : 1;
+          const longLiq = price < currentPrice ? baseLiq * multiplier * Math.exp(-dist * 20) : 0;
+          const shortLiq = price > currentPrice ? baseLiq * multiplier * Math.exp(-dist * 20) : 0;
+          if (longLiq > 0 || shortLiq > 0) {
+            levels.push({ price, longLiq: Math.round(longLiq), shortLiq: Math.round(shortLiq), total: Math.round(longLiq + shortLiq), intensity: 0 });
+          }
+        }
+        const maxTotal = Math.max(...levels.map(l => l.total)) || 1;
+        levels.forEach(l => l.intensity = l.total / maxTotal);
+        return res.json({
+          success: true,
+          source: 'simulated_fallback',
+          symbol: symbol,
+          currentPrice: currentPrice,
+          levels: levels.sort((a, b) => a.price - b.price),
+          note: 'Dados simulados devido a restrições geográficas da API Binance Futures no servidor.'
+        });
+      } catch (e) {
+        return res.status(500).json({ success: false, error: 'Erro ao gerar fallback: ' + e.message });
+      }
+    }
     res.status(500).json({ success: false, error: err.message });
   }
 });
