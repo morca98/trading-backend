@@ -5,13 +5,12 @@ const path = require('path');
 const BacktestEngine = require('./backtest-engine');
 const app = express();
 
-app.use(function(req, res, next) {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.sendStatus(200);
-  next();
-});
+const cors = require('cors');
+app.use(cors({
+  origin: '*', // Permite qualquer origem, incluindo GitHub Pages
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 const BINANCE = 'https://data-api.binance.vision';

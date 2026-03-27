@@ -322,6 +322,19 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 
 <script>
 var BACKEND = window.location.origin.includes('github.io') ? 'https://trading-backend-production-5dd4.up.railway.app' : window.location.origin;
+// Diagnóstico visual para o utilizador saber para onde o site está a ligar
+console.log('Backend URL:', BACKEND);
+setTimeout(function() {
+  var footer = document.querySelector('.footer');
+  if (footer) {
+    var debug = document.createElement('div');
+    debug.style.fontSize = '8px';
+    debug.style.color = 'var(--muted)';
+    debug.style.marginTop = '4px';
+    debug.innerHTML = 'BACKEND: ' + BACKEND;
+    footer.appendChild(debug);
+  }
+}, 2000);
 var TELEGRAM_TOKEN = 'coloca_aqui_o_teu_token';
 var TELEGRAM_CHAT_ID = '1354621810';
 var SYM_MAP={'BTC/USDT':'BTCUSDT','ETH/USDT':'ETHUSDT'};
