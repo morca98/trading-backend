@@ -150,7 +150,7 @@
 </div>
 
 <script>
-const BACKEND = window.location.origin;
+const BACKEND = window.location.origin.includes('github.io') ? 'https://trading-backend-production-5dd4.up.railway.app' : window.location.origin;
 const CAPITAL_INICIAL = 1000;
 const RISCO_POR_TRADE = 0.02; // 2% por trade
 

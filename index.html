@@ -321,7 +321,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 </div>
 
 <script>
-var BACKEND = window.location.origin;
+var BACKEND = window.location.origin.includes('github.io') ? 'https://trading-backend-production-5dd4.up.railway.app' : window.location.origin;
 var TELEGRAM_TOKEN = 'coloca_aqui_o_teu_token';
 var TELEGRAM_CHAT_ID = '1354621810';
 var SYM_MAP={'BTC/USDT':'BTCUSDT','ETH/USDT':'ETHUSDT'};
@@ -398,7 +398,12 @@ function toggleTheme() { isDark=!isDark; document.getElementById('body').classNa
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function showTab(name) {
   var names=['chart','liqmap','bt','perf','alerts'];
-  document.querySelectorAll('.tab').forEach(function(t,i){t.className='tab'+(names[i]===name?' active':'');});
+  // Corrigir a seleção das abas para garantir que a aba de performance e outras funcionem corretamente
+  var tabs = document.querySelectorAll('.tab');
+  tabs.forEach(function(t, i) {
+    if (names[i] === name) t.classList.add('active');
+    else t.classList.remove('active');
+  });
   document.querySelectorAll('.tab-content').forEach(function(t){t.className='tab-content';});
   document.getElementById('tab-'+name).className='tab-content active';
   if(name==='perf')loadPerf();
