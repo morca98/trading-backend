@@ -958,7 +958,8 @@ async function handleTelegramCommands() {
         } else if (text === '/eth') {
           runBacktest('ETHUSDT');
         } else if (text === '/status') {
-          await sendTelegram('<b>Estado:</b> Ativo\nSinais: BTC/ETH\nTimeframe: 30M');
+          const now = new Date().toLocaleString('pt-PT', { timeZone: 'Europe/Lisbon' });
+          await sendTelegram(`<b>Estado:</b> Ativo\nSinais: BTC/ETH\nTimeframe: 30M\nHora: ${now}`);
         }
       }
     }
