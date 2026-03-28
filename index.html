@@ -213,7 +213,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   </div>
 
   <!-- BACKTEST TAB (IFRAME ISOLADO) -->
-  <div id="tab-bt" class="tab-content" style="height: calc(100vh - 180px);">
+  <div id="tab-bt" class="tab-content" style="height: 600px;">
     <iframe src="backtest.html" style="width:100%; height:100%; border:none; background:transparent;"></iframe>
   </div>
 
@@ -241,117 +241,119 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 </div>
 
 <script>
-var currentSym='BTC/USDT',currentTF='30m',candles=[],vpData=null,levelsData=[],cloudsData=[],ema20Line=[],ema50Line=[],logEntries=[],theme='dark',prevPrice=0,currentPrice=0,currentChange=0;
-var BACKEND='', BINANCE_API='https://api.binance.com';
-var SYM_MAP={'BTC/USDT':'BTCUSDT','ETH/USDT':'ETHUSDT'};
+// BACKEND URL (REMOVIDO PARA USAR CAMINHOS RELATIVOS)
+var BACKEND = "";
+var BINANCE_API = "https://api.binance.com";
+var currentSym = "BTC/USDT", currentTF = "30m", candles = [], vpData = null, levelsData = [], cloudsData = [], ema20Line = [], ema50Line = [], logEntries = [], theme = "dark", prevPrice = 0, currentPrice = 0, currentChange = 0;
+var SYM_MAP = {"BTC/USDT": "BTCUSDT", "ETH/USDT": "ETHUSDT"};
 
 function showTab(id){
-  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('tab-'+id).classList.add('active');
-  var tabs=document.querySelectorAll('.tab');
-  for(var i=0;i<tabs.length;i++){
-    var label=tabs[i].textContent.toLowerCase();
-    if(label===id||(id==='bt'&&label==='backtest')||(id==='perf'&&label==='performance')||(id==='alerts'&&label==='alertas')) tabs[i].classList.add('active');
+  document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.getElementById("tab-"+id).classList.add("active");
+  var tabs = document.querySelectorAll(".tab");
+  for(var i=0; i<tabs.length; i++){
+    var label = tabs[i].textContent.toLowerCase();
+    if(label === id || (id === "bt" && label === "backtest") || (id === "perf" && label === "performance") || (id === "alerts" && label === "alertas")) tabs[i].classList.add("active");
   }
 }
 
 function setSym(s){
-  currentSym=s;
-  document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.textContent.includes(s)));
+  currentSym = s;
+  document.querySelectorAll(".sym-btn").forEach(b => b.classList.toggle("active", b.textContent.includes(s)));
   loadData();
 }
 
 function setTF(tf){
-  currentTF=tf;
-  document.querySelectorAll('.tf-btn').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase()===tf));
+  currentTF = tf;
+  document.querySelectorAll(".tf-btn").forEach(b => b.classList.toggle("active", b.textContent.toLowerCase() === tf));
   loadData();
 }
 
 function toggleTheme(){
-  theme=theme==='dark'?'light':'dark';
-  document.body.className=theme==='light'?'light':'dark-bg';
+  theme = theme === "dark" ? "light" : "dark";
+  document.body.className = theme === "light" ? "light" : "dark-bg";
 }
 
-async function apiCandles(sym,interval,limit){
-  try{
-    var r=await fetch(BACKEND+'/api/candles?symbol='+SYM_MAP[sym]+'&interval='+interval+'&limit='+limit);
-    var d=await r.json();
+async function apiCandles(sym, interval, limit){
+  try {
+    var r = await fetch(BACKEND + "/api/candles?symbol=" + SYM_MAP[sym] + "&interval=" + interval + "&limit=" + limit);
+    var d = await r.json();
     return d.candles;
-  }catch(e){return null;}
+  } catch(e) { return null; }
 }
 
 async function apiPrice(sym){
-  try{
-    var r=await fetch(BACKEND+'/api/price?symbol='+SYM_MAP[sym]);
-    var d=await r.json();
+  try {
+    var r = await fetch(BACKEND + "/api/price?symbol=" + SYM_MAP[sym]);
+    var d = await r.json();
     return d;
-  }catch(e){return null;}
+  } catch(e) { return null; }
 }
 
 function calcVP(c){
-  var prices=c.flatMap(x=>[x.high,x.low]),min=Math.min(...prices),max=Math.max(...prices),N=20,step=(max-min)/N;
-  var bars=Array.from({length:N},(_,i)=>({price:min+step*(i+.5),vol:0}));
-  c.forEach(x=>{var i=Math.min(Math.floor(((x.high+x.low)/2-min)/step),N-1);bars[i].vol+=x.volume;});
-  return{bars,poc:bars.reduce((a,b)=>b.vol>a.vol?b:a).price,maxVol:Math.max(...bars.map(b=>b.vol)),step};
+  var prices = c.flatMap(x => [x.high, x.low]), min = Math.min(...prices), max = Math.max(...prices), N = 20, step = (max - min) / N;
+  var bars = Array.from({length: N}, (_, i) => ({price: min + step * (i + .5), vol: 0}));
+  c.forEach(x => { var i = Math.min(Math.floor(((x.high + x.low) / 2 - min) / step), N - 1); bars[i].vol += x.volume; });
+  return {bars, poc: bars.reduce((a, b) => b.vol > a.vol ? b : a).price, maxVol: Math.max(...bars.map(b => b.vol)), step};
 }
 
 function renderChart(){
-  var el=document.getElementById('chartWrap');if(!candles.length||!vpData){el.innerHTML='<div class="pulse">...</div>';return;}
-  var c=candles.slice(-40),prices=c.flatMap(x=>[x.high,x.low]),minP=Math.min(...prices),maxP=Math.max(...prices),range=maxP-minP||1;
-  var W=480,H=250,PL=6,PR=62,PT=6,PB=42,chartH=H-PT-PB-32,cw=(W-PL-PR)/c.length,py=p=>PT+chartH-(p-minP)/range*chartH;
-  var svg='<svg width="100%" viewBox="0 0 '+W+' '+H+'">';
-  c.forEach((x,i)=>{
-    var bx=PL+i*cw+cw*.1,bw=cw*.8,bull=x.close>=x.open,col=bull?'var(--green)':'var(--red)';
-    svg+='<line x1="'+(bx+bw/2)+'" x2="'+(bx+bw/2)+'" y1="'+py(x.high)+'" y2="'+py(x.low)+'" stroke="'+col+'" stroke-width="0.8"/>';
-    svg+='<rect x="'+bx+'" y="'+py(Math.max(x.open,x.close))+'" width="'+bw+'" height="'+Math.max(1,Math.abs(py(x.open)-py(x.close)))+'" fill="'+col+'" opacity="0.8"/>';
+  var el = document.getElementById("chartWrap"); if(!candles.length || !vpData){ el.innerHTML = '<div class="pulse">...</div>'; return; }
+  var c = candles.slice(-40), prices = c.flatMap(x => [x.high, x.low]), minP = Math.min(...prices), maxP = Math.max(...prices), range = maxP - minP || 1;
+  var W = 480, H = 250, PL = 6, PR = 62, PT = 6, PB = 42, chartH = H - PT - PB - 32, cw = (W - PL - PR) / c.length, py = p => PT + chartH - (p - minP) / range * chartH;
+  var svg = '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '">';
+  c.forEach((x, i) => {
+    var bx = PL + i * cw + cw * .1, bw = cw * .8, bull = x.close >= x.open, col = bull ? "var(--green)" : "var(--red)";
+    svg += '<line x1="' + (bx + bw / 2) + '" x2="' + (bx + bw / 2) + '" y1="' + py(x.high) + '" y2="' + py(x.low) + '" stroke="' + col + '" stroke-width="0.8"/>';
+    svg += '<rect x="' + bx + '" y="' + py(Math.max(x.open, x.close)) + '" width="' + bw + '" height="' + Math.max(1, Math.abs(py(x.open) - py(x.close))) + '" fill="' + col + '" opacity="0.8"/>';
   });
-  svg+='</svg>';el.innerHTML=svg;
+  svg += '</svg>'; el.innerHTML = svg;
 }
 
 async function loadData(){
-  var c=await apiCandles(currentSym,currentTF,60),t=await apiPrice(currentSym);
-  if(c){candles=c;vpData=calcVP(c);renderChart();updateVPStats();}
+  var c = await apiCandles(currentSym, currentTF, 60), t = await apiPrice(currentSym);
+  if(c){ candles = c; vpData = calcVP(c); renderChart(); updateVPStats(); }
   if(t){
-    currentPrice=t.price;currentChange=t.change;
-    document.getElementById('priceDisplay').textContent='$'+t.price.toLocaleString('en-US',{minimumFractionDigits:2});
-    document.getElementById('changeDisplay').textContent=(t.change>=0?'+':'')+t.change.toFixed(2)+'%';
-    document.getElementById('changeDisplay').className='price-ch '+(t.change>=0?'up':'dn');
-    document.getElementById('priceTime').textContent=new Date().toLocaleTimeString('pt-PT');
+    currentPrice = t.price; currentChange = t.change;
+    document.getElementById("priceDisplay").textContent = "$" + t.price.toLocaleString("en-US", {minimumFractionDigits: 2});
+    document.getElementById("changeDisplay").textContent = (t.change >= 0 ? "+" : "") + t.change.toFixed(2) + "%";
+    document.getElementById("changeDisplay").className = "price-ch " + (t.change >= 0 ? "up" : "dn");
+    document.getElementById("priceTime").textContent = new Date().toLocaleTimeString("pt-PT");
   }
 }
 
 function updateVPStats(){
-  if(!vpData)return;
-  document.getElementById('vpStats').innerHTML=vpData.bars.map(b=>'<div style="display:flex;align-items:center;gap:4px;height:10px"><div style="width:'+(b.vol/vpData.maxVol*100)+'%;height:100%;background:var(--border2);opacity:.5"></div></div>').reverse().join('');
-  document.getElementById('levelsPanel').innerHTML='<div class="lvl-row"><span class="lvl-tag sup">POC</span><span>$'+vpData.poc.toFixed(0)+'</span></div>';
+  if(!vpData) return;
+  document.getElementById("vpStats").innerHTML = vpData.bars.map(b => '<div style="display:flex;align-items:center;gap:4px;height:10px"><div style="width:' + (b.vol / vpData.maxVol * 100) + '%;height:100%;background:var(--border2);opacity:.5"></div></div>').reverse().join("");
+  document.getElementById("levelsPanel").innerHTML = '<div class="lvl-row"><span class="lvl-tag sup">POC</span><span>$' + vpData.poc.toFixed(0) + '</span></div>';
 }
 
 // LIQMAP
-var currentLiqSym='BTCUSDT';
-function setLiqSym(s){currentLiqSym=s;loadLiqMap();}
+var currentLiqSym = "BTCUSDT";
+function setLiqSym(s){ currentLiqSym = s; loadLiqMap(); }
 async function loadLiqMap(){
-  try{
-    var r=await fetch(BACKEND+'/api/liqmap?symbol='+currentLiqSym);
-    var d=await r.json();
+  try {
+    var r = await fetch(BACKEND + "/api/liqmap?symbol=" + currentLiqSym);
+    var d = await r.json();
     if(d.success){
-      document.getElementById('liqPrice').textContent='$'+d.currentPrice.toLocaleString();
-      document.getElementById('liqFunding').textContent=(d.fundingRate*100).toFixed(4)+'%';
-      document.getElementById('liqLSRatio').textContent=((d.longRatio||0.5)*100).toFixed(1)+'%';
-      document.getElementById('liqChart').innerHTML=d.levels.map(l=>{
-        var wL=(l.longLiq/d.maxLiq*100),wS=(l.shortLiq/d.maxLiq*100);
+      document.getElementById("liqPrice").textContent = "$" + d.currentPrice.toLocaleString();
+      document.getElementById("liqFunding").textContent = (d.fundingRate * 100).toFixed(4) + "%";
+      document.getElementById("liqLSRatio").textContent = ((d.longRatio || 0.5) * 100).toFixed(1) + "%";
+      document.getElementById("liqChart").innerHTML = d.levels.map(l => {
+        var wL = (l.longLiq / d.maxLiq * 100), wS = (l.shortLiq / d.maxLiq * 100);
         return `<div class="liqmap-row"><div class="liqmap-price">$${l.price.toFixed(0)}</div><div class="liqmap-bar-wrap"><div class="liqmap-bar-long" style="width:${wL}%"></div><div class="liqmap-bar-short" style="width:${wS}%"></div></div></div>`;
-      }).join('');
+      }).join("");
     }
-  }catch(e){}
+  } catch(e) {}
 }
 
 async function loadPerf(){
-  try{var r=await fetch(BACKEND+'/api/stats');var d=await r.json();if(d.success){document.getElementById('pWins').textContent=d.wins;document.getElementById('pLoss').textContent=d.losses;document.getElementById('pPnl').textContent=d.totalPnl.toFixed(2)+'%';}}catch(e){}
+  try { var r = await fetch(BACKEND + "/api/stats"); var d = await r.json(); if(d.success){ document.getElementById("pWins").textContent = d.wins; document.getElementById("pLoss").textContent = d.losses; document.getElementById("pPnl").textContent = d.totalPnl.toFixed(2) + "%"; } } catch(e) {}
 }
 
-setInterval(()=>{var n=new Date(),m=n.getMinutes(),s=n.getSeconds();var rm=29-(m%30),rs=59-s;document.getElementById('countdown').textContent=(rm<10?'0':'')+rm+':'+(rs<10?'0':'')+rs;},1000);
-loadData();loadLiqMap();loadPerf();
+setInterval(() => { var n = new Date(), m = n.getMinutes(), s = n.getSeconds(); var rm = 29 - (m % 30), rs = 59 - s; document.getElementById("countdown").textContent = (rm < 10 ? "0" : "") + rm + ":" + (rs < 10 ? "0" : "") + rs; }, 1000);
+loadData(); loadLiqMap(); loadPerf();
 </script>
 </body>
 </html>
