@@ -5,8 +5,6 @@ const path = require('path');
 const BacktestEngine = require('./backtest-engine');
 const app = express();
 
-app.use(express.static(path.join(__dirname, '.')));
-
 const cors = require('cors');
 app.use(cors({
   origin: '*', // Permite qualquer origem, incluindo GitHub Pages
@@ -23,28 +21,6 @@ const SIGNAL_COOLDOWN = 90 * 60 * 1000; // 90 minutos = 3 velas de 30m (igual ao
 // Limite de 1 sinal por dia por direção (espelha o backtest-engine)
 var lastSignalDateBuy = { BTCUSDT: '', ETHUSDT: '' };
 var lastSignalDateSell = { BTCUSDT: '', ETHUSDT: '' };
-
-// Endpoint para a nova UI de Backtest
-app.get('/api/backtest', async function(req, res) {
-  try {
-    const symbol = req.query.symbol || 'BTCUSDT';
-    const days = parseInt(req.query.days) || 90;
-    const interval = '30m';
-    const minutesPerDay = 24 * 60;
-    const limit = Math.ceil((days * minutesPerDay) / 30);
-
-    const engine = new BacktestEngine({ 
-      symbol: symbol, 
-      interval: interval,
-      limit: limit 
-    });
-    
-    const results = await engine.run(generateSignal);
-    res.json({ success: true, results: results });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 const STATS_FILE = process.env.STATS_FILE || '/tmp/stats.json';
 const TRADES_FILE = process.env.TRADES_FILE || '/tmp/trades.json';
 const INITIAL_CAPITAL = 1000; // Capital inicial do bot
@@ -950,35 +926,7 @@ async function sendDailyReport() {
 var PORT = process.env.PORT || 3001;
 app.listen(PORT, function() {
   console.log('Server v7 porta ' + PORT);
-  const updateMsg = `<b>🚀 Nova UI de Backtest Publicada!</b>
-
-A nova interface de backtest está concluída e publicada no repositório (commit <code>e5d817d</code>). Podes aceder em tempo real em:
-https://3001-i4c9qqdx5ixp5ie67vzro-029eab3e.us2.manus.computer/backtest.html
-
-<b>🛠️ O que foi construído:</b>
-A UI foi redesenhada de raiz no estilo dark/terminal com as seguintes funcionalidades:
-
-<b>🎛️ Controlos:</b>
-• <b>Período:</b> 30 dias · 90 dias · 365 dias
-• <b>Crypto:</b> 10 pares pré-definidos (BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX, LINK, DOT) + Campo livre para qualquer ticker USDT.
-• <b>Timeframe:</b> Fixo em 30 minutos.
-
-<b>📊 Métricas em destaque:</b>
-Total Trades · Win Rate · P&L Total · Drawdown Máx · Ganhos · Perdas · Profit Factor · Retorno %
-
-<b>📈 Curva de Equity:</b>
-Gráfico interativo com Chart.js — verde quando lucrativo, vermelho quando negativo.
-
-<b>📑 Tabela de Trades:</b>
-Histórico detalhado com filtros por estado (Todos / Ativos / Concluídos).
-
-<b>⚡ Performance BTC/USDT (90 dias):</b>
-• 17 trades
-• Win Rate: 47%
-• Profit Factor: 1.62
-• Retorno: <b>+12.62%</b>
-<i>*Já com o novo SL baseado no HL do candle de 30m com buffer ATR.</i>`;
-  sendTelegram(updateMsg);
+  sendTelegram('<b>Bot v7!</b>\nParalelo: sinais 3x mais rapidos\nOrderbook API\nBacktest via site\nNotificacoes browser\n\n/status /backtest /btc /eth');
   runBot();
   setInterval(runBot, 5 * 60 * 1000);
   setInterval(sendDailyReport, 5 * 60 * 1000);
