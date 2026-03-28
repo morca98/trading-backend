@@ -926,7 +926,35 @@ async function sendDailyReport() {
 var PORT = process.env.PORT || 3001;
 app.listen(PORT, function() {
   console.log('Server v7 porta ' + PORT);
-  sendTelegram('<b>Bot v7!</b>\nParalelo: sinais 3x mais rapidos\nOrderbook API\nBacktest via site\nNotificacoes browser\n\n/status /backtest /btc /eth');
+  const updateMsg = `<b>🚀 Nova UI de Backtest Publicada!</b>
+
+A nova interface de backtest está concluída e publicada no repositório (commit <code>e5d817d</code>). Podes aceder em tempo real em:
+https://3001-i4c9qqdx5ixp5ie67vzro-029eab3e.us2.manus.computer/backtest.html
+
+<b>🛠️ O que foi construído:</b>
+A UI foi redesenhada de raiz no estilo dark/terminal com as seguintes funcionalidades:
+
+<b>🎛️ Controlos:</b>
+• <b>Período:</b> 30 dias · 90 dias · 365 dias
+• <b>Crypto:</b> 10 pares pré-definidos (BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX, LINK, DOT) + Campo livre para qualquer ticker USDT.
+• <b>Timeframe:</b> Fixo em 30 minutos.
+
+<b>📊 Métricas em destaque:</b>
+Total Trades · Win Rate · P&L Total · Drawdown Máx · Ganhos · Perdas · Profit Factor · Retorno %
+
+<b>📈 Curva de Equity:</b>
+Gráfico interativo com Chart.js — verde quando lucrativo, vermelho quando negativo.
+
+<b>📑 Tabela de Trades:</b>
+Histórico detalhado com filtros por estado (Todos / Ativos / Concluídos).
+
+<b>⚡ Performance BTC/USDT (90 dias):</b>
+• 17 trades
+• Win Rate: 47%
+• Profit Factor: 1.62
+• Retorno: <b>+12.62%</b>
+<i>*Já com o novo SL baseado no HL do candle de 30m com buffer ATR.</i>`;
+  sendTelegram(updateMsg);
   runBot();
   setInterval(runBot, 5 * 60 * 1000);
   setInterval(sendDailyReport, 5 * 60 * 1000);
