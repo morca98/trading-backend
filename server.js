@@ -282,9 +282,7 @@ app.get('/api/liqmap', async function(req, res) {
     // Calcular estatisticas
     var totalLongLiq = levels.reduce(function(s, l) { return s + l.longLiq; }, 0);
     var totalShortLiq = levels.reduce(function(s, l) { return s + l.shortLiq; }, 0);
-    var topLevels = levels.slice().sort(function(a, b) { return b.total - a.total; }).slice(0, 5);
-
-    res.json({
+    var topLevels = levels.slice().sort(function(a, b) { return b.total - a.total; }).slice(    res.json({
       success: true,
       source: 'binance_estimated',
       symbol: symbol,
@@ -297,11 +295,16 @@ app.get('/api/liqmap', async function(req, res) {
       totalLongLiq: Math.round(totalLongLiq),
       totalShortLiq: Math.round(totalShortLiq),
       topLevels: topLevels,
+      // Campos adicionais para compatibilidade com o site
+      oi: openInterest,
+      lsRatio: avgLongRatio,
+      longsExpostos: totalLongLiq,
+      shortsExpostos: totalShortLiq,
+      dominancia: avgLongRatio > 0.5 ? 'LONGS' : 'SHORTS',
       note: coinglassKey ? 'Coinglass indisponivel, usando estimativa Binance' : 'Estimativa baseada em dados publicos Binance Futures'
     });
-  } catch (err) {
-    console.error('LiqMap Error:', err.message);
-    // Se falhar por restrição geográfica (451) ou qualquer erro de rede, gerar dados simulados realistas baseados no preço spot
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});falhar por restrição geográfica (451) ou qualquer erro de rede, gerar dados simulados realistas baseados no preço spot
     if (err.message.includes('451') || err.message.includes('restricted') || err.message.includes('map is not a function') || err.message.includes('code 403')) {
       try {
         const spotPriceRes = await axios.get('https://data-api.binance.vision/api/v3/ticker/price?symbol=' + symbol);

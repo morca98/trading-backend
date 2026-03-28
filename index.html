@@ -526,6 +526,19 @@ function renderLiqMap(d) {
     lsEl.style.color = d.longRatio > 0.55 ? 'var(--green)' : d.longRatio < 0.45 ? 'var(--red)' : 'var(--yellow)';
   }
 
+  // Atualizar Longs Expostos, Shorts Expostos e Dominancia
+  if (d.totalLongLiq !== undefined) {
+    document.getElementById('liqTotalLong').textContent = '$' + formatOI(d.totalLongLiq);
+  }
+  if (d.totalShortLiq !== undefined) {
+    document.getElementById('liqTotalShort').textContent = '$' + formatOI(d.totalShortLiq);
+  }
+  if (d.dominancia) {
+    var domEl = document.getElementById('liqDominance');
+    domEl.textContent = d.dominancia;
+    domEl.style.color = d.dominancia === 'LONGS' ? 'var(--green)' : 'var(--red)';
+  }
+
   // Calcular max para escala
   var maxLong = Math.max.apply(null, levels.map(function(l){return l.longLiq||0;})) || 1;
   var maxShort = Math.max.apply(null, levels.map(function(l){return l.shortLiq||0;})) || 1;
