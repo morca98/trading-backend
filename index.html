@@ -105,9 +105,6 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 .apikey-row{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
 .apikey-input{background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:2px;padding:5px 8px;font-family:'JetBrains Mono',monospace;font-size:10px;flex:1;min-width:160px}
 .apikey-input::placeholder{color:var(--muted)}
-/* Backtest */
-.bt-trade-row{display:grid;grid-template-columns:60px 45px 70px 70px 70px 70px;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:9px}
-.bt-win{color:var(--green)}.bt-loss{color:var(--red)}
 /* New Backtest Styles */
 .bt-toolbar{display:flex;gap:8px;background:var(--bg3);padding:10px;border:1px solid var(--border);border-radius:2px;margin-bottom:10px;align-items:center;flex-wrap:wrap}
 .bt-btn-opt{background:var(--bg2);border:1px solid var(--border);color:var(--muted);padding:6px 12px;font-family:inherit;font-size:9px;cursor:pointer;border-radius:2px}
@@ -129,8 +126,8 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 .bt-table th{text-align:left;font-size:8px;color:var(--muted);text-transform:uppercase;padding:10px 8px;border-bottom:1px solid var(--border2);letter-spacing:1px}
 .bt-table td{padding:10px 8px;border-bottom:1px solid var(--border);font-size:10px;color:var(--text)}
 .bt-badge{padding:2px 6px;border-radius:1px;font-size:8px;font-weight:700;text-transform:uppercase}
-.bt-badge-win{color:var(--green);border:1px solid var(--green);background:rgba(0,230,118,0.05)}
-.bt-badge-loss{color:var(--red);border:1px solid var(--red);background:rgba(255,61,87,0.05)}
+.bt-badge-win{color:var(--green);border:1px solid var(--green);background:rgba(0, 230, 118, 0.05)}
+.bt-badge-loss{color:var(--red);border:1px solid var(--red);background:rgba(255, 61, 87, 0.05)}
 /* Alerts */
 .alert-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:2px;margin-bottom:8px}
 .ainput{background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:2px;padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:11px;width:110px}
@@ -149,69 +146,100 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
       <div class="logo-sub">QUANTITATIVE TRADING TERMINAL</div>
     </div>
     <div class="header-right">
-      <div class="live-badge on"><div class="live-dot"></div> LIVE</div>
-      <div class="countdown" id="cd">--:--</div>
+      <div class="live-badge on" id="liveBadge"><div class="live-dot"></div><span id="liveText">LIVE</span></div>
+      <div class="countdown" id="countdown">--:--</div>
       <button class="btn" onclick="toggleTheme()">TEMA</button>
-      <button class="btn" onclick="loadData()">REFRESH</button>
+      <button class="btn" onclick="loadData()" id="btnRef">REFRESH</button>
       <button class="btn primary" id="btnAna" onclick="runAnalysis()">ANALISAR</button>
     </div>
   </div>
 
   <div class="tabs">
-    <div class="tab active" onclick="showTab('grafico')">GRAFICO</div>
+    <div class="tab active" onclick="showTab('chart')">GRAFICO</div>
     <div class="tab" onclick="showTab('liqmap')">LIQMAP</div>
-    <div class="tab" onclick="showTab('backtest')">BACKTEST</div>
-    <div class="tab" onclick="showTab('performance')">PERFORMANCE</div>
-    <div class="tab" onclick="showTab('alertas')">ALERTAS</div>
+    <div class="tab" onclick="showTab('bt')">BACKTEST</div>
+    <div class="tab" onclick="showTab('perf')">PERFORMANCE</div>
+    <div class="tab" onclick="showTab('alerts')">ALERTAS</div>
   </div>
 
-  <div id="grafico" class="tab-content active">
+  <div id="chart" class="tab-content active">
     <div class="sym-row">
-      <div class="sym-btn active" onclick="setSym('BTC/USDT')">BTC/USDT</div>
-      <div class="sym-btn" onclick="setSym('ETH/USDT')">ETH/USDT</div>
+      <button class="sym-btn active" id="btnBTC" onclick="setSym('BTC/USDT')">BTC / USDT</button>
+      <button class="sym-btn" id="btnETH" onclick="setSym('ETH/USDT')">ETH / USDT</button>
     </div>
     <div class="tf-row">
-      <div class="tf-btn active">30M</div>
-      <div class="tf-btn" style="opacity:.4">1H</div>
-      <div class="tf-btn" style="opacity:.4">4H</div>
-      <div class="tf-btn" style="opacity:.4">1D</div>
+      <span style="font-size:9px;color:var(--muted);letter-spacing:1px">TF:</span>
+      <button class="tf-btn" id="tf15m" onclick="setTF('15m')">15M</button>
+      <button class="tf-btn active" id="tf30m" onclick="setTF('30m')">30M</button>
+      <button class="tf-btn" id="tf1h" onclick="setTF('1h')">1H</button>
+      <button class="tf-btn" id="tf4h" onclick="setTF('4h')">4H</button>
+      <button class="tf-btn" id="tf1d" onclick="setTF('1d')">1D</button>
+      <button class="tf-btn" id="tf1w" onclick="setTF('1w')">1W</button>
+      <span style="font-size:8px;color:var(--muted);margin-left:6px" id="tfNote">Sinal usa 30M</span>
     </div>
     <div class="price-row">
       <div>
-        <div class="price-main" id="pMain">---</div>
-        <div style="font-size:8px;color:var(--muted);letter-spacing:2px;margin-top:4px">BINANCE SPOT REAL-TIME</div>
+        <div class="price-main" id="priceDisplay">$---</div>
+        <div style="font-size:8px;color:var(--muted);letter-spacing:1px;margin-top:4px" id="priceTime">A CARREGAR...</div>
       </div>
-      <div class="price-ch" id="pCh">0.00%</div>
+      <div style="text-align:right">
+        <div class="price-ch up" id="changeDisplay">&#9650; 0.00%</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:4px" id="emaDisplay">EMA: ---</div>
+      </div>
     </div>
-    <div class="g4">
-      <div class="stat c-cyan"><div class="stat-val" id="sRsi">--</div><div class="stat-lbl">RSI (14)</div></div>
-      <div class="stat c-yellow"><div class="stat-val" id="sAdx">--</div><div class="stat-lbl">ADX (14)</div></div>
-      <div class="stat c-purple"><div class="stat-val" id="sTrend">--</div><div class="stat-lbl">TREND 4H</div></div>
-      <div class="stat c-green"><div class="stat-val" id="sVol">--</div><div class="stat-lbl">VOL 24H</div></div>
+    <div class="card" style="padding:10px;margin-bottom:10px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:8px">
+        <span style="color:var(--yellow)">&#9472; POC</span>
+        <span style="color:var(--green)">&#8230; VAH</span>
+        <span style="color:var(--red)">&#8230; VAL</span>
+        <span style="color:#ff9800">&#9472; EMA9</span>
+        <span style="color:#e040fb">&#9472; EMA50</span>
+        <span style="color:var(--purple)">&#9612; LVN</span>
+        <span style="color:var(--cyan)">&#9612; LIQZ</span>
+      </div>
+      <div id="chartWrap"><div style="text-align:center;padding:60px 0;font-size:10px;color:var(--muted)" class="pulse">A CARREGAR...</div></div>
     </div>
-    <div class="chart-wrap">
-      <div class="card" style="margin-bottom:0;padding:10px"><div class="card-title">VOLUME PROFILE (200)</div><div class="vp-wrap" id="vp"></div></div>
-      <div class="card" style="margin-bottom:0;padding:10px"><div class="card-title">NIVEIS</div><div id="lvls"></div></div>
+    <div class="g2">
+      <div class="card"><div class="card-title">Volume Profile</div><div id="vpStats"></div></div>
+      <div class="card"><div class="card-title">Niveis-Chave</div><div id="levelsPanel"><div style="color:var(--muted);font-size:10px">Sem niveis</div></div></div>
     </div>
-    <div id="loadCard" style="display:none;margin:10px 0;text-align:center;color:var(--muted);font-size:10px;letter-spacing:2px">A ANALISAR MERCADO...</div>
+    <div class="card" id="loadCard" style="display:none"><div class="pulse" style="text-align:center;padding:18px;font-size:9px;color:var(--accent);letter-spacing:3px">&#9632; IA A PROCESSAR... (SERVIDOR)</div></div>
     <div id="anaCard" style="display:none;margin-bottom:10px"></div>
-    <div class="card" id="logCard" style="display:none"><div class="card-title">HISTORICO DE ANALISE</div><div class="log-wrap" id="logList"></div></div>
+    <div class="card" id="logCard" style="display:none"><div class="card-title">Historico</div><div class="log-wrap" id="logList"></div></div>
   </div>
 
   <div id="liqmap" class="tab-content">
+    <div class="sym-row" style="margin-bottom:10px">
+      <button class="sym-btn active" id="liqBTC" onclick="setLiqSym('BTCUSDT')">BTC / USDT</button>
+      <button class="sym-btn" id="liqETH" onclick="setLiqSym('ETHUSDT')">ETH / USDT</button>
+    </div>
+    <div class="card" style="margin-bottom:10px;padding:10px">
+      <div class="card-title" style="margin-bottom:8px">Coinglass API Key (Opcional)</div>
+      <div class="apikey-row">
+        <input class="apikey-input" type="password" id="coinglassApiKey" placeholder="Cole aqui a sua API key do Coinglass para dados reais...">
+        <button class="btn primary" onclick="loadLiqMap()">CARREGAR</button>
+        <button class="btn" onclick="document.getElementById('coinglassApiKey').value='';loadLiqMap()">LIMPAR</button>
+      </div>
+      <div style="font-size:8px;color:var(--muted);margin-top:4px">Sem API key: estimativa calculada com dados publicos Binance Futures</div>
+    </div>
+    <div class="g4" id="liqStats" style="margin-bottom:10px">
+      <div class="stat c-green"><div class="stat-val" id="liqPrice">$---</div><div class="stat-lbl">PRECO ATUAL</div></div>
+      <div class="stat c-red"><div class="stat-val" id="liqOI">---</div><div class="stat-lbl">OPEN INTEREST</div></div>
+      <div class="stat c-yellow"><div class="stat-val" id="liqFunding">---</div><div class="stat-lbl">FUNDING RATE</div></div>
+      <div class="stat c-purple"><div class="stat-val" id="liqLSRatio">---</div><div class="stat-lbl">LONG/SHORT</div></div>
+    </div>
     <div class="card">
-      <div class="card-title">MAPA DE LIQUIDACOES ESTIMADO</div>
+      <div class="card-title">Mapa de Liquidacoes</div>
       <div class="liqmap-legend">
         <span><div class="dot" style="background:var(--green)"></div> Longs</span>
         <span><div class="dot" style="background:var(--red)"></div> Shorts</span>
-        <span><div class="dot" style="background:var(--yellow)"></div> Alta Intensidade</span>
+        <span><div class="dot" style="background:var(--yellow)"></div> Ambos</span>
       </div>
       <div class="liqmap-wrap"><div class="liqmap-chart" id="liqChart"></div></div>
-      <div class="liqmap-source">FONTE: BINANCE FUTURES DATA (OI/LS RATIO)</div>
     </div>
   </div>
 
-  <div id="backtest" class="tab-content">
+  <div id="bt" class="tab-content">
     <div class="card">
       <div class="card-title">MOTOR DE BACKTEST ESTRATEGICO</div>
       <div class="bt-toolbar">
@@ -243,7 +271,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
         <div class="bt-stat-card purple"><div class="bt-stat-val" id="bt-pf">--</div><div class="bt-stat-lbl">Profit Factor</div></div>
         <div class="bt-stat-card orange"><div class="bt-stat-val" id="bt-return">--%</div><div class="bt-stat-lbl">Retorno %</div></div>
       </div>
-      <div class="card" style="padding:10px"><div class="card-title">CURVA DE EQUITY</div><div style="height:250px;position:relative"><canvas id="btChart"></canvas></div></div>
+      <div class="card" style="padding:10px"><div class="card-title">CURVA DE EQUITY</div><div style="height:250px;position:relative"><canvas id="btChartCanvas"></canvas></div></div>
       <div class="card" style="padding:10px">
         <div class="card-title">TRADES GERADOS</div>
         <div class="bt-table-wrap">
@@ -256,44 +284,49 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
     </div>
   </div>
 
-  <div id="performance" class="tab-content">
+  <div id="perf" class="tab-content">
     <div class="g2">
-      <div class="stat c-green"><div class="stat-val" id="pWins">0</div><div class="stat-lbl">WINS</div></div>
-      <div class="stat c-red"><div class="stat-val" id="pLoss">0</div><div class="stat-lbl">LOSSES</div></div>
+      <div class="stat c-green"><div class="stat-val" id="perfWins">0</div><div class="stat-lbl">WINS</div></div>
+      <div class="stat c-red"><div class="stat-val" id="perfLoss">0</div><div class="stat-lbl">LOSSES</div></div>
     </div>
-    <div class="stat c-cyan" style="margin:10px 0"><div class="stat-val" id="pPnl">0.00%</div><div class="stat-lbl">P&L ACUMULADO</div></div>
-    <div class="card"><div class="card-title">ESTATISTICAS DO BOT</div><div id="pStats" style="font-size:10px;color:var(--muted)">A carregar dados de performance...</div></div>
+    <div class="card" style="margin-top:10px"><div class="card-title">P&L ACUMULADO</div><div class="stat-val" id="perfPnl">0.00%</div></div>
   </div>
 
-  <div id="alertas" class="tab-content">
+  <div id="alerts" class="tab-content">
     <div class="card">
-      <div class="card-title">NOVO ALERTA</div>
+      <div class="card-title">ALERTAS DE PRECO</div>
       <div class="alert-form">
-        <select class="asel" id="alSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option></select>
-        <select class="asel" id="alDir"><option value="above">Acima de</option><option value="below">Abaixo de</option></select>
-        <input type="number" class="ainput" id="alPrice" placeholder="Preco">
+        <select class="asel" id="alertSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option></select>
+        <select class="asel" id="alertDir"><option value="above">Acima de</option><option value="below">Abaixo de</option></select>
+        <input type="number" class="ainput" id="alertPrice" placeholder="Preco">
         <button class="btn primary" onclick="addAlert()">CRIAR</button>
       </div>
-      <div id="alList"></div>
+      <div id="alertList"></div>
     </div>
   </div>
 </div>
 
 <script>
-var currentSym='BTC/USDT',currentPrice=0,candles=[],vpData=null,logEntries=[],theme='dark';
-var SYM_MAP={'BTC/USDT':'BTCUSDT','ETH/USDT':'ETHUSDT'};
+var currentSym='BTC/USDT',currentTF='30m',candles=[],vpData=null,logEntries=[],theme='dark',analysisRunning=false;
 var BACKEND='';
+var SYM_MAP={'BTC/USDT':'BTCUSDT','ETH/USDT':'ETHUSDT'};
 
 function showTab(id){
-  document.querySelectorAll('.tab-content').forEach(function(t){t.classList.remove('active')});
-  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
-  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
   event.target.classList.add('active');
 }
 
 function setSym(s){
   currentSym=s;
-  document.querySelectorAll('.sym-btn').forEach(function(b){b.classList.toggle('active',b.textContent===s)});
+  document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.textContent.includes(s)));
+  loadData();
+}
+
+function setTF(tf){
+  currentTF=tf;
+  document.querySelectorAll('.tf-btn').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase()===tf));
   loadData();
 }
 
@@ -304,50 +337,41 @@ function toggleTheme(){
 
 async function loadData(){
   try {
-    var r = await fetch(BACKEND+'/api/signal?symbol='+SYM_MAP[currentSym]);
+    var r = await fetch(BACKEND+'/api/signal?symbol='+SYM_MAP[currentSym]+'&interval='+currentTF);
     var d = await r.json();
     if(d.success){
-      currentPrice=d.price;
       candles=d.candles;
-      document.getElementById('pMain').textContent='$'+d.price.toLocaleString();
-      document.getElementById('pCh').textContent=(d.change>=0?'+':'')+d.change+'%';
-      document.getElementById('pCh').className='price-ch '+(d.change>=0?'up':'dn');
-      document.getElementById('sRsi').textContent=d.signal?d.signal.rsi:'--';
-      document.getElementById('sAdx').textContent=d.signal?d.signal.adx:'--';
-      document.getElementById('sTrend').textContent=d.macroTrend;
-      document.getElementById('sVol').textContent='--';
+      document.getElementById('priceDisplay').textContent='$'+d.price.toLocaleString();
+      document.getElementById('priceTime').textContent=new Date().toLocaleTimeString('pt-PT');
       
-      // Volume Profile
-      var closes = candles.map(function(c){return c.close});
-      var min=Math.min.apply(null,closes),max=Math.max.apply(null,closes),range=max-min;
-      var bins=20,profile=new Array(bins).fill(0),step=range/bins;
-      candles.forEach(function(c){var b=Math.min(bins-1,Math.floor((c.close-min)/step));profile[b]+=c.volume});
-      var maxV=Math.max.apply(null,profile),pocI=profile.indexOf(maxV);
-      vpData={poc:min+pocI*step,vah:max,val:min};
+      // Render Chart (Simplified for restore)
+      var ctx=document.createElement('canvas');
+      document.getElementById('chartWrap').innerHTML='';
+      document.getElementById('chartWrap').appendChild(ctx);
+      new Chart(ctx,{
+        type:'line',data:{labels:candles.map(c=>''),datasets:[{data:candles.map(c=>c.close),borderColor:varColor('--accent'),borderWidth:1.5,pointRadius:0}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:varColor('--border')}}}}
+      });
       
-      var vpHtml='';
-      for(var i=bins-1;i>=0;i--){
-        var w=(profile[i]/maxV)*100,isPoc=i===pocI;
-        vpHtml+='<div style="display:flex;align-items:center;gap:5px;height:10px">'
-          +'<div style="width:'+w+'%;height:100%;background:'+(isPoc?'var(--accent)':'var(--border2)')+';opacity:.6"></div>'
-          +'<div style="font-size:7px;color:var(--muted)">$'+(min+i*step).toFixed(0)+'</div></div>';
-      }
-      document.getElementById('vp').innerHTML=vpHtml;
+      // VP Stats
+      var min=Math.min(...candles.map(c=>c.close)),max=Math.max(...candles.map(c=>c.close)),range=max-min;
+      var bins=15,profile=new Array(bins).fill(0),step=range/bins;
+      candles.forEach(c=>{var b=Math.min(bins-1,Math.floor((c.close-min)/step));profile[b]+=c.volume});
+      var maxV=Math.max(...profile),pocI=profile.indexOf(maxV);
+      document.getElementById('vpStats').innerHTML=profile.map((v,i)=>'<div style="display:flex;align-items:center;gap:4px;height:8px"><div style="width:'+(v/maxV*100)+'%;height:100%;background:'+(i===pocI?'var(--accent)':'var(--border2)')+';opacity:.5"></div></div>').reverse().join('');
       
-      // Niveis
-      var lvls=[{p:vpData.poc,t:'POC'},{p:d.price*1.02,t:'RES'},{p:d.price*0.98,t:'SUP'}];
-      document.getElementById('lvls').innerHTML=lvls.map(function(l){
-        return '<div class="lvl-row"><span class="lvl-tag '+(l.t==='RES'?'res':'sup')+'">'+l.t+'</span><span>$'+l.p.toFixed(0)+'</span></div>';
-      }).join('');
+      document.getElementById('levelsPanel').innerHTML='<div class="lvl-row"><span class="lvl-tag sup">POC</span><span>$'+(min+pocI*step).toFixed(0)+'</span></div>';
     }
   } catch(e){}
 }
 
-// ── Backtest Logic ────────────────────────────────────────────────────────────
+function varColor(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+// ── Backtest Integration ──────────────────────────────────────────────────────
 var btPeriod=365,btChart=null;
 function setBtPeriod(d){
   btPeriod=d;
-  document.querySelectorAll('#btPeriodGroup .bt-btn-opt').forEach(function(b){b.classList.toggle('active',b.textContent.includes(d))});
+  document.querySelectorAll('#btPeriodGroup .bt-btn-opt').forEach(b=>b.classList.toggle('active',b.textContent.includes(d)));
 }
 
 async function runBt(){
@@ -377,17 +401,15 @@ function updateBtUI(res){
   document.getElementById('bt-pf').textContent=res.profitFactor;
   document.getElementById('bt-return').textContent=(res.returnPct>=0?'+':'')+res.returnPct+'%';
   
-  // Chart
-  var ctx=document.getElementById('btChart').getContext('2d');
+  var ctx=document.getElementById('btChartCanvas').getContext('2d');
   if(btChart)btChart.destroy();
   btChart=new Chart(ctx,{
-    type:'line',data:{labels:res.equityCurve.map(function(_,i){return i}),datasets:[{data:res.equityCurve,borderColor:'#00e676',backgroundColor:'rgba(0,230,118,0.1)',fill:true,tension:0.3,pointRadius:2}]},
+    type:'line',data:{labels:res.equityCurve.map((_,i)=>i),datasets:[{data:res.equityCurve,borderColor:'#00e676',backgroundColor:'rgba(0,230,118,0.1)',fill:true,tension:0.3,pointRadius:2}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'#1a2233'},ticks:{color:'#4a5568',font:{size:9}}}}}
   });
   
-  // Table
   var html='';
-  res.trades.reverse().forEach(function(t,i){
+  res.trades.reverse().forEach((t,i)=>{
     var pc=t.pnlPct>=0?'bt-win':'bt-loss',bc=t.outcome==='WIN'?'bt-badge-win':'bt-badge-loss';
     html+='<tr><td>'+(res.trades.length-i)+'</td><td style="color:var(--accent)">'+t.symbol.replace('USDT','')+'</td>'
       +'<td>'+new Date(t.entryTime).toLocaleDateString()+'</td><td>'+new Date(t.exitTime).toLocaleDateString()+'</td>'
@@ -398,54 +420,56 @@ function updateBtUI(res){
   document.getElementById('btTradesTable').innerHTML=html;
 }
 
-// ── Outras Funcoes ────────────────────────────────────────────────────────────
+// ── LiqMap Integration ────────────────────────────────────────────────────────
+var currentLiqSym='BTCUSDT';
+function setLiqSym(s){
+  currentLiqSym=s;
+  document.querySelectorAll('#liqBTC, #liqETH').forEach(b=>b.classList.toggle('active',b.textContent.includes(s.replace('USDT',''))));
+  loadLiqMap();
+}
+
+async function loadLiqMap(){
+  try {
+    var key=document.getElementById('coinglassApiKey').value;
+    var r=await fetch(BACKEND+'/api/liqmap?symbol='+currentLiqSym+(key?'&apiKey='+key:''));
+    var d=await r.json();
+    if(d.success){
+      document.getElementById('liqPrice').textContent='$'+d.currentPrice.toLocaleString();
+      document.getElementById('liqOI').textContent=d.openInterest||'---';
+      document.getElementById('liqFunding').textContent=(d.fundingRate*100).toFixed(4)+'%';
+      document.getElementById('liqLSRatio').textContent=((d.longRatio||0.5)*100).toFixed(1)+'%';
+      
+      var html=d.levels.map(l=>{
+        var wL=(l.longLiq/d.maxLiq*100), wS=(l.shortLiq/d.maxLiq*100);
+        return '<div class="liqmap-row"><div class="liqmap-price">$'+l.price.toFixed(0)+'</div>'
+          +'<div class="liqmap-bar-wrap"><div class="liqmap-bar-long" style="width:'+wL+'%"></div><div class="liqmap-bar-short" style="width:'+wS+'%"></div></div>'
+          +'</div>';
+      }).join('');
+      document.getElementById('liqChart').innerHTML=html;
+    }
+  } catch(e){}
+}
+
 async function loadPerf(){
   try {
     var r=await fetch(BACKEND+'/api/stats');
     var d=await r.json();
     if(d.success){
-      document.getElementById('pWins').textContent=d.wins;
-      document.getElementById('pLoss').textContent=d.losses;
-      var pnl=(d.totalPnl||0);
-      document.getElementById('pPnl').textContent=(pnl>=0?'+':'')+pnl.toFixed(2)+'%';
-      document.getElementById('pPnl').parentElement.className='stat '+(pnl>=0?'c-green':'c-red');
+      document.getElementById('perfWins').textContent=d.wins;
+      document.getElementById('perfLoss').textContent=d.losses;
+      document.getElementById('perfPnl').textContent=(d.totalPnl>=0?'+':'')+d.totalPnl.toFixed(2)+'%';
     }
   } catch(e){}
 }
 
-async function runAnalysis(){
-  var btn=document.getElementById('btnAna');
-  btn.disabled=true;
-  document.getElementById('loadCard').style.display='block';
-  document.getElementById('anaCard').style.display='none';
-  try {
-    var r=await fetch(BACKEND+'/api/signal?symbol='+SYM_MAP[currentSym]);
-    var d=await r.json();
-    if(d.success) renderAnalysis(d);
-  } catch(e){}
-  finally{btn.disabled=false;document.getElementById('loadCard').style.display='none'}
-}
-
-function renderAnalysis(d){
-  var s=d.signal,p=d.price;
-  if(!s){document.getElementById('anaCard').innerHTML='<div class="card">Sem sinal claro no momento.</div>';return}
-  var html='<div class="card"><div class="card-title">ANALISE IA: '+currentSym+'</div>'
-    +'<div class="sig-badge '+(s.signal==='BUY'?'buy':'sell')+'"><div class="sig-text">'+s.signal+'</div><div class="sig-conf">CONFIANCA '+s.conf+'%</div></div>'
-    +'<div class="tboxes"><div class="tbox"><div class="tbox-lbl">ENTRADA</div><div class="tbox-val">$'+p.toFixed(2)+'</div></div>'
-    +'<div class="tbox"><div class="tbox-lbl">STOP LOSS</div><div class="tbox-val" style="color:var(--red)">$'+parseFloat(s.sl).toFixed(0)+'</div></div>'
-    +'<div class="tbox"><div class="tbox-lbl">ALVO</div><div class="tbox-val" style="color:var(--green)">$'+parseFloat(s.tp).toFixed(0)+'</div></div></div>'
-    +'<div class="tags"><span class="tag">RSI '+s.rsi+'</span><span class="tag">ADX '+s.adx+'</span><span class="tag">MACRO '+d.macroTrend+'</span></div></div>';
-  document.getElementById('anaCard').innerHTML=html;
-  document.getElementById('anaCard').style.display='block';
-}
-
-setInterval(function(){
+setInterval(()=>{
   var now=new Date(),m=now.getMinutes(),s=now.getSeconds();
   var remM=29-(m%30),remS=59-s;
-  document.getElementById('cd').textContent=(remM<10?'0':'')+remM+':'+(remS<10?'0':'')+remS;
+  document.getElementById('countdown').textContent=(remM<10?'0':'')+remM+':'+(remS<10?'0':'')+remS;
 },1000);
 
 loadData();
+loadLiqMap();
 loadPerf();
 </script>
 </body>
