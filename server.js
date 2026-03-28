@@ -5,6 +5,8 @@ const path = require('path');
 const BacktestEngine = require('./backtest-engine');
 const app = express();
 
+app.use(express.static(path.join(__dirname, '.')));
+
 const cors = require('cors');
 app.use(cors({
   origin: '*', // Permite qualquer origem, incluindo GitHub Pages
