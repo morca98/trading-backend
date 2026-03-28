@@ -714,7 +714,7 @@ async function runBacktest() {
         var posSize = t.positionSize ? Math.round(t.positionSize) : '--';
         html+='<div class="bt-trade-row '+(isW?'bt-win':'bt-loss')+'">'
           +'<span style="color:var(--muted)">'+date+'</span>'
-          +'<span style="color:'+(t.signal==='BUY'?'var(--green)':'var(--red)')+'">"+(t.signal==='BUY'?'&#9650;':'&#9660;')+' '+t.signal+'</span>'
+          +'<span style="color:'+(t.signal==='BUY'?'var(--green)':'var(--red)')+'">'+(t.signal==='BUY'?'&#9650;':'&#9660;')+' '+t.signal+'</span>'
           +'<span>$'+entry+'</span>'
           +'<span>$'+exit+'</span>'
           +'<span style="color:var(--cyan)">$'+posSize+'</span>'
