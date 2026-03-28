@@ -142,9 +142,9 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="tab active" onclick="showTab('chart')">GRAFICO</div>
   <div class="tab" onclick="showTab('liqmap')">LIQMAP</div>
   <div class="tab" onclick="showTab('bt')">BACKTEST</div>
-  <div class="tab" onclick="showTab('perf')">PERFORMANCE</div>
-  <div class="tab" onclick="showTab('alerts')">ALERTAS</div>
-</div>
+    <div class="tab" onclick="showTab('perf')">PERFORMANCE</div>
+    <div class="tab" onclick="showTab('strategy')">ESTRATEGIA</div>
+  </div>
 
 <!-- CHART -->
 <div class="tab-content active" id="tab-chart">
@@ -296,26 +296,54 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <button class="btn primary" onclick="loadPerf()">ATUALIZAR</button>
 </div>
 
-<!-- ALERTS -->
-<div class="tab-content" id="tab-alerts">
-  <div class="card">
-    <div class="card-title">Novo Alerta</div>
-    <div class="alert-form">
-      <select class="asel" id="alertSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option></select>
-      <select class="asel" id="alertDir"><option value="above">Acima de</option><option value="below">Abaixo de</option></select>
-      <input class="ainput" type="number" id="alertPrice" placeholder="Preco $">
-      <button class="btn primary" onclick="addAlert()">+ ADICIONAR</button>
+  <!-- STRATEGY -->
+  <div class="tab-content" id="tab-strategy">
+    <div class="card">
+      <div class="card-title">Logica da Estrategia</div>
+      <div style="color:var(--text);font-size:11px;line-height:1.6;padding:10px">
+        <p style="margin-bottom:12px">O bot utiliza uma estrategia de <b>Trend Following (Seguimento de Tendencia)</b> baseada em confluencia de indicadores tecnicos e analise de volume profile.</p>
+        
+        <div style="margin-bottom:15px">
+          <div style="color:var(--accent);font-weight:700;margin-bottom:5px;font-size:10px;letter-spacing:1px">INDICADORES CHAVE</div>
+          <ul style="list-style:none;padding-left:10px">
+            <li>&middot; <b>EMA (9, 21, 50):</b> Identificacao de momentum e suporte/resistencia dinamica.</li>
+            <li>&middot; <b>ATR (14):</b> Calculo de volatilidade para ajuste de Stop Loss.</li>
+            <li>&middot; <b>Volume Profile:</b> Localizacao de POC (Point of Control) e Value Areas.</li>
+            <li>&middot; <b>Liquidity Clouds:</b> Identificacao de zonas de liquidez (Wicks/LVN).</li>
+          </ul>
+        </div>
+
+        <div style="margin-bottom:15px">
+          <div style="color:var(--green);font-weight:700;margin-bottom:5px;font-size:10px;letter-spacing:1px">CONDICOES DE COMPRA (LONG)</div>
+          <ul style="list-style:none;padding-left:10px">
+            <li>1. Preco acima das EMAs 9, 21 e 50.</li>
+            <li>2. Alinhamento de tendencia: EMA9 > EMA21 > EMA50.</li>
+            <li>3. Macro Tendencia (4H) em estado BULL.</li>
+            <li>4. Tendencia de curto prazo (15M) em alta (UP).</li>
+          </ul>
+        </div>
+
+        <div style="margin-bottom:15px">
+          <div style="color:var(--red);font-weight:700;margin-bottom:5px;font-size:10px;letter-spacing:1px">CONDICOES DE VENDA (SHORT)</div>
+          <ul style="list-style:none;padding-left:10px">
+            <li>1. Preco abaixo das EMAs 9, 21 e 50.</li>
+            <li>2. Alinhamento de tendencia: EMA9 < EMA21 < EMA50.</li>
+            <li>3. Macro Tendencia (4H) em estado BEAR.</li>
+            <li>4. Tendencia de curto prazo (15M) em baixa (DOWN).</li>
+          </ul>
+        </div>
+
+        <div>
+          <div style="color:var(--yellow);font-weight:700;margin-bottom:5px;font-size:10px;letter-spacing:1px">GESTAO DE RISCO</div>
+          <ul style="list-style:none;padding-left:10px">
+            <li>&middot; <b>Stop Loss:</b> Posicionado com base na volatilidade (ATR) ou minimos/maximos recentes.</li>
+            <li>&middot; <b>Take Profit:</b> Alvo fixo de 3.0% ou baseado em niveis de liquidez proximos.</li>
+            <li>&middot; <b>Cooldown:</b> O bot aguarda 90 minutos entre sinais para evitar overtrading.</li>
+          </ul>
+        </div>
+      </div>
     </div>
-    <div id="alertsList"><div style="color:var(--muted);font-size:10px;padding:8px">Sem alertas</div></div>
   </div>
-  <div class="card">
-    <div class="card-title">Notificacoes Browser</div>
-    <div style="color:var(--muted);font-size:10px;line-height:1.8">
-      Estado: <span id="notifStatus">Nao configurado</span><br>
-      <button class="btn primary" style="margin-top:8px" onclick="requestNotifPerm()">ATIVAR NOTIFICACOES</button>
-    </div>
-  </div>
-</div>
 
 <div class="footer">&#9888; APENAS EDUCACIONAL &middot; NAO E CONSELHO FINANCEIRO</div>
 </div>
