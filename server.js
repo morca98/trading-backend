@@ -21,6 +21,28 @@ const SIGNAL_COOLDOWN = 90 * 60 * 1000; // 90 minutos = 3 velas de 30m (igual ao
 // Limite de 1 sinal por dia por direção (espelha o backtest-engine)
 var lastSignalDateBuy = { BTCUSDT: '', ETHUSDT: '' };
 var lastSignalDateSell = { BTCUSDT: '', ETHUSDT: '' };
+
+// Endpoint para a nova UI de Backtest
+app.get('/api/backtest', async function(req, res) {
+  try {
+    const symbol = req.query.symbol || 'BTCUSDT';
+    const days = parseInt(req.query.days) || 90;
+    const interval = '30m';
+    const minutesPerDay = 24 * 60;
+    const limit = Math.ceil((days * minutesPerDay) / 30);
+
+    const engine = new BacktestEngine({ 
+      symbol: symbol, 
+      interval: interval,
+      limit: limit 
+    });
+    
+    const results = await engine.run(generateSignal);
+    res.json({ success: true, results: results });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 const STATS_FILE = process.env.STATS_FILE || '/tmp/stats.json';
 const TRADES_FILE = process.env.TRADES_FILE || '/tmp/trades.json';
 const INITIAL_CAPITAL = 1000; // Capital inicial do bot
