@@ -183,22 +183,40 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   // Filtro de volume: exigir volume acima da média para todos os sinais
   if (!volHigh) return null;
   
-  // ── CÁLCULO DE SL/TP ─────────────────────────────────────────────────────
-  var atrPct = atr / price;
-  var slPct = Math.max(0.005, Math.min(0.015, atrPct * 1.8));
+  // ── CÁLCULO DE SL/TP ───────────────────────────────────────
+  // SL baseado no HL (mínimo/máximo) do candle de 30m com buffer de 1.0–1.5 ATR
+  // O buffer escala com a volatilidade: ADX alto → 1.5 ATR, ADX baixo → 1.0 ATR
+  var atrBuffer = adx > 30 ? 1.5 : (adx > 25 ? 1.25 : 1.0);
   
-  var sl = signal === 'BUY' ? price * (1 - slPct) : price * (1 + slPct);
+  var sl, slDist;
+  if (signal === 'BUY') {
+    // SL abaixo do mínimo (low) da vela de 30m mais recente
+    var recentLow = Math.min.apply(null, candles.slice(-3).map(function(c) { return c.low; }));
+    sl = recentLow - atr * atrBuffer;
+    slDist = price - sl;
+  } else {
+    // SL acima do máximo (high) da vela de 30m mais recente
+    var recentHigh = Math.max.apply(null, candles.slice(-3).map(function(c) { return c.high; }));
+    sl = recentHigh + atr * atrBuffer;
+    slDist = sl - price;
+  }
+  
+  // Garantir distância mínima de 0.5% e máxima de 3% do preço
+  slDist = Math.max(price * 0.005, Math.min(price * 0.03, slDist));
+  sl = signal === 'BUY' ? price - slDist : price + slDist;
+  
+  var slPct = slDist / price;
   
   // R:R baseado em ADX
   var rr = adx > 30 ? 3.0 : (adx > 25 ? 2.5 : 2.0);
-  var tp = signal === 'BUY' ? price * (1 + slPct * rr) : price * (1 - slPct * rr);
+  var tp = signal === 'BUY' ? price + slDist * rr : price - slDist * rr;
   
   var conf = Math.min(99, Math.round(55 + (adx - 20) * 1.5 + (volHigh ? 5 : 0)));
   
   return {
     signal: signal, conf: conf, price: price, sl: sl, tp: tp,
     rsi: rsi.toFixed(1), ema9: ema9.toFixed(2), ema21: ema21.toFixed(2), ema50: ema50.toFixed(2),
-    macroTrend: macroTrend, adx: adx.toFixed(1), reason: reason,
+    macroTrend: macroTrend, adx: adx.toFixed(1), reason: reason, atrBuffer: atrBuffer.toFixed(2),
     slPct: (slPct*100).toFixed(2), tpPct: (slPct*rr*100).toFixed(2)
   };
 }
