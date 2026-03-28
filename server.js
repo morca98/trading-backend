@@ -262,7 +262,42 @@ app.get('/api/liqmap', async function(req, res) {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-app.get('/api/stats', function(req, res) { res.json({ success: true, wins: winCount, losses: lossCount, totalPnl: totalPnl }); });
+app.get('/api/stats', function(req, res) {
+  const total = winCount + lossCount;
+  const winRate = total > 0 ? Math.round((winCount / total) * 100) : 0;
+  
+  // Calcular curva de capital a partir do histórico de trades
+  let currentCap = INITIAL_CAPITAL;
+  const capitalCurve = [currentCap];
+  tradeHistory.forEach(t => {
+    if (t.outcome !== 'OPEN') {
+      // Assumindo risco fixo ou pnl percentual sobre o capital
+      currentCap += (currentCap * (t.pnl / 100));
+      capitalCurve.push(Math.round(currentCap));
+    }
+  });
+
+  // Calcular Profit Factor
+  const grossProfit = tradeHistory.filter(t => t.pnl > 0).reduce((s, t) => s + t.pnl, 0);
+  const grossLoss = Math.abs(tradeHistory.filter(t => t.pnl < 0).reduce((s, t) => s + t.pnl, 0));
+  const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : grossProfit > 0 ? 'MAX' : '0.00';
+
+  res.json({
+    success: true,
+    wins: winCount,
+    losses: lossCount,
+    total: total,
+    winRate: winRate,
+    totalPnl: totalPnl,
+    profitFactor: profitFactor,
+    activeTrades: Object.keys(activeTrades).length,
+    initialCapital: INITIAL_CAPITAL,
+    currentCapital: Math.round(currentCap),
+    capitalCurve: capitalCurve,
+    dailyResults: dailyResults,
+    tradeHistory: tradeHistory.slice(-50) // Enviar os últimos 50 trades
+  });
+});
 
 app.get('/api/backtest', async function(req, res) {
   try {
