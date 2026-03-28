@@ -752,7 +752,7 @@ async function loadPerf() {
       // Mostrar Profit Factor real se disponivel
       var pfEl=document.getElementById('pPF');
       if(pfEl && d.profitFactor!==undefined){ pfEl.textContent=d.profitFactor; pfEl.style.color=d.profitFactor>=1?'var(--green)':'var(--red)'; }
-      renderPerfChart(d.wins,d.losses);
+      renderPerfChart(d.capitalCurve||[d.initialCapital||1000],d.initialCapital||1000);
       var ds=''; Object.keys(d.dailyResults||{}).forEach(function(sym){var res=d.dailyResults[sym]||[];if(res.length){var b=res.filter(function(r){return r.signal==='BUY';}).length;ds+='<div class="lvl-row"><span>'+sym.replace('USDT','/USDT')+'</span><span style="color:var(--green)">'+b+'B</span><span style="color:var(--red)">'+(res.length-b)+'S</span><span style="color:var(--muted)">'+res.length+' total</span></div>';}});
       document.getElementById('dailySig').innerHTML=ds||'<div style="color:var(--muted);font-size:10px">Sem sinais hoje</div>';
       // Renderizar histórico de trades reais
@@ -773,18 +773,17 @@ async function loadPerf() {
   } catch(e) { document.getElementById('dailySig').innerHTML='<div style="color:var(--muted);font-size:10px">Servidor offline</div>'; }
 }
 
-function renderPerfChart(wins,losses){
-  var el=document.getElementById('perfChart'),total=wins+losses;
-  if(!total){el.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">Sem trades</div>';return;}
-  var cap=1000,data=[cap];
-  for(var k=0;k<total;k++){if(k<wins)cap+=cap*.02*2.2;else cap-=cap*.02;data.push(cap);}
+function renderPerfChart(data,initialCapital){
+  var el=document.getElementById('perfChart');
+  if(!data||!data.length){el.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">Sem trades</div>';return;}
+  initialCapital=initialCapital||1000;
   var W=460,H=100,P=8,min=Math.min.apply(null,data),max=Math.max.apply(null,data),range=max-min||1;
-  var cw=(W-P*2)/(data.length-1);
+  var cw=(W-P*2)/(data.length-1||1);
   var py=function(v){return P+(H-P*2)-(v-min)/range*(H-P*2);};
   var path='M '+P+' '+py(data[0]);
   data.forEach(function(v,i){if(i>0)path+=' L '+(P+i*cw)+' '+py(v);});
-  var col=data[data.length-1]>=1000?'var(--green)':'var(--red)';
-  el.innerHTML='<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="display:block"><line x1="'+P+'" x2="'+(W-P)+'" y1="'+py(1000)+'" y2="'+py(1000)+'" stroke="var(--border2)" stroke-width="1" stroke-dasharray="4 4"/><path d="'+path+' L '+(P+(data.length-1)*cw)+' '+(H-P)+' L '+P+' '+(H-P)+' Z" fill="'+col+'" opacity="0.15"/><path d="'+path+'" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-linejoin="round"/><text x="'+(W-P)+'" y="'+(py(data[data.length-1])-4)+'" text-anchor="end" fill="'+col+'" font-size="8" font-family="monospace">$'+data[data.length-1].toFixed(0)+'</text></svg>';
+  var col=data[data.length-1]>=initialCapital?'var(--green)':'var(--red)';
+  el.innerHTML='<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="display:block"><line x1="'+P+'" x2="'+(W-P)+'" y1="'+py(initialCapital)+'" y2="'+py(initialCapital)+'" stroke="var(--border2)" stroke-width="1" stroke-dasharray="4 4"/><path d="'+path+' L '+(P+(data.length-1)*cw)+' '+(H-P)+' L '+P+' '+(H-P)+' Z" fill="'+col+'" opacity="0.15"/><path d="'+path+'" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-linejoin="round"/><text x="'+(W-P)+'" y="'+(py(data[data.length-1])-4)+'" text-anchor="end" fill="'+col+'" font-size="8" font-family="monospace">$'+data[data.length-1].toFixed(0)+'</text></svg>';
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────

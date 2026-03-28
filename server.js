@@ -21,8 +21,9 @@ const SIGNAL_COOLDOWN = 90 * 60 * 1000; // 90 minutos = 3 velas de 30m (igual ao
 // Limite de 1 sinal por dia por direção (espelha o backtest-engine)
 var lastSignalDateBuy = { BTCUSDT: '', ETHUSDT: '' };
 var lastSignalDateSell = { BTCUSDT: '', ETHUSDT: '' };
-const STATS_FILE = '/tmp/stats.json';
-const TRADES_FILE = '/tmp/trades.json';
+const STATS_FILE = process.env.STATS_FILE || '/tmp/stats.json';
+const TRADES_FILE = process.env.TRADES_FILE || '/tmp/trades.json';
+const INITIAL_CAPITAL = 1000; // Capital inicial do bot
 
 var lastSignal = { BTCUSDT: null, ETHUSDT: null };
 var lastSignalTime = { BTCUSDT: 0, ETHUSDT: 0 };
@@ -379,7 +380,16 @@ app.get('/api/stats', function(req, res) {
   var grossWins = tradeHistory.filter(function(t){return t.outcome==='WIN';}).reduce(function(s,t){return s+Math.abs(t.pnl);},0);
   var grossLoss = tradeHistory.filter(function(t){return t.outcome==='LOSS';}).reduce(function(s,t){return s+Math.abs(t.pnl);},0);
   var profitFactor = grossLoss > 0 ? parseFloat((grossWins/grossLoss).toFixed(2)) : (grossWins > 0 ? 99 : 0);
-  res.json({ success: true, wins: winCount, losses: lossCount, total: total, winRate: total > 0 ? Math.round(winCount / total * 100) : 0, totalPnl: totalPnl, profitFactor: profitFactor, activeTrades: Object.keys(activeTrades).length, dailyResults: dailyResults, tradeHistory: tradeHistory.slice(-50) });
+  
+  // Construir curva de capital começando com o capital inicial
+  var capitalCurve = [INITIAL_CAPITAL];
+  var currentCapital = INITIAL_CAPITAL;
+  tradeHistory.filter(function(t){return t.outcome==='WIN'||t.outcome==='LOSS';}).forEach(function(t){
+    currentCapital += t.pnl * currentCapital / 100; // Aplicar P&L percentual
+    capitalCurve.push(currentCapital);
+  });
+  
+  res.json({ success: true, wins: winCount, losses: lossCount, total: total, winRate: total > 0 ? Math.round(winCount / total * 100) : 0, totalPnl: totalPnl, profitFactor: profitFactor, activeTrades: Object.keys(activeTrades).length, dailyResults: dailyResults, tradeHistory: tradeHistory.slice(-50), capitalCurve: capitalCurve, initialCapital: INITIAL_CAPITAL });
 });
 
 app.post('/api/alert', function(req, res) { priceAlerts.push(req.body); res.json({ success: true }); });
