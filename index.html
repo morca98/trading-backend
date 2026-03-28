@@ -336,9 +336,10 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
         <div>
           <div style="color:var(--yellow);font-weight:700;margin-bottom:5px;font-size:10px;letter-spacing:1px">GESTAO DE RISCO</div>
           <ul style="list-style:none;padding-left:10px">
-            <li>&middot; <b>Stop Loss:</b> Posicionado com base na volatilidade (ATR) ou minimos/maximos recentes.</li>
-            <li>&middot; <b>Take Profit:</b> Alvo fixo de 3.0% ou baseado em niveis de liquidez proximos.</li>
-            <li>&middot; <b>Cooldown:</b> O bot aguarda 90 minutos entre sinais para evitar overtrading.</li>
+            <li>&middot; <b>HL 30min:</b> Stop Loss posicionado no último Higher Low (ou Lower High) de 30min.</li>
+            <li>&middot; <b>BUFFER ATR:</b> Margem de segurança de 1.5 * ATR aplicada ao Stop Loss.</li>
+            <li>&middot; <b>RISCO CONTROLADO:</b> Tamanho da posição ajustado automaticamente para 1% de risco real sobre o capital.</li>
+            <li>&middot; <b>TAKE PROFIT:</b> Alvo dinâmico baseado numa relação Risco:Recompensa de 2.2.</li>
           </ul>
         </div>
       </div>

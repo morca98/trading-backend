@@ -90,6 +90,8 @@ function calcTrend(closes) {
 
 function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var closes = candles.map(function(c) { return c.close; });
+  var lows = candles.map(function(c) { return c.low; });
+  var highs = candles.map(function(c) { return c.high; });
   var ema9 = calcEMA(closes.slice(-9), 9), ema21 = calcEMA(closes.slice(-21), 21), ema50 = calcEMA(closes.slice(-50), 50);
   
   var signal = 'WAIT', conf = 0;
@@ -99,15 +101,32 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
     signal = 'SELL'; conf = 65;
   }
 
-  var slPct = 1.5, tpPct = 3.0;
-  var sl = signal === 'BUY' ? price * (1 - slPct/100) : price * (1 + slPct/100);
-  var tp = signal === 'BUY' ? price * (1 + tpPct/100) : price * (1 - tpPct/100);
+  // Novo Stop Loss: HL/LH de 30min com buffer de 1.5 * ATR
+  var sl = 0, tp = 0, slPct = 0, tpPct = 0;
+  if (signal === 'BUY') {
+    var lastHL = Math.min.apply(null, lows.slice(-3)); // Mínimo das últimas 3 velas (30m cada)
+    sl = lastHL - (1.5 * atr);
+    slPct = Math.abs((price - sl) / price * 100);
+    tpPct = slPct * 2.2; // Alvo dinâmico baseado no R:R de 2.2
+    tp = price * (1 + tpPct/100);
+  } else if (signal === 'SELL') {
+    var lastLH = Math.max.apply(null, highs.slice(-3)); // Máximo das últimas 3 velas
+    sl = lastLH + (1.5 * atr);
+    slPct = Math.abs((sl - price) / price * 100);
+    tpPct = slPct * 2.2;
+    tp = price * (1 - tpPct/100);
+  }
+
+  // Cálculo do tamanho da posição para 1% de risco real
+  var riskAmount = (INITIAL_CAPITAL + totalPnl) * 0.01;
+  var positionSize = slPct > 0 ? (riskAmount / (slPct / 100)) : 0;
 
   return { 
-    signal: signal, conf: conf, price: price, sl: sl, tp: tp, slPct: slPct, tpPct: tpPct, 
+    signal: signal, conf: conf, price: price, sl: sl, tp: tp, slPct: slPct.toFixed(2), tpPct: tpPct.toFixed(2), 
     ema9: ema9.toFixed(2), ema21: ema21.toFixed(2), ema50: ema50.toFixed(2), 
     macroTrend: macroTrend, trend15m: trend15m, atr: atr.toFixed(2),
-    rsi: 50, adx: 25 // Fallback values
+    positionSize: positionSize.toFixed(0),
+    rsi: 50, adx: 25 
   };
 }
 
