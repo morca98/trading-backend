@@ -141,7 +141,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 <div class="tabs">
   <div class="tab active" onclick="showTab('chart')">GRAFICO</div>
   <div class="tab" onclick="showTab('liqmap')">LIQMAP</div>
-  <div class="tab" onclick="showTab('bt')">BACKTEST</div>
+  <div class="tab" onclick="window.location.href='/backtest.html'">BACKTEST</div>
     <div class="tab" onclick="showTab('perf')">PERFORMANCE</div>
     <div class="tab" onclick="showTab('strategy')">ESTRATEGIA</div>
   </div>
@@ -257,29 +257,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <button class="btn primary" onclick="loadLiqMap()" style="margin-top:8px">ATUALIZAR</button>
 </div>
 
-<!-- BACKTEST -->
-<div class="tab-content" id="tab-bt">
-  <div class="card">
-    <div class="card-title">Backtest em Tempo Real</div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <select class="asel" id="btSym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option></select>
-      <select class="asel" id="btTf">
-        <option value="15m">15M</option>
-        <option value="30m" selected>30M</option>
-        <option value="1h">1H</option>
-        <option value="4h">4H</option>
-        <option value="1d">1D</option>
-      </select>
-      <select class="asel" id="btDays">
-        <option value="30">30 dias</option>
-        <option value="60">60 dias</option>
-        <option value="90" selected>90 dias</option>
-      </select>
-      <button class="btn primary" onclick="runBacktest()" id="btnBt">CORRER BACKTEST</button>
-    </div>
-    <div id="btResult"><div style="color:var(--muted);font-size:10px">Clica "CORRER BACKTEST" para testar a estrategia com dados reais da Binance (mesma logica do bot real).</div></div>
-  </div>
-</div>
+
 
 <!-- PERFORMANCE -->
 <div class="tab-content" id="tab-perf">

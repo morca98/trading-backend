@@ -210,11 +210,13 @@ class BacktestEngine {
       const signalResult = generateSignalFn(window, price, indicators.macroTrend, indicators.trend15m, indicators.atr, null);
       
       // Sincronizado com o bot real (65% conforme server.js)
-      if (!signalResult || signalResult.conf < 65) continue;
+      if (!signalResult || (signalResult.signal === 'WAIT' && signalResult.conf < 65)) continue;
+      if (signalResult.signal === 'WAIT') continue;
       
-      // Limite de 1 trade por dia para evitar overtrading
+      // Limite de 1 trade por dia para evitar overtrading (opcional no backtest para mais dados)
       const currentDate = new Date(currentCandle.time).toISOString().slice(0,10);
-      if (currentDate === this.lastTradeDate) continue;
+      if (signalResult.signal === 'BUY' && currentDate === this.lastTradeDateBuy) continue;
+      if (signalResult.signal === 'SELL' && currentDate === this.lastTradeDateSell) continue;
       
       // Simulate Trade
       let outcome = null;
@@ -253,18 +255,10 @@ class BacktestEngine {
       }
       
       if (outcome) {
-        // Calculate PnL with fees
-        // PnL fixo baseado no R:R dinâmico do sinal (mesmo método do test-v3)
-        // Cálculo de P&L baseado no risco por trade (1% do capital atual)
-        // O tamanho da posição é calculado para que, se atingir o SL, percamos exatamente o risco definido
         const slDistPct = Math.abs(entryPrice - sl) / entryPrice;
-        const positionSize = (this.capital * 0.01) / slDistPct; // Risco fixo de 1%
-        
-        // P&L bruto baseado na distância do TP ou SL
+        const positionSize = (this.capital * 0.01) / slDistPct;
         const exitDistPct = Math.abs(entryPrice - exitPrice) / entryPrice;
         const grossPnl = positionSize * exitDistPct * (outcome === 'WIN' ? 1 : -1);
-        
-        // Taxas sobre o valor total da posição (entrada + saída)
         const feeAmount = (positionSize * this.fee) + ((positionSize + grossPnl) * this.fee);
         const netPnl = grossPnl - feeAmount;
         
@@ -272,13 +266,11 @@ class BacktestEngine {
         this.maxCapital = Math.max(this.maxCapital, this.capital);
         this.maxDD = Math.max(this.maxDD, (this.maxCapital - this.capital) / this.maxCapital * 100);
         
-        if (outcome === 'LOSS') {
-          lastLossCandle = i; // Registar a vela da perda para cooldown
-        }
-        // Registar data do trade por direção
+        if (outcome === 'LOSS') lastLossCandle = i;
         const tradeDate = new Date(currentCandle.time).toISOString().slice(0,10);
         if (signalResult.signal === 'BUY') this.lastTradeDateBuy = tradeDate;
         else this.lastTradeDateSell = tradeDate;
+        this.lastTradeDate = tradeDate;
         
         this.trades.push({
           time: currentCandle.time,
