@@ -107,13 +107,13 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
     var lastHL = Math.min.apply(null, lows.slice(-3)); // Mínimo das últimas 3 velas (30m cada)
     sl = lastHL - (1.5 * atr);
     slPct = Math.abs((price - sl) / price * 100);
-    tpPct = slPct * 1.3; // Alvo dinâmico baseado no R:R de 1.3
+    tpPct = slPct * 3.0; // Alvo dinâmico baseado no R:R de 3.0
     tp = price * (1 + tpPct/100);
   } else if (signal === 'SELL') {
     var lastLH = Math.max.apply(null, highs.slice(-3)); // Máximo das últimas 3 velas
     sl = lastLH + (1.5 * atr);
     slPct = Math.abs((sl - price) / price * 100);
-    tpPct = slPct * 1.3;
+    tpPct = slPct * 3.0;
     tp = price * (1 - tpPct/100);
   }
 
