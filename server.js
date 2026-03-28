@@ -83,6 +83,34 @@ function calcATR(candles, period) {
   }
   return trs.slice(-period).reduce((a, b) => a + b) / period;
 }
+function calcRSI(closes, period = 14) {
+  if (closes.length < period + 1) return 50;
+  var gains = 0, losses = 0;
+  for (var i = closes.length - period; i < closes.length; i++) {
+    var diff = closes[i] - closes[i - 1];
+    if (diff >= 0) gains += diff; else losses -= diff;
+  }
+  var rs = gains / (losses || 1);
+  return 100 - (100 / (1 + rs));
+}
+function calcADX(candles, period = 14) {
+  if (candles.length < period * 2) return 20;
+  var plusDM = [], minusDM = [], tr = [];
+  for (var i = 1; i < candles.length; i++) {
+    var h = candles[i].high, l = candles[i].low, ph = candles[i-1].high, pl = candles[i-1].low, pc = candles[i-1].close;
+    tr.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+    var moveUp = h - ph, moveDown = pl - l;
+    plusDM.push(moveUp > 0 && moveUp > moveDown ? moveUp : 0);
+    minusDM.push(moveDown > 0 && moveDown > moveUp ? moveDown : 0);
+  }
+  var smoothTR = tr.slice(-period).reduce((a, b) => a + b);
+  var smoothPlusDM = plusDM.slice(-period).reduce((a, b) => a + b);
+  var smoothMinusDM = minusDM.slice(-period).reduce((a, b) => a + b);
+  var plusDI = 100 * (smoothPlusDM / smoothTR);
+  var minusDI = 100 * (smoothMinusDM / smoothTR);
+  var dx = 100 * Math.abs(plusDI - minusDI) / (plusDI + minusDI || 1);
+  return dx; // Retorna força da tendência
+}
 function calcTrend(closes) {
   var ema9 = calcEMA(closes.slice(-9), 9), ema21 = calcEMA(closes.slice(-21), 21);
   return ema9 > ema21 ? 'UP' : 'DOWN';
@@ -93,16 +121,21 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var lows = candles.map(function(c) { return c.low; });
   var highs = candles.map(function(c) { return c.high; });
   var ema9 = calcEMA(closes.slice(-9), 9), ema21 = calcEMA(closes.slice(-21), 21), ema50 = calcEMA(closes.slice(-50), 50);
+  var rsi = calcRSI(closes, 14);
+  var adx = calcADX(candles, 14);
   
   var signal = 'WAIT', conf = 0;
-  // Relaxar filtros para o backtest gerar trades: remover macroTrend e trend15m se forem strings vazias ou indefinidas
-  var isBull = price > ema9 && ema9 > ema21;
-  var isBear = price < ema9 && ema9 < ema21;
+  // Filtros de qualidade para aumentar Profit Factor:
+  // 1. Tendência forte (ADX > 20)
+  // 2. Alinhamento de EMAs (9 > 21 > 50 para BUY)
+  // 3. RSI não sobrecomprado para BUY (< 70) e não sobrevenda para SELL (> 30)
+  var isBull = price > ema9 && ema9 > ema21 && ema21 > ema50;
+  var isBear = price < ema9 && ema9 < ema21 && ema21 < ema50;
   
-  if (isBull && (macroTrend === 'UP' || macroTrend.includes('BULL') || macroTrend === 'LOCAL')) {
-    signal = 'BUY'; conf = 65;
-  } else if (isBear && (macroTrend === 'DOWN' || macroTrend.includes('BEAR') || macroTrend === 'LOCAL')) {
-    signal = 'SELL'; conf = 65;
+  if (isBull && adx > 20 && rsi < 70 && (macroTrend === 'UP' || macroTrend.includes('BULL') || macroTrend === 'LOCAL')) {
+    signal = 'BUY'; conf = 75;
+  } else if (isBear && adx > 20 && rsi > 30 && (macroTrend === 'DOWN' || macroTrend.includes('BEAR') || macroTrend === 'LOCAL')) {
+    signal = 'SELL'; conf = 75;
   }
 
   // Novo Stop Loss: HL/LH de 30min com buffer de 1.5 * ATR
@@ -130,7 +163,7 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
     ema9: ema9.toFixed(2), ema21: ema21.toFixed(2), ema50: ema50.toFixed(2), 
     macroTrend: macroTrend, trend15m: trend15m, atr: atr.toFixed(2),
     positionSize: positionSize.toFixed(0),
-    rsi: 50, adx: 25 
+    rsi: rsi.toFixed(1), adx: adx.toFixed(1)
   };
 }
 
