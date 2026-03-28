@@ -8,7 +8,7 @@ class BacktestEngine {
     this.slippage = options.slippage || 0.0005; // 0.05%
     this.rr = options.rr || 2.2;
     this.symbol = options.symbol || 'BTCUSDT';
-    this.interval = options.interval || '30m';
+    this.interval = '30m'; // Fixo em 30m para sinais
     this.limit = options.limit || 1000;
     
     this.trades = [];
@@ -209,13 +209,12 @@ class BacktestEngine {
       
       const signalResult = generateSignalFn(window, price, indicators.macroTrend, indicators.trend15m, indicators.atr, null);
       
-      // Sincronizado com o bot real (55%) para capturar mais sinais
-      if (!signalResult || signalResult.conf < 55) continue;
+      // Sincronizado com o bot real (65% conforme server.js)
+      if (!signalResult || signalResult.conf < 65) continue;
       
-      // Limite de 1 trade por dia por direção (evita overtrading no mesmo dia)
+      // Limite de 1 trade por dia para evitar overtrading
       const currentDate = new Date(currentCandle.time).toISOString().slice(0,10);
-      if (signalResult.signal === 'BUY' && currentDate === this.lastTradeDateBuy) continue;
-      if (signalResult.signal === 'SELL' && currentDate === this.lastTradeDateSell) continue;
+      if (currentDate === this.lastTradeDate) continue;
       
       // Simulate Trade
       let outcome = null;
@@ -225,9 +224,22 @@ class BacktestEngine {
       // Entry with slippage
       const entryPrice = signalResult.signal === 'BUY' ? price * (1 + this.slippage) : price * (1 - this.slippage);
       
-      // SL/TP fixos - janela de 96 velas (48h em 30m)
-      const sl = signalResult.sl;
-      const tp = signalResult.tp;
+      // Regras de SL/TP sincronizadas com o bot real
+      const lows = window.map(c => c.low);
+      const highs = window.map(c => c.high);
+      let sl = 0, tp = 0;
+      
+      if (signalResult.signal === 'BUY') {
+        const lastHL = Math.min(...lows.slice(-3));
+        sl = lastHL - (1.5 * indicators.atr);
+        const slPct = Math.abs((entryPrice - sl) / entryPrice);
+        tp = entryPrice * (1 + (slPct * 3.0)); // R:R de 3.0
+      } else {
+        const lastLH = Math.max(...highs.slice(-3));
+        sl = lastLH + (1.5 * indicators.atr);
+        const slPct = Math.abs((sl - entryPrice) / entryPrice);
+        tp = entryPrice * (1 - (slPct * 3.0)); // R:R de 3.0
+      }
       
       for (let j = i + 1; j < Math.min(i + 96, candles.length); j++) {
         const next = candles[j];
@@ -245,8 +257,8 @@ class BacktestEngine {
         // PnL fixo baseado no R:R dinâmico do sinal (mesmo método do test-v3)
         // Cálculo de P&L baseado no risco por trade (1% do capital atual)
         // O tamanho da posição é calculado para que, se atingir o SL, percamos exatamente o risco definido
-        const slDistPct = Math.abs(entryPrice - signalResult.sl) / entryPrice;
-        const positionSize = (this.capital * this.riskPerTrade) / slDistPct;
+        const slDistPct = Math.abs(entryPrice - sl) / entryPrice;
+        const positionSize = (this.capital * 0.01) / slDistPct; // Risco fixo de 1%
         
         // P&L bruto baseado na distância do TP ou SL
         const exitDistPct = Math.abs(entryPrice - exitPrice) / entryPrice;
