@@ -243,11 +243,18 @@ class BacktestEngine {
       if (outcome) {
         // Calculate PnL with fees
         // PnL fixo baseado no R:R dinâmico do sinal (mesmo método do test-v3)
+        // Cálculo de P&L baseado no risco por trade (2% do capital atual)
+        // O tamanho da posição é calculado para que, se atingir o SL, percamos exatamente o risco definido
         const slDistPct = Math.abs(entryPrice - signalResult.sl) / entryPrice;
-        const rrMultiplier = parseFloat(signalResult.tpPct) / parseFloat(signalResult.slPct) || 2.2;
-        const pnlAmount = this.capital * this.riskPerTrade * (outcome === 'WIN' ? rrMultiplier : -1);
-        const feeAmount = this.capital * this.fee * 2; // Entry + Exit
-        const netPnl = pnlAmount - feeAmount;
+        const positionSize = (this.capital * this.riskPerTrade) / slDistPct;
+        
+        // P&L bruto baseado na distância do TP ou SL
+        const exitDistPct = Math.abs(entryPrice - exitPrice) / entryPrice;
+        const grossPnl = positionSize * exitDistPct * (outcome === 'WIN' ? 1 : -1);
+        
+        // Taxas sobre o valor total da posição (entrada + saída)
+        const feeAmount = (positionSize * this.fee) + ((positionSize + grossPnl) * this.fee);
+        const netPnl = grossPnl - feeAmount;
         
         this.capital += netPnl;
         this.maxCapital = Math.max(this.maxCapital, this.capital);

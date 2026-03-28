@@ -1,553 +1,183 @@
 <!DOCTYPE html>
-
 <html lang="pt">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Backtester — Crypto AI Agent</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet">
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#020817;color:#e2e8f0;font-family:'Space Mono',monospace;padding:14px;min-height:100vh}
-  .card{background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:14px;margin-bottom:10px}
-  .btn{cursor:pointer;border:none;border-radius:6px;padding:10px 20px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:1px;transition:all .18s}
-  .btn:hover:not(:disabled){filter:brightness(1.2);transform:translateY(-1px)}
-  .btn:disabled{opacity:.4;cursor:not-allowed}
-  .pulse{animation:pulse 1.8s ease-in-out infinite}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-  .grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
-  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .stat-box{background:#020817;border:1px solid #1e293b;border-radius:8px;padding:12px;text-align:center}
-  .stat-val{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:4px}
-  .stat-lbl{font-size:9px;color:#475569;letter-spacing:1px}
-  .trade-row{display:grid;grid-template-columns:80px 60px 80px 80px 80px 60px 1fr;gap:6px;padding:6px 0;border-bottom:1px solid #0f172a;font-size:10px;align-items:center}
-  .trade-header{color:#475569;font-size:9px;letter-spacing:1px}
-  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
-  .progress-bar{height:6px;background:#1e293b;border-radius:3px;overflow:hidden;margin-top:6px}
-  .progress-fill{height:100%;border-radius:3px;transition:width .5s}
-  table{width:100%;border-collapse:collapse}
-  th{font-size:9px;color:#475569;letter-spacing:1px;text-align:left;padding:6px 4px;border-bottom:1px solid #1e293b}
-  td{font-size:10px;padding:6px 4px;border-bottom:1px solid #0f172a}
+:root{--bg:#080c12;--bg2:#0d1420;--bg3:#111927;--border:#1a2535;--border2:#243047;--text:#c8d8f0;--muted:#4a6080;--accent:#00d4ff;--green:#00e676;--red:#ff3d57;--yellow:#ffd600;--purple:#b388ff;--cyan:#00e5ff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;transition:background .3s,color .3s}
+.wrap{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:12px}
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 0 14px;border-bottom:1px solid var(--border2);margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.logo{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px;background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.btn{cursor:pointer;border:1px solid var(--border2);background:var(--bg2);color:var(--muted);border-radius:2px;padding:6px 11px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;transition:all .2s}
+.btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.btn:disabled{opacity:.3;cursor:not-allowed}
+.btn.primary{border-color:var(--accent);color:var(--accent)}
+.card{background:var(--bg2);border:1px solid var(--border2);border-radius:2px;padding:12px;margin-bottom:10px}
+.card-title{font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.card-title::before{content:'';width:3px;height:10px;background:var(--accent);flex-shrink:0}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+.stat{background:var(--bg3);border:1px solid var(--border);border-radius:2px;padding:10px;text-align:center;position:relative;overflow:hidden}
+.stat::after{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat.c-green::after{background:var(--green)}.stat.c-red::after{background:var(--red)}.stat.c-yellow::after{background:var(--yellow)}.stat.c-purple::after{background:var(--purple)}.stat.c-cyan::after{background:var(--cyan)}
+.stat-val{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;margin-bottom:2px}
+.stat-lbl{font-size:8px;color:var(--muted);letter-spacing:2px}
+.bt-trade-row{display:grid;grid-template-columns:60px 45px 70px 70px 70px;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:9px}
+.bt-win{color:var(--green)}.bt-loss{color:var(--red)}
+.asel{background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:2px;padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:8px}
+.progress-fill{height:100%;background:var(--accent);transition:width .3s}
+.lvl-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}
 </style>
 </head>
-<body>
-
-<!-- Header -->
-
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-  <div>
-    <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#f8fafc">◈ BACKTESTER</div>
-    <div style="font-size:9px;color:#475569;letter-spacing:2px;margin-top:2px">30 DIAS · 30MIN · $1000</div>
+<body class="dark-bg">
+<div class="wrap">
+  <div class="header">
+    <div class="logo">◈ BACKTESTER</div>
+    <div style="display:flex;gap:8px">
+      <select id="symSelect" class="asel">
+        <option value="BTCUSDT">BTC/USDT</option>
+        <option value="ETHUSDT">ETH/USDT</option>
+      </select>
+      <select id="tfSelect" class="asel">
+        <option value="15m">15M</option>
+        <option value="30m" selected>30M</option>
+        <option value="1h">1H</option>
+        <option value="4h">4H</option>
+      </select>
+      <button class="btn primary" id="btnRun" onclick="runBacktest()">▶ INICIAR</button>
+    </div>
   </div>
-  <div style="display:flex;gap:8px;align-items:center">
-    <select id="symSelect" style="background:#0f172a;color:#94a3b8;border:1px solid #1e293b;border-radius:6px;padding:8px;font-family:'Space Mono',monospace;font-size:11px">
-      <option value="BTCUSDT">BTC/USDT</option>
-      <option value="ETHUSDT">ETH/USDT</option>
-    </select>
-    <select id="tfSelect" style="background:#0f172a;color:#94a3b8;border:1px solid #1e293b;border-radius:6px;padding:8px;font-family:'Space Mono',monospace;font-size:11px">
-      <option value="15m">15M</option>
-      <option value="30m" selected>30M</option>
-      <option value="1h">1H</option>
-      <option value="4h">4H</option>
-      <option value="1d">1D</option>
-      <option value="1w">1W</option>
-    </select>
-    <button class="btn" id="btnRun" onclick="runBacktest()" style="background:#1d4ed8;color:#fff">▶ INICIAR</button>
+
+  <div class="card" id="statusCard">
+    <div class="card-title">ESTADO</div>
+    <div id="statusText" style="font-size:10px;color:var(--muted)">Pronto para iniciar backtest de 90 dias.</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
   </div>
-</div>
 
-<!-- Status -->
-
-<div class="card" id="statusCard">
-  <div style="font-size:9px;color:#475569;letter-spacing:2px;margin-bottom:8px">ESTADO</div>
-  <div id="statusText" style="color:#334155;font-size:12px">Clica "INICIAR" para começar o backtest com dados reais da Binance.</div>
-  <div class="progress-bar" style="margin-top:10px"><div class="progress-fill" id="progressFill" style="width:0%;background:#1d4ed8"></div></div>
-</div>
-
-<!-- Resultados principais -->
-
-<div class="grid4" id="statsGrid" style="display:none;margin-bottom:10px">
-  <div class="stat-box">
-    <div class="stat-val" id="statReturn">--</div>
-    <div class="stat-lbl">RETORNO TOTAL</div>
+  <div class="g4" id="statsGrid" style="display:none">
+    <div class="stat c-cyan"><div class="stat-val" id="statReturn">--</div><div class="stat-lbl">RETORNO</div></div>
+    <div class="stat c-green"><div class="stat-val" id="statWinRate">--</div><div class="stat-lbl">WIN RATE</div></div>
+    <div class="stat c-yellow"><div class="stat-val" id="statTrades">--</div><div class="stat-lbl">TRADES</div></div>
+    <div class="stat c-purple"><div class="stat-val" id="statCapital">--</div><div class="stat-lbl">CAPITAL</div></div>
   </div>
-  <div class="stat-box">
-    <div class="stat-val" id="statWinRate">--</div>
-    <div class="stat-lbl">WIN RATE</div>
-  </div>
-  <div class="stat-box">
-    <div class="stat-val" id="statTrades">--</div>
-    <div class="stat-lbl">TOTAL TRADES</div>
-  </div>
-  <div class="stat-box">
-    <div class="stat-val" id="statCapital">--</div>
-    <div class="stat-lbl">CAPITAL FINAL</div>
-  </div>
-</div>
 
-<!-- Stats secundários -->
-
-<div class="grid3" id="statsGrid2" style="display:none;margin-bottom:10px">
-  <div class="stat-box">
-    <div class="stat-val" id="statAvgWin" style="color:#10b981">--</div>
-    <div class="stat-lbl">MÉDIA WIN</div>
+  <div class="g3" id="statsGrid2" style="display:none">
+    <div class="stat c-green"><div class="stat-val" id="statAvgWin">--</div><div class="stat-lbl">MÉDIA WIN</div></div>
+    <div class="stat c-red"><div class="stat-val" id="statAvgLoss">--</div><div class="stat-lbl">MÉDIA LOSS</div></div>
+    <div class="stat c-yellow"><div class="stat-val" id="statMaxDD">--</div><div class="stat-lbl">MAX DD</div></div>
   </div>
-  <div class="stat-box">
-    <div class="stat-val" id="statAvgLoss" style="color:#ef4444">--</div>
-    <div class="stat-lbl">MÉDIA LOSS</div>
+
+  <div class="card" id="equityCard" style="display:none">
+    <div class="card-title">CURVA DE CAPITAL</div>
+    <div id="equityChart"></div>
   </div>
-  <div class="stat-box">
-    <div class="stat-val" id="statMaxDD" style="color:#f59e0b">--</div>
-    <div class="stat-lbl">MAX DRAWDOWN</div>
+
+  <div class="card" id="tradesCard" style="display:none">
+    <div class="card-title">HISTÓRICO DE TRADES</div>
+    <div class="bt-trade-row" style="color:var(--muted);font-size:8px;letter-spacing:1px">
+      <span>DATA</span><span>SINAL</span><span>ENTRADA</span><span>SAÍDA</span><span>P&L</span>
+    </div>
+    <div id="tradesList" style="max-height:400px;overflow-y:auto"></div>
   </div>
-</div>
-
-<!-- Gráfico de equity -->
-
-<div class="card" id="equityCard" style="display:none">
-  <div style="font-size:9px;color:#475569;letter-spacing:2px;margin-bottom:10px">CURVA DE CAPITAL</div>
-  <div id="equityChart"></div>
-</div>
-
-<!-- Distribuição sinais -->
-
-<div class="grid2" id="distCard" style="display:none;margin-bottom:10px">
-  <div class="card" style="margin-bottom:0">
-    <div style="font-size:9px;color:#475569;letter-spacing:2px;margin-bottom:10px">SINAIS GERADOS</div>
-    <div id="signalDist"></div>
-  </div>
-  <div class="card" style="margin-bottom:0">
-    <div style="font-size:9px;color:#475569;letter-spacing:2px;margin-bottom:10px">MELHOR / PIOR</div>
-    <div id="bestWorst"></div>
-  </div>
-</div>
-
-<!-- Lista de trades -->
-
-<div class="card" id="tradesCard" style="display:none">
-  <div style="font-size:9px;color:#475569;letter-spacing:2px;margin-bottom:10px">HISTÓRICO DE TRADES</div>
-  <div style="overflow-x:auto">
-    <table>
-      <thead>
-        <tr>
-          <th>DATA</th>
-          <th>PAR</th>
-          <th>TIPO</th>
-          <th>ENTRADA</th>
-          <th>SAÍDA</th>
-          <th>P&L</th>
-          <th>RESULTADO</th>
-        </tr>
-      </thead>
-      <tbody id="tradesList"></tbody>
-    </table>
-  </div>
-</div>
-
-<div style="text-align:center;font-size:9px;color:#1e293b;letter-spacing:1px;margin-top:10px">
-  ⚠ RESULTADOS PASSADOS NÃO GARANTEM RESULTADOS FUTUROS · APENAS EDUCACIONAL
 </div>
 
 <script>
-const BACKEND = window.location.origin.includes('github.io') ? 'https://trading-backend-production-5dd4.up.railway.app' : window.location.origin;
+const BACKEND = window.location.origin;
 const CAPITAL_INICIAL = 1000;
-const RISCO_POR_TRADE = 0.02; // 2% por trade
 
-// ── Indicadores ───────────────────────────────────────────────────────────────
-function calcRSI(closes, period = 14) {
-  if (closes.length < period + 1) return 50;
-  let gains = 0, losses = 0;
-  for (let i = closes.length - period; i < closes.length; i++) {
-    const diff = closes[i] - closes[i - 1];
-    if (diff > 0) gains += diff; else losses -= diff;
-  }
-  const avgGain = gains / period, avgLoss = losses / period;
-  if (avgLoss === 0) return 100;
-  const rs = avgGain / avgLoss;
-  return 100 - 100 / (1 + rs);
-}
-
-function calcEMA(closes, period) {
-  const k = 2 / (period + 1);
-  let ema = closes[0];
-  for (let i = 1; i < closes.length; i++) ema = closes[i] * k + ema * (1 - k);
-  return ema;
-}
-
-function calcMACD(closes) {
-  if (closes.length < 26) return { macd: 0, signal: 0, hist: 0 };
-  const ema12 = calcEMA(closes.slice(-26), 12);
-  const ema26 = calcEMA(closes.slice(-26), 26);
-  const macd = ema12 - ema26;
-  const signalLine = calcEMA([...Array(8).fill(macd)], 9);
-  return { macd, signal: signalLine, hist: macd - signalLine };
-}
-
-function calcVP(candles) {
-  const prices = candles.flatMap(c => [c.high, c.low]);
-  const min = Math.min(...prices), max = Math.max(...prices);
-  const N = 20, step = (max - min) / N;
-  const bars = Array.from({ length: N }, (_, i) => ({ price: min + step * (i + 0.5), vol: 0 }));
-  candles.forEach(c => { const i = Math.min(Math.floor(((c.high+c.low)/2-min)/step), N-1); bars[i].vol += c.volume; });
-  const totalVol = bars.reduce((s, b) => s + b.vol, 0);
-  const poc = bars.reduce((a, b) => b.vol > a.vol ? b : a);
-  let vaVol = 0, vaLow = poc.price, vaHigh = poc.price;
-  for (const b of [...bars].sort((a, b) => b.vol - a.vol)) {
-    vaVol += b.vol; vaLow = Math.min(vaLow, b.price); vaHigh = Math.max(vaHigh, b.price);
-    if (vaVol >= totalVol * 0.7) break;
-  }
-  return { poc: poc.price, val: vaLow, vah: vaHigh };
-}
-
-// ── Gerador de sinal (mesma lógica do bot principal + RSI + EMA + MACD) ───────
-function generateSignal(candles, idx) {
-  if (idx < 50) return null;
-  const window = candles.slice(idx - 50, idx + 1);
-  const closes = window.map(c => c.close);
-  const current = candles[idx];
-  const price = current.close;
-
-  // Volume Profile
-  const { poc, val, vah } = calcVP(window.slice(-20));
-
-  // RSI
-  const rsi = calcRSI(closes);
-
-  // EMAs
-  const ema20 = calcEMA(closes.slice(-20), 20);
-  const ema50 = calcEMA(closes.slice(-50), 50);
-
-  // MACD
-  const { macd, signal: macdSignal, hist } = calcMACD(closes);
-
-  // Trend
-  const trend = closes[closes.length - 1] > closes[closes.length - 10] ? "UP" : "DOWN";
-
-  // Volume momentum
-  const rv = window.slice(-5).reduce((s, c) => s + c.volume, 0);
-  const pv = window.slice(-10, -5).reduce((s, c) => s + c.volume, 0);
-  const volMom = rv > pv * 1.1 ? "HIGH" : rv < pv * 0.9 ? "LOW" : "NORMAL";
-
-  const inVA = price >= val && price <= vah;
-  const abovePoc = price > poc;
-  const aboveEma20 = price > ema20;
-  const aboveEma50 = price > ema50;
-
-  // Scoring system — cada condição vale pontos
-  let buyScore = 0, sellScore = 0;
-
-  // Volume Profile
-  if (abovePoc && inVA) buyScore += 2;
-  if (!abovePoc && inVA) sellScore += 2;
-  if (abovePoc && !inVA && price > vah) buyScore += 1;
-  if (!abovePoc && !inVA && price < val) sellScore += 1;
-
-  // RSI
-  if (rsi < 35) buyScore += 3;
-  else if (rsi < 45) buyScore += 1;
-  if (rsi > 65) sellScore += 3;
-  else if (rsi > 55) sellScore += 1;
-
-  // EMA
-  if (aboveEma20 && aboveEma50) buyScore += 2;
-  if (!aboveEma20 && !aboveEma50) sellScore += 2;
-  if (price > ema20 && ema20 > ema50) buyScore += 1;
-  if (price < ema20 && ema20 < ema50) sellScore += 1;
-
-  // MACD
-  if (hist > 0 && macd > macdSignal) buyScore += 2;
-  if (hist < 0 && macd < macdSignal) sellScore += 2;
-
-  // Trend
-  if (trend === "UP") buyScore += 1;
-  if (trend === "DOWN") sellScore += 1;
-
-  // Volume
-  if (volMom === "HIGH") { buyScore += 1; sellScore += 1; }
-
-  // Decisão
-  const maxScore = 12;
-  let signal = null;
-  if (buyScore >= 7 && buyScore > sellScore + 2) signal = "BUY";
-  else if (sellScore >= 7 && sellScore > buyScore + 2) signal = "SELL";
-
-  if (!signal) return null;
-
-  const confidence = Math.min(95, Math.round((Math.max(buyScore, sellScore) / maxScore) * 100));
-  const slPct = 0.012;
-  const tpPct = slPct * 2.2;
-
-  return {
-    signal, confidence, price,
-    sl: signal === "BUY" ? price * (1 - slPct) : price * (1 + slPct),
-    tp: signal === "BUY" ? price * (1 + tpPct) : price * (1 - tpPct),
-    rsi: rsi.toFixed(1), ema20: ema20.toFixed(2), buyScore, sellScore,
-  };
-}
-
-// ── Backtest Engine ───────────────────────────────────────────────────────────
-function runBacktestEngine(candles) {
-  let capital = CAPITAL_INICIAL;
-  let maxCapital = capital;
-  let maxDrawdown = 0;
-  const trades = [];
-  let activeTrade = null;
-
-  for (let i = 50; i < candles.length; i++) {
-    const candle = candles[i];
-
-    // Verificar saída de trade activo
-    if (activeTrade) {
-      let closed = false, result = null, exitPrice = 0;
-
-      if (activeTrade.signal === "BUY") {
-        if (candle.low <= activeTrade.sl) { closed = true; exitPrice = activeTrade.sl; result = "LOSS"; }
-        else if (candle.high >= activeTrade.tp) { closed = true; exitPrice = activeTrade.tp; result = "WIN"; }
-      } else {
-        if (candle.high >= activeTrade.sl) { closed = true; exitPrice = activeTrade.sl; result = "LOSS"; }
-        else if (candle.low <= activeTrade.tp) { closed = true; exitPrice = activeTrade.tp; result = "WIN"; }
-      }
-
-      if (closed) {
-        const pnlPct = activeTrade.signal === "BUY"
-          ? (exitPrice - activeTrade.price) / activeTrade.price
-          : (activeTrade.price - exitPrice) / activeTrade.price;
-        const pnl = capital * RISCO_POR_TRADE * (result === "WIN" ? 2.2 : -1);
-        capital += pnl;
-        maxCapital = Math.max(maxCapital, capital);
-        const dd = (maxCapital - capital) / maxCapital * 100;
-        maxDrawdown = Math.max(maxDrawdown, dd);
-
-        trades.push({
-          date: new Date(activeTrade.time).toLocaleDateString("pt-PT", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}),
-          signal: activeTrade.signal,
-          entry: activeTrade.price,
-          exit: exitPrice,
-          pnl, pnlPct: pnlPct * 100,
-          result, capital,
-          confidence: activeTrade.confidence,
-        });
-        activeTrade = null;
-      }
-    }
-
-    // Gerar novo sinal se não há trade activo
-    if (!activeTrade) {
-      const sig = generateSignal(candles, i);
-      if (sig) {
-        activeTrade = { ...sig, time: candle.time };
-      }
-    }
-  }
-
-  return { trades, capital, maxDrawdown };
-}
-
-// ── Fetch dados históricos ─────────────────────────────────────────────────────
-async function fetchHistorical(symbol) {
-  setStatus("A carregar dados historicos (1/2)...", 20);
-  const r1 = await fetch(`${BACKEND}/api/candles?symbol=${symbol}&interval=30m&limit=1000`);
-  const d1 = await r1.json();
-
-  setStatus("A carregar dados historicos (2/2)...", 50);
-  const r2 = await fetch(`${BACKEND}/api/candles?symbol=${symbol}&interval=30m&limit=440`);
-  const d2 = await r2.json();
-
-  const raw1 = (d1.candles || d1).map(normalizeCandle);
-  const raw2 = (d2.candles || d2).map(normalizeCandle);
-
-  const all = [...raw2, ...raw1];
-  const seen = new Set();
-  return all.filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; })
-    .sort((a, b) => a.time - b.time);
-}
-
-function normalizeCandle(k) {
-  return Array.isArray(k)
-    ? { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }
-    : { time: +k.time, open: +k.open, high: +k.high, low: +k.low, close: +k.close, volume: +k.volume };
-}
-
-function setStatus(msg, pct) {
-  document.getElementById("statusText").textContent = msg;
-  document.getElementById("statusText").style.color = "#94a3b8";
+function setStatus(txt, pct) {
+  document.getElementById("statusText").textContent = txt;
   document.getElementById("progressFill").style.width = pct + "%";
 }
 
-// ── Render Resultados ──────────────────────────────────────────────────────────
-function renderResults(trades, capital, maxDrawdown, sym, profitFactor) {
+function renderResults(trades, finalCap, maxDD, sym, profitFactor) {
+  const ret = ((finalCap - CAPITAL_INICIAL) / CAPITAL_INICIAL * 100).toFixed(1);
   const wins = trades.filter(t => t.result === "WIN");
-  const losses = trades.filter(t => t.result === "LOSS");
-  const winRate = trades.length ? (wins.length / trades.length * 100) : 0;
-  const totalReturn = (capital - CAPITAL_INICIAL) / CAPITAL_INICIAL * 100;
-  const avgWin = wins.length ? wins.reduce((s, t) => s + t.pnl, 0) / wins.length : 0;
-  const avgLoss = losses.length ? losses.reduce((s, t) => s + t.pnl, 0) / losses.length : 0;
-  const buys = trades.filter(t => t.signal === "BUY").length;
-  const sells = trades.filter(t => t.signal === "SELL").length;
-  const bestTrade = trades.length ? trades.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
-  const worstTrade = trades.length ? trades.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
-
-  // Stats principais
-  document.getElementById("statReturn").textContent = `${totalReturn >= 0 ? "+" : ""}${(totalReturn || 0).toFixed(1)}%`;
-  document.getElementById("statReturn").style.color = totalReturn >= 0 ? "#10b981" : "#ef4444";
-  document.getElementById("statWinRate").textContent = `${(winRate || 0).toFixed(0)}%`;
-  document.getElementById("statWinRate").style.color = winRate >= 50 ? "#10b981" : "#ef4444";
-  document.getElementById("statTrades").textContent = trades.length;
-  document.getElementById("statTrades").style.color = "#94a3b8";
-  document.getElementById("statCapital").textContent = `$${(capital || 1000).toFixed(0)}`;
-  document.getElementById("statCapital").style.color = capital >= CAPITAL_INICIAL ? "#10b981" : "#ef4444";
-
-  // Stats secundários
-  document.getElementById("statAvgWin").textContent = `+$${(avgWin || 0).toFixed(1)}`;
-  document.getElementById("statAvgLoss").textContent = `$${(avgLoss || 0).toFixed(1)}`;
-  document.getElementById("statMaxDD").textContent = `${(maxDrawdown || 0).toFixed(1)}%`;
+  const wr = trades.length ? (wins.length / trades.length * 100).toFixed(0) : 0;
   
-  if (profitFactor) {
-    // Adicionar/atualizar Profit Factor sem destruir statMaxDD
-    const grid = document.getElementById("statsGrid2");
-    let pfBox = document.getElementById("statPF_box");
-    if (!pfBox) {
-      pfBox = document.createElement("div");
-      pfBox.className = "stat-box";
-      pfBox.id = "statPF_box";
-      pfBox.innerHTML = `<div class="stat-val" id="statPF" style="color:${parseFloat(profitFactor) > 1 ? '#10b981' : '#ef4444'}">${profitFactor}</div><div class="stat-lbl">PROFIT FACTOR</div>`;
-      grid.appendChild(pfBox);
-    } else {
-      const pfVal = document.getElementById("statPF");
-      if (pfVal) { pfVal.textContent = profitFactor; pfVal.style.color = parseFloat(profitFactor) > 1 ? '#10b981' : '#ef4444'; }
-    }
-  }
+  document.getElementById("statReturn").textContent = (ret >= 0 ? "+" : "") + ret + "%";
+  document.getElementById("statWinRate").textContent = wr + "%";
+  document.getElementById("statTrades").textContent = trades.length;
+  document.getElementById("statCapital").textContent = "$" + Math.round(finalCap);
+  
+  const avgWin = wins.length ? wins.reduce((s, t) => s + t.pnl, 0) / wins.length : 0;
+  const losses = trades.filter(t => t.result === "LOSS");
+  const avgLoss = losses.length ? losses.reduce((s, t) => s + t.pnl, 0) / losses.length : 0;
+  
+  document.getElementById("statAvgWin").textContent = "+$" + avgWin.toFixed(1);
+  document.getElementById("statAvgLoss").textContent = "$" + avgLoss.toFixed(1);
+  document.getElementById("statMaxDD").textContent = maxDD.toFixed(1) + "%";
 
-  // Curva de capital
   const equityData = [CAPITAL_INICIAL, ...trades.map(t => t.capital)];
   renderEquityChart(equityData);
 
-  // Distribuição
-  document.getElementById("signalDist").innerHTML = `
-    <div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#10b981;font-size:11px">BUY</span><span style="color:#10b981;font-size:11px">${buys}</span></div>
-    <div style="height:6px;background:#1e293b;border-radius:3px"><div style="width:${trades.length?buys/trades.length*100:0}%;height:100%;background:#10b981;border-radius:3px"></div></div></div>
-    <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#ef4444;font-size:11px">SELL</span><span style="color:#ef4444;font-size:11px">${sells}</span></div>
-    <div style="height:6px;background:#1e293b;border-radius:3px"><div style="width:${trades.length?sells/trades.length*100:0}%;height:100%;background:#ef4444;border-radius:3px"></div></div></div>
-    <div style="margin-top:10px;color:#475569;font-size:9px">W: ${wins.length} · L: ${losses.length}</div>`;
-
-  document.getElementById("bestWorst").innerHTML = bestTrade ? `
-    <div style="margin-bottom:8px">
-      <div style="font-size:9px;color:#475569;margin-bottom:3px">MELHOR TRADE</div>
-      <div style="color:#10b981;font-size:13px;font-weight:700">+$${bestTrade.pnl.toFixed(2)}</div>
-      <div style="color:#334155;font-size:9px">${bestTrade.date} · ${bestTrade.signal}</div>
-    </div>
-    <div>
-      <div style="font-size:9px;color:#475569;margin-bottom:3px">PIOR TRADE</div>
-      <div style="color:#ef4444;font-size:13px;font-weight:700">$${worstTrade.pnl.toFixed(2)}</div>
-      <div style="color:#334155;font-size:9px">${worstTrade.date} · ${worstTrade.signal}</div>
-    </div>` : "<div style='color:#334155;font-size:11px'>Sem trades</div>";
-
-  // Tabela de trades
   document.getElementById("tradesList").innerHTML = trades.slice().reverse().map(t => `
-    <tr>
-      <td style="color:#475569">${t.date}</td>
-      <td style="color:#64748b">${sym.replace("USDT","/USDT")}</td>
-      <td><span class="badge" style="background:${t.signal==="BUY"?"#064e3b":"#450a0a"};color:${t.signal==="BUY"?"#6ee7b7":"#fca5a5"}">${t.signal}</span></td>
-      <td style="color:#94a3b8">$${t.entry.toLocaleString("en-US",{maximumFractionDigits:0})}</td>
-      <td style="color:#94a3b8">$${t.exit.toLocaleString("en-US",{maximumFractionDigits:0})}</td>
-      <td style="color:${t.pnl>=0?"#10b981":"#ef4444"};font-weight:700">${t.pnl>=0?"+":""}$${t.pnl.toFixed(2)}</td>
-      <td><span class="badge" style="background:${t.result==="WIN"?"#064e3b":"#450a0a"};color:${t.result==="WIN"?"#6ee7b7":"#fca5a5"}">${t.result}</span></td>
-    </tr>`).join("");
+    <div class="bt-trade-row ${t.result === 'WIN' ? 'bt-win' : 'bt-loss'}">
+      <span style="color:var(--muted)">${t.date}</span>
+      <span style="color:${t.signal === 'BUY' ? 'var(--green)' : 'var(--red)'}">${t.signal}</span>
+      <span>$${Math.round(t.entry)}</span>
+      <span>$${Math.round(t.exit)}</span>
+      <span>${t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(1)}%</span>
+    </div>`).join("");
 
-  // Mostrar tudo
   document.getElementById("statsGrid").style.display = "grid";
   document.getElementById("statsGrid2").style.display = "grid";
   document.getElementById("equityCard").style.display = "block";
-  document.getElementById("distCard").style.display = "grid";
   document.getElementById("tradesCard").style.display = "block";
 }
 
 function renderEquityChart(data) {
-  const W = 460, H = 120, PL = 8, PR = 8, PT = 8, PB = 8;
-  const min = Math.min(...data), max = Math.max(...data);
-  const range = max - min || 1;
-  const cw = (W - PL - PR) / (data.length - 1);
-  const py = v => PT + (H - PT - PB) - ((v - min) / range) * (H - PT - PB);
-
-  let path = `M ${PL} ${py(data[0])}`;
-  data.forEach((v, i) => { if (i > 0) path += ` L ${PL + i * cw} ${py(v)}`; });
-
-  // Area fill
-  let area = path + ` L ${PL + (data.length-1)*cw} ${H-PB} L ${PL} ${H-PB} Z`;
-
-  const lastVal = data[data.length - 1];
-  const color = lastVal >= CAPITAL_INICIAL ? "#10b981" : "#ef4444";
-
-  // Linha de capital inicial
-  const baseY = py(CAPITAL_INICIAL);
-
+  const W = 460, H = 100, P = 8;
+  const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
+  const cw = (W - P * 2) / (data.length - 1 || 1);
+  const py = v => P + (H - P * 2) - ((v - min) / range) * (H - P * 2);
+  let path = `M ${P} ${py(data[0])}`;
+  data.forEach((v, i) => { if (i > 0) path += ` L ${P + i * cw} ${py(v)}`; });
+  const col = data[data.length - 1] >= CAPITAL_INICIAL ? "var(--green)" : "var(--red)";
   document.getElementById("equityChart").innerHTML = `
     <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">
-      <defs>
-        <linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
-          <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
-      <line x1="${PL}" x2="${W-PR}" y1="${baseY}" y2="${baseY}" stroke="#1e293b" stroke-width="1" stroke-dasharray="4 4"/>
-      <text x="${W-PR-2}" y="${baseY-3}" text-anchor="end" fill="#334155" font-size="7" font-family="monospace">$${CAPITAL_INICIAL}</text>
-      <path d="${area}" fill="url(#eg)"/>
-      <path d="${path}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
-      <circle cx="${PL + (data.length-1)*cw}" cy="${py(lastVal)}" r="3" fill="${color}"/>
-      <text x="${PL + (data.length-1)*cw - 4}" y="${py(lastVal)-6}" text-anchor="end" fill="${color}" font-size="8" font-family="monospace" font-weight="700">$${lastVal.toFixed(0)}</text>
+      <line x1="${P}" x2="${W-P}" y1="${py(CAPITAL_INICIAL)}" y2="${py(CAPITAL_INICIAL)}" stroke="var(--border2)" stroke-width="1" stroke-dasharray="4 4"/>
+      <path d="${path} L ${P + (data.length-1)*cw} ${H-P} L ${P} ${H-P} Z" fill="${col}" opacity="0.15"/>
+      <path d="${path}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linejoin="round"/>
+      <text x="${W-P}" y="${py(data[data.length-1])-4}" text-anchor="end" fill="${col}" font-size="8" font-family="monospace">$${Math.round(data[data.length-1])}</text>
     </svg>`;
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────────
 async function runBacktest() {
   const sym = document.getElementById("symSelect").value;
+  const tf = document.getElementById("tfSelect").value;
   const btn = document.getElementById("btnRun");
   btn.disabled = true;
-  btn.innerHTML = '<span class="pulse">A PROCESSAR...</span>';
+  btn.textContent = "A PROCESSAR...";
   
-  document.getElementById("statsGrid").style.display = "none";
-  document.getElementById("statsGrid2").style.display = "none";
-  document.getElementById("equityCard").style.display = "none";
-  document.getElementById("distCard").style.display = "none";
-  document.getElementById("tradesCard").style.display = "none";
-
   try {
-    setStatus(`A executar backtest para ${sym} no servidor...`, 30);
-    
-    const tf = document.getElementById("tfSelect").value;
+    setStatus("A carregar dados da Binance...", 30);
     const r = await fetch(`${BACKEND}/api/backtest?symbol=${sym}&interval=${tf}&days=90`);
-    const data = await r.json();
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
     
-    if (!data.success) throw new Error(data.error || "Erro desconhecido no servidor");
-
-    setStatus(`✅ Backtest concluído — ${data.totalTrades} trades encontrados!`, 100);
-    document.getElementById("statusText").style.color = "#10b981";
-
-    // Adaptar dados do backend para o formato do frontend
-    const trades = data.trades.map(t => ({
-      date: new Date(t.time).toLocaleString("pt-PT", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}),
+    setStatus("Backtest concluído!", 100);
+    const trades = d.trades.map(t => ({
+      date: new Date(t.time).toISOString().slice(5,16).replace('T',' '),
       signal: t.signal,
       entry: t.entry,
       exit: t.exit,
-      pnl: t.pnl,
+      pnl: (t.pnl / (t.capital - t.pnl)) * 100,
       result: t.outcome,
       capital: t.capital
     }));
-
-    const finalCap = parseFloat(data.finalCapital || 1000);
-    const maxDD = parseFloat(data.maxDD || 0);
-    renderResults(trades, finalCap, maxDD, sym, data.profitFactor);
+    renderResults(trades, parseFloat(d.finalCapital), parseFloat(d.maxDD), sym, d.profitFactor);
   } catch (e) {
-    console.error(e);
-    setStatus("❌ Erro: " + e.message, 0);
-    document.getElementById("statusText").style.color = "#ef4444";
+    setStatus("Erro: " + e.message, 0);
   }
-
   btn.disabled = false;
-  btn.innerHTML = "▶ INICIAR";
+  btn.textContent = "▶ INICIAR";
 }
 </script>
-
 </body>
 </html>
