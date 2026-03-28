@@ -767,6 +767,7 @@ async function checkActiveTrades() {
           tradeRecord.pnl = parseFloat(pnl.toFixed(2));
           tradeRecord.exitPrice = price;
           tradeRecord.exitTime = Date.now();
+          tradeRecord.positionSize = trade.positionSize || 0;
           saveTrades();
         }
         delete activeTrades[symbol];
@@ -875,9 +876,12 @@ async function runBot() {
       else lastSignalDateSell[symbol] = todayDate;
       dailyResults[symbol].push({ signal: result.signal, conf: result.conf });
       var tradeId = symbol + '_' + now;
-      activeTrades[symbol] = { id: tradeId, pair: pair, signal: result.signal, entry: price, sl: result.sl, tp: result.tp, time: now };
+      // Calcular tamanho da posição baseado em 1% de risco
+      var slDistPct = Math.abs(price - result.sl) / price;
+      var positionSize = (totalPnl >= 0 ? 1000 : 1000 + totalPnl) * 0.01 / slDistPct; // Usar capital atual estimado
+      activeTrades[symbol] = { id: tradeId, pair: pair, signal: result.signal, entry: price, sl: result.sl, tp: result.tp, time: now, positionSize: positionSize };
       // Gravar sinal no histórico de trades
-      tradeHistory.push({ id: tradeId, symbol: symbol, pair: pair, signal: result.signal, entry: price, sl: result.sl, tp: result.tp, slPct: result.slPct, tpPct: result.tpPct, conf: result.conf, rsi: result.rsi, adx: result.adx, macroTrend: result.macroTrend, time: now, outcome: 'OPEN', pnl: 0, exitPrice: 0, exitTime: 0 });
+      tradeHistory.push({ id: tradeId, symbol: symbol, pair: pair, signal: result.signal, entry: price, sl: result.sl, tp: result.tp, slPct: result.slPct, tpPct: result.tpPct, conf: result.conf, rsi: result.rsi, adx: result.adx, macroTrend: result.macroTrend, time: now, outcome: 'OPEN', pnl: 0, exitPrice: 0, exitTime: 0, positionSize: positionSize });
       saveTrades();
       var msg = '<b>' + result.signal + ' ' + pair + '</b>\n\nPreco: $' + price.toFixed(2) + '\nStop: $' + result.sl.toFixed(0) + ' (-' + result.slPct + '%)\nAlvo: $' + result.tp.toFixed(0) + ' (+' + result.tpPct + '%)\nConf: ' + result.conf + '%\nRSI: ' + result.rsi + ' | ADX: ' + result.adx + ' | ATR: $' + result.atr + '\nEMA9: $' + result.ema9 + ' | EMA21: $' + result.ema21 + '\nMacro: ' + result.macroTrend + ' | 15m: ' + result.trend15m + '\n' + new Date().toLocaleTimeString('pt-PT');
       await sendTelegram(msg);

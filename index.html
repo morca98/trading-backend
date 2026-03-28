@@ -764,7 +764,8 @@ async function loadPerf() {
             var dt=new Date(t.time).toISOString().slice(5,16).replace('T',' ');
             var col=t.outcome==='WIN'?'var(--green)':t.outcome==='LOSS'?'var(--red)':'var(--muted)';
             var pnlStr=t.outcome==='OPEN'?'ABERTO':(t.pnl>=0?'+':'')+t.pnl.toFixed(2)+'%';
-            return '<div class="lvl-row" style="font-size:10px"><span style="color:var(--muted)">'+dt+'</span><span>'+t.pair+'</span><span style="color:'+(t.signal==='BUY'?'var(--green)':'var(--red)')+'">'+t.signal+'</span><span style="color:'+col+'">'+t.outcome+'</span><span style="color:'+col+'">'+pnlStr+'</span></div>';
+            var posStr=t.positionSize?'$'+Math.round(t.positionSize):'--';
+            return '<div class="lvl-row" style="font-size:10px"><span style="color:var(--muted)">'+dt+'</span><span>'+t.pair+'</span><span style="color:'+(t.signal==='BUY'?'var(--green)':'var(--red)')+'">'+ t.signal+'</span><span style="color:var(--cyan)">'+posStr+'</span><span style="color:'+col+'">'+t.outcome+'</span><span style="color:'+col+'">'+pnlStr+'</span></div>';
           });
           hEl.innerHTML=rows.join('');
         }

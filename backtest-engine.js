@@ -279,7 +279,8 @@ class BacktestEngine {
           pnl: netPnl,
           pnlPct: (netPnl / (this.capital - netPnl)) * 100,
           capital: this.capital,
-          conf: signalResult.conf
+          conf: signalResult.conf,
+          positionSize: positionSize
         });
         
         // Skip to exit time to avoid overlapping trades on same symbol

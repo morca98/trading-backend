@@ -26,7 +26,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 .stat.c-green::after{background:var(--green)}.stat.c-red::after{background:var(--red)}.stat.c-yellow::after{background:var(--yellow)}.stat.c-purple::after{background:var(--purple)}.stat.c-cyan::after{background:var(--cyan)}
 .stat-val{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;margin-bottom:2px}
 .stat-lbl{font-size:8px;color:var(--muted);letter-spacing:2px}
-.bt-trade-row{display:grid;grid-template-columns:60px 45px 70px 70px 70px;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:9px}
+.bt-trade-row{display:grid;grid-template-columns:60px 45px 70px 70px 70px 70px;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:9px}
 .bt-win{color:var(--green)}.bt-loss{color:var(--red)}
 .asel{background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:2px;padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:11px}
 .progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:8px}
@@ -80,7 +80,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
   <div class="card" id="tradesCard" style="display:none">
     <div class="card-title">HISTÓRICO DE TRADES</div>
     <div class="bt-trade-row" style="color:var(--muted);font-size:8px;letter-spacing:1px">
-      <span>DATA</span><span>SINAL</span><span>ENTRADA</span><span>SAÍDA</span><span>P&L</span>
+      <span>DATA</span><span>SINAL</span><span>ENTRADA</span><span>SAÍDA</span><span>POS.SIZE</span><span>P&L</span>
     </div>
     <div id="tradesList" style="max-height:400px;overflow-y:auto"></div>
   </div>
@@ -119,9 +119,10 @@ function renderResults(trades, finalCap, maxDD, sym, profitFactor) {
   document.getElementById("tradesList").innerHTML = trades.slice().reverse().map(t => `
     <div class="bt-trade-row ${t.result === 'WIN' ? 'bt-win' : 'bt-loss'}">
       <span style="color:var(--muted)">${t.date}</span>
-      <span style="color:${t.signal === 'BUY' ? 'var(--green)' : 'var(--red)'}">${t.signal}</span>
+      <span style="color:${t.signal === 'BUY' ? 'var(--green)' : 'var(--red)')}">${t.signal}</span>
       <span>$${Math.round(t.entry)}</span>
       <span>$${Math.round(t.exit)}</span>
+      <span style="color:var(--cyan)">$${t.positionSize ? Math.round(t.positionSize) : '--'}</span>
       <span>${t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(1)}%</span>
     </div>`).join("");
 
@@ -169,7 +170,8 @@ async function runBacktest() {
       exit: t.exit,
       pnl: (t.pnl / (t.capital - t.pnl)) * 100,
       result: t.outcome,
-      capital: t.capital
+      capital: t.capital,
+      positionSize: t.positionSize
     }));
     renderResults(trades, parseFloat(d.finalCapital), parseFloat(d.maxDD), sym, d.profitFactor);
   } catch (e) {
