@@ -3,7 +3,7 @@ const axios = require('axios');
 class BacktestEngine {
   constructor(options = {}) {
     this.capital = options.initialCapital || 1000;
-    this.riskPerTrade = options.riskPerTrade || 0.02;
+    this.riskPerTrade = options.riskPerTrade || 0.01;
     this.fee = options.fee || 0.001; // 0.1%
     this.slippage = options.slippage || 0.0005; // 0.05%
     this.rr = options.rr || 2.2;
@@ -243,7 +243,7 @@ class BacktestEngine {
       if (outcome) {
         // Calculate PnL with fees
         // PnL fixo baseado no R:R dinâmico do sinal (mesmo método do test-v3)
-        // Cálculo de P&L baseado no risco por trade (2% do capital atual)
+        // Cálculo de P&L baseado no risco por trade (1% do capital atual)
         // O tamanho da posição é calculado para que, se atingir o SL, percamos exatamente o risco definido
         const slDistPct = Math.abs(entryPrice - signalResult.sl) / entryPrice;
         const positionSize = (this.capital * this.riskPerTrade) / slDistPct;
