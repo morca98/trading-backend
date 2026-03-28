@@ -3,23 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Backtest Engine — Terminal UI</title>
+<title>Backtest da Estratégia — Crypto AI</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {
-    --bg:      #05070a;
-    --bg2:     #0a0e14;
-    --bg3:     #0f151f;
-    --border:  #161c26;
-    --border2: #1e2633;
+    --bg:      #080b12;
+    --bg2:     #0d111a;
+    --bg3:     #121724;
+    --border:  #1a2233;
+    --border2: #253047;
     --text:    #a0aec0;
     --text-bright: #e2e8f0;
     --muted:   #4a5568;
     --accent:  #00d4ff;
-    --green:   #00f2ff; /* Estilo terminal cyan/green */
+    --green:   #00e676;
     --red:     #ff3d57;
     --yellow:  #ffd600;
+    --purple:  #b388ff;
+    --orange:  #ff9100;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -28,227 +30,242 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
     line-height: 1.5;
-    overflow-x: hidden;
+    padding: 20px;
   }
-  .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  .wrap { max-width: 1200px; margin: 0 auto; }
 
   /* ── HEADER ── */
   .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--border2);
-    padding-bottom: 15px;
     margin-bottom: 20px;
   }
-  .brand { font-size: 14px; font-weight: 700; letter-spacing: 2px; color: var(--text-bright); }
-  .brand span { color: var(--accent); }
-  .status { display: flex; gap: 15px; font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-  .status span { color: var(--accent); }
+  .logo { font-size: 12px; letter-spacing: 3px; color: var(--accent); font-weight: 700; text-transform: uppercase; }
+  .header-info { display: flex; gap: 20px; font-size: 9px; color: var(--muted); letter-spacing: 1.5px; }
+  .header-info span { color: var(--accent); }
 
-  /* ── CONTROLS ── */
-  .controls {
+  /* ── TOOLBAR ── */
+  .toolbar {
     display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
+    gap: 8px;
+    background: var(--bg2);
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 12px;
     align-items: center;
   }
-  .control-group { display: flex; background: var(--bg2); border: 1px solid var(--border); border-radius: 2px; padding: 2px; }
+  .btn-group { display: flex; gap: 4px; }
   .btn-opt {
-    background: transparent;
-    border: none;
+    background: var(--bg3);
+    border: 1px solid var(--border);
     color: var(--muted);
-    padding: 6px 12px;
+    padding: 8px 16px;
     font-family: inherit;
     font-size: 10px;
     cursor: pointer;
-    border-radius: 1px;
+    border-radius: 2px;
     transition: all 0.2s;
   }
-  .btn-opt.active { background: var(--border2); color: var(--accent); }
-  .btn-opt:hover:not(.active) { color: var(--text-bright); }
-
+  .btn-opt.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  
   select, input {
-    background: var(--bg2);
+    background: var(--bg3);
     border: 1px solid var(--border);
     color: var(--text-bright);
-    padding: 7px 12px;
+    padding: 8px 12px;
     font-family: inherit;
     font-size: 10px;
     border-radius: 2px;
     outline: none;
   }
-  select:focus, input:focus { border-color: var(--accent); }
-
-  .btn-run {
-    background: var(--accent);
-    color: #000;
-    border: none;
+  .btn-test {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
     padding: 8px 20px;
     font-family: inherit;
     font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1px;
     cursor: pointer;
     border-radius: 2px;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     text-transform: uppercase;
+    letter-spacing: 1px;
   }
-  .btn-run:hover { filter: brightness(1.1); }
-  .btn-run:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-test:hover { background: var(--accent); color: #000; }
 
-  /* ── STATS ── */
+  /* ── PROGRESS ── */
+  .progress-wrap { margin-bottom: 20px; }
+  .progress-info { font-size: 9px; color: var(--muted); margin-bottom: 6px; letter-spacing: 1px; }
+  .progress-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s; }
+
+  /* ── STATS GRID ── */
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
   }
-  .stat-box {
+  .stat-card {
     background: var(--bg2);
     border: 1px solid var(--border);
-    padding: 15px;
+    padding: 20px 15px;
+    text-align: center;
     border-radius: 2px;
     position: relative;
   }
-  .stat-label { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 5px; }
-  .stat-value { font-size: 20px; font-weight: 600; color: var(--text-bright); }
-  .stat-value.up { color: var(--green); }
-  .stat-value.down { color: var(--red); }
+  .stat-card::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; }
+  .stat-card.cyan::after { background: var(--accent); }
+  .stat-card.yellow::after { background: var(--yellow); }
+  .stat-card.green::after { background: var(--green); }
+  .stat-card.red::after { background: var(--red); }
+  .stat-card.purple::after { background: var(--purple); }
+  .stat-card.orange::after { background: var(--orange); }
 
-  /* ── CHART ── */
-  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 2px; padding: 15px; margin-bottom: 20px; }
-  .card-header { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
-  .card-header::before { content: ''; width: 2px; height: 10px; background: var(--accent); }
-  .chart-container { height: 300px; position: relative; }
+  .stat-val { font-size: 32px; font-weight: 700; margin-bottom: 4px; color: var(--text-bright); }
+  .stat-card.cyan .stat-val { color: var(--accent); }
+  .stat-card.green .stat-val { color: var(--green); }
+  .stat-card.red .stat-val { color: var(--red); }
+  .stat-card.purple .stat-val { color: var(--purple); }
+  .stat-card.orange .stat-val { color: var(--orange); }
 
-  /* ── TABLE ── */
-  .table-wrap { overflow-x: auto; max-height: 500px; }
-  table { width: 100%; border-collapse: collapse; text-align: left; }
-  th { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; padding: 10px; border-bottom: 1px solid var(--border2); }
-  td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 10px; color: var(--text); }
+  .stat-lbl { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; }
+
+  /* ── CHARTS ── */
+  .card { background: var(--bg2); border: 1px solid var(--border); padding: 20px; border-radius: 2px; margin-bottom: 20px; }
+  .card-title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+  .card-title::before { content: ''; width: 3px; height: 14px; background: var(--accent); }
+  .chart-container { height: 350px; position: relative; }
+
+  /* ── TRADES TABLE ── */
+  .table-filters { display: flex; gap: 8px; margin-bottom: 15px; }
+  .filter-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--muted); padding: 6px 14px; font-size: 9px; cursor: pointer; border-radius: 2px; text-transform: uppercase; }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 8px; color: var(--muted); text-transform: uppercase; padding: 12px 10px; border-bottom: 1px solid var(--border2); letter-spacing: 1px; }
+  td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 10px; color: var(--text-bright); }
   tr:hover td { background: var(--bg3); }
-  
-  .badge { padding: 2px 6px; border-radius: 1px; font-size: 8px; font-weight: 700; text-transform: uppercase; }
-  .badge-win { background: rgba(0, 242, 255, 0.1); color: var(--green); border: 1px solid var(--green); }
-  .badge-loss { background: rgba(255, 61, 87, 0.1); color: var(--red); border: 1px solid var(--red); }
-  .badge-open { background: rgba(160, 174, 192, 0.1); color: var(--text); border: 1px solid var(--text); }
+
+  .badge { padding: 2px 8px; border-radius: 2px; font-size: 8px; font-weight: 700; }
+  .badge-win { color: var(--green); border: 1px solid var(--green); background: rgba(0, 230, 118, 0.05); }
+  .badge-loss { color: var(--red); border: 1px solid var(--red); background: rgba(255, 61, 87, 0.05); }
 
   .pnl-up { color: var(--green); }
   .pnl-down { color: var(--red); }
-
-  /* ── TERMINAL LOG ── */
-  .log { background: #000; color: #0f0; padding: 10px; font-size: 9px; border-radius: 2px; height: 100px; overflow-y: auto; margin-bottom: 20px; border: 1px solid var(--border); }
-  .log-line { margin-bottom: 2px; }
-  .log-line span { color: #888; }
-
-  @media (max-width: 800px) {
-    .stats-grid { grid-template-columns: 1fr 1fr; }
-  }
 </style>
 </head>
 <body>
 
 <div class="wrap">
   <div class="header">
-    <div class="brand">CRYPTO <span>BACKTEST</span> ENGINE</div>
-    <div class="status">
-      <div>STATUS: <span>READY</span></div>
-      <div>TIMEFRAME: <span>30M</span></div>
-      <div>VERSION: <span>8.1.0</span></div>
+    <div class="logo">BACKTEST DA ESTRATÉGIA</div>
+    <div class="header-info">
+      <div>TIMEFRAME: <span>30 MINUTOS</span></div>
+      <div>CRYPTO</div>
     </div>
   </div>
 
-  <div class="controls">
-    <div class="control-group" id="periodGroup">
-      <button class="btn-opt" onclick="setPeriod(30)">30D</button>
-      <button class="btn-opt active" onclick="setPeriod(90)">90D</button>
-      <button class="btn-opt" onclick="setPeriod(365)">365D</button>
+  <div class="toolbar">
+    <div class="btn-group" id="periodGroup">
+      <button class="btn-opt" onclick="setPeriod(30)">30 DIAS</button>
+      <button class="btn-opt" onclick="setPeriod(90)">90 DIAS</button>
+      <button class="btn-opt active" onclick="setPeriod(365)">365 DIAS</button>
     </div>
 
-    <select id="symSelect" onchange="toggleCustomTicker()">
-      <option value="BTCUSDT">BTC/USDT</option>
-      <option value="ETHUSDT">ETH/USDT</option>
-      <option value="CUSTOM">OUTRO TICKER</option>
+    <select id="symSelect">
+      <option value="BTCUSDT">BTC / USDT</option>
+      <option value="ETHUSDT">ETH / USDT</option>
     </select>
 
-    <input type="text" id="customTicker" placeholder="EX: LTCUSDT" style="display:none; width: 120px;">
+    <input type="text" id="customTicker" placeholder="TICKER (EX: LTCUSDT)">
 
-    <button class="btn-run" id="runBtn" onclick="runBacktest()">Correr Backtest</button>
+    <button class="btn-test" id="runBtn" onclick="runBacktest()">
+      <span>▶</span> TESTAR
+    </button>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-info" id="progressText">Aguardando início...</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
   </div>
 
   <div class="stats-grid">
-    <div class="stat-box">
-      <div class="stat-label">Total Trades</div>
-      <div class="stat-value" id="stat-trades">-</div>
+    <div class="stat-card cyan">
+      <div class="stat-val" id="stat-trades">--</div>
+      <div class="stat-lbl">Total Trades</div>
     </div>
-    <div class="stat-box">
-      <div class="stat-label">Win Rate</div>
-      <div class="stat-value" id="stat-wr">-</div>
+    <div class="stat-card yellow">
+      <div class="stat-val" id="stat-wr">--%</div>
+      <div class="stat-lbl">Win Rate</div>
     </div>
-    <div class="stat-box">
-      <div class="stat-label">Profit Factor</div>
-      <div class="stat-value" id="stat-pf">-</div>
+    <div class="stat-card green">
+      <div class="stat-val" id="stat-pnl">+$0.00</div>
+      <div class="stat-lbl">P&L Total</div>
     </div>
-    <div class="stat-box">
-      <div class="stat-label">Retorno Total</div>
-      <div class="stat-value" id="stat-return">-</div>
+    <div class="stat-card red">
+      <div class="stat-val" id="stat-mdd">--%</div>
+      <div class="stat-lbl">Drawdown Máx</div>
     </div>
   </div>
 
-  <div class="stats-grid" style="margin-top: -10px;">
-    <div class="stat-box">
-      <div class="stat-label">P&L Total ($)</div>
-      <div class="stat-value" id="stat-pnl">-</div>
+  <div class="stats-grid">
+    <div class="stat-card green">
+      <div class="stat-val" id="stat-wins">--</div>
+      <div class="stat-lbl">Ganhos</div>
     </div>
-    <div class="stat-box">
-      <div class="stat-label">Max Drawdown</div>
-      <div class="stat-value" id="stat-mdd">-</div>
+    <div class="stat-card red">
+      <div class="stat-val" id="stat-losses">--</div>
+      <div class="stat-lbl">Perdas</div>
     </div>
-    <div class="stat-box">
-      <div class="stat-label">Ganhos Brutos</div>
-      <div class="stat-value up" id="stat-gross-win">-</div>
+    <div class="stat-card purple">
+      <div class="stat-val" id="stat-pf">--</div>
+      <div class="stat-lbl">Profit Factor</div>
     </div>
-    <div class="stat-box">
-      <div class="stat-label">Perdas Brutas</div>
-      <div class="stat-value down" id="stat-gross-loss">-</div>
+    <div class="stat-card orange">
+      <div class="stat-val" id="stat-return">--%</div>
+      <div class="stat-lbl">Retorno %</div>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-header">Curva de Equity (USDT)</div>
+    <div class="card-title">Curva de Equity</div>
     <div class="chart-container">
       <canvas id="equityChart"></canvas>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-header">Log de Execução</div>
-    <div class="log" id="terminalLog">
-      <div class="log-line"><span>[SYSTEM]</span> Terminal inicializado. Aguardando comandos...</div>
+    <div class="card-title">Trades Gerados</div>
+    <div class="table-filters">
+      <button class="filter-btn active">Todos</button>
+      <button class="filter-btn">Ativos</button>
+      <button class="filter-btn">Concluídos</button>
     </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">Histórico de Trades</div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>#</th>
             <th>Ticker</th>
-            <th>Tipo</th>
             <th>Entrada</th>
             <th>Saída</th>
-            <th>Preço In</th>
-            <th>Preço Out</th>
+            <th>Tamanho</th>
+            <th>Preço Entrada</th>
+            <th>Preço Saída / SL / TP</th>
             <th>P&L %</th>
             <th>P&L $</th>
-            <th>Estado</th>
+            <th>Resultado</th>
           </tr>
         </thead>
         <tbody id="tradesTable">
-          <tr><td colspan="10" style="text-align:center; color: var(--muted); padding: 40px;">Sem dados de backtest</td></tr>
+          <tr><td colspan="10" style="text-align:center; padding: 40px; color: var(--muted);">Inicie o backtest para ver os resultados</td></tr>
         </tbody>
       </table>
     </div>
@@ -256,98 +273,70 @@
 </div>
 
 <script>
-  let currentPeriod = 90;
+  let currentPeriod = 365;
   let chart = null;
-  const BACKEND_URL = ''; // Deixar vazio para usar a mesma origem
 
   function setPeriod(days) {
     currentPeriod = days;
     document.querySelectorAll('#periodGroup .btn-opt').forEach(btn => {
-      btn.classList.toggle('active', btn.innerText.includes(days + 'D'));
+      btn.classList.toggle('active', btn.innerText.includes(days));
     });
-    log(`Período ajustado para ${days} dias.`);
-  }
-
-  function toggleCustomTicker() {
-    const select = document.getElementById('symSelect');
-    const input = document.getElementById('customTicker');
-    input.style.display = select.value === 'CUSTOM' ? 'inline-block' : 'none';
-  }
-
-  function log(msg, type = 'SYSTEM') {
-    const terminal = document.getElementById('terminalLog');
-    const line = document.createElement('div');
-    line.className = 'log-line';
-    line.innerHTML = `<span>[${new Date().toLocaleTimeString()}] [${type}]</span> ${msg}`;
-    terminal.appendChild(line);
-    terminal.scrollTop = terminal.scrollHeight;
   }
 
   async function runBacktest() {
-    const runBtn = document.getElementById('runBtn');
-    const symbol = document.getElementById('symSelect').value === 'CUSTOM' 
-      ? document.getElementById('customTicker').value.toUpperCase() 
-      : document.getElementById('symSelect').value;
-
-    if (!symbol) return alert('Insira um ticker válido.');
-
-    runBtn.disabled = true;
-    log(`Iniciando backtest para ${symbol} (${currentPeriod} dias)...`, 'ENGINE');
+    const btn = document.getElementById('runBtn');
+    const symbol = document.getElementById('customTicker').value.toUpperCase() || document.getElementById('symSelect').value;
     
+    btn.disabled = true;
+    document.getElementById('progressText').innerText = `Backtest em curso para ${symbol}...`;
+    document.getElementById('progressFill').style.width = '50%';
+
     try {
-      const res = await fetch(`${BACKEND_URL}/api/backtest?symbol=${symbol}&days=${currentPeriod}`);
+      const res = await fetch(`/api/backtest?symbol=${symbol}&days=${currentPeriod}`);
       const data = await res.json();
-
-      if (!data.success) throw new Error(data.error || 'Erro desconhecido');
-
-      updateStats(data.results);
-      updateChart(data.results.equityCurve);
-      updateTable(data.results.trades);
-      log(`Backtest concluído: ${data.results.totalTrades} trades, WR: ${data.results.winRate}%`, 'SUCCESS');
-
-    } catch (err) {
-      log(`Erro: ${err.message}`, 'ERROR');
-      alert('Erro ao correr backtest: ' + err.message);
+      
+      if (data.success) {
+        document.getElementById('progressFill').style.width = '100%';
+        document.getElementById('progressText').innerText = `Backtest concluído - ${data.results.totalTrades} trades analisados.`;
+        updateUI(data.results);
+      }
+    } catch (e) {
+      document.getElementById('progressText').innerText = "Erro ao executar backtest.";
     } finally {
-      runBtn.disabled = false;
+      btn.disabled = false;
     }
   }
 
-  function updateStats(res) {
+  function updateUI(res) {
     document.getElementById('stat-trades').innerText = res.totalTrades;
     document.getElementById('stat-wr').innerText = res.winRate + '%';
-    document.getElementById('stat-pf').innerText = res.profitFactor;
-    document.getElementById('stat-return').innerText = (res.returnPct > 0 ? '+' : '') + res.returnPct + '%';
-    document.getElementById('stat-return').className = 'stat-value ' + (res.returnPct >= 0 ? 'up' : 'down');
-    
-    document.getElementById('stat-pnl').innerText = '$' + res.totalPnl.toFixed(2);
-    document.getElementById('stat-pnl').className = 'stat-value ' + (res.totalPnl >= 0 ? 'up' : 'down');
-    
+    document.getElementById('stat-pnl').innerText = (res.totalPnl >= 0 ? '+$' : '-$') + Math.abs(res.totalPnl).toFixed(2);
     document.getElementById('stat-mdd').innerText = res.maxDD + '%';
-    document.getElementById('stat-gross-win').innerText = '$' + res.grossProfit.toFixed(2);
-    document.getElementById('stat-gross-loss').innerText = '$' + res.grossLoss.toFixed(2);
+    document.getElementById('stat-wins').innerText = res.wins;
+    document.getElementById('stat-losses').innerText = res.losses;
+    document.getElementById('stat-pf').innerText = res.profitFactor;
+    document.getElementById('stat-return').innerText = (res.returnPct >= 0 ? '+' : '') + res.returnPct + '%';
+
+    updateChart(res.equityCurve);
+    updateTable(res.trades);
   }
 
   function updateChart(curve) {
     const ctx = document.getElementById('equityChart').getContext('2d');
     if (chart) chart.destroy();
-
-    const isProfitable = curve[curve.length - 1] >= curve[0];
-    const color = isProfitable ? '#00f2ff' : '#ff3d57';
-
+    
     chart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: curve.map((_, i) => i),
         datasets: [{
-          label: 'Equity (USDT)',
           data: curve,
-          borderColor: color,
-          backgroundColor: color + '10',
-          borderWidth: 2,
-          pointRadius: 0,
+          borderColor: '#00e676',
+          backgroundColor: 'rgba(0, 230, 118, 0.1)',
           fill: true,
-          tension: 0.1
+          tension: 0.3,
+          pointRadius: 3,
+          pointBackgroundColor: '#00e676'
         }]
       },
       options: {
@@ -355,11 +344,8 @@
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { display: false },
-          y: {
-            grid: { color: '#161c26' },
-            ticks: { color: '#4a5568', font: { family: 'JetBrains Mono', size: 9 } }
-          }
+          x: { grid: { color: '#1a2233' }, ticks: { color: '#4a5568' } },
+          y: { grid: { color: '#1a2233' }, ticks: { color: '#4a5568' } }
         }
       }
     });
@@ -368,25 +354,20 @@
   function updateTable(trades) {
     const tbody = document.getElementById('tradesTable');
     tbody.innerHTML = '';
-
-    if (trades.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color: var(--muted); padding: 40px;">Sem trades encontrados</td></tr>';
-      return;
-    }
-
+    
     trades.reverse().forEach((t, i) => {
       const row = document.createElement('tr');
       const pnlClass = t.pnlPct >= 0 ? 'pnl-up' : 'pnl-down';
-      const badgeClass = t.outcome === 'WIN' ? 'badge-win' : (t.outcome === 'LOSS' ? 'badge-loss' : 'badge-open');
+      const badgeClass = t.outcome === 'WIN' ? 'badge-win' : 'badge-loss';
       
       row.innerHTML = `
         <td>${trades.length - i}</td>
-        <td>${t.symbol}</td>
-        <td><span style="color: ${t.type === 'BUY' ? '#00f2ff' : '#ff3d57'}">${t.type}</span></td>
+        <td style="color:var(--accent)">${t.symbol.replace('USDT', '')}</td>
         <td>${new Date(t.entryTime).toLocaleString()}</td>
-        <td>${t.exitTime ? new Date(t.exitTime).toLocaleString() : '-'}</td>
+        <td>${new Date(t.exitTime).toLocaleString()}</td>
+        <td style="color:var(--yellow)">$${(t.positionSize || 1000).toFixed(0)}</td>
         <td>$${t.entryPrice.toFixed(2)}</td>
-        <td>$${t.exitPrice ? t.exitPrice.toFixed(2) : '-'}</td>
+        <td>$${t.exitPrice.toFixed(2)}</td>
         <td class="${pnlClass}">${t.pnlPct > 0 ? '+' : ''}${t.pnlPct.toFixed(2)}%</td>
         <td class="${pnlClass}">${t.pnlAmount > 0 ? '+' : ''}$${t.pnlAmount.toFixed(2)}</td>
         <td><span class="badge ${badgeClass}">${t.outcome}</span></td>
@@ -395,6 +376,5 @@
     });
   }
 </script>
-
 </body>
 </html>
