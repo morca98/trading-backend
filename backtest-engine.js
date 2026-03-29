@@ -224,19 +224,10 @@ class BacktestEngine {
         if (currentCandle.time <= lastTrade.exitTime) continue;
       }
 
-      // Lógica TREND MASTER idêntica ao server.js
-      let signal = 'WAIT', conf = 0;
-      const isStrongBull = price > ind.ema9 && ind.ema9 > ind.ema21 && ind.ema21 > ind.ema50;
-      const isStrongBear = price < ind.ema9 && ind.ema9 < ind.ema21 && ind.ema21 < ind.ema50;
+      // Usar a função de sinal passada ou a lógica Trend Master
+      const signalResult = generateSignalFn(window, price, macroTrend, 'UP', ind.atr, null);
       
-      if (isStrongBull && ind.adx > 25 && ind.rsi < 65 && (macroTrend === 'UP' || macroTrend === 'BULL')) {
-        signal = 'BUY'; conf = 85;
-      } else if (isStrongBear && ind.adx > 25 && ind.rsi > 35 && (macroTrend === 'DOWN' || macroTrend === 'BEAR')) {
-        signal = 'SELL'; conf = 85;
-      }
-
-      if (signal === 'WAIT') continue;
-      const signalResult = { signal, conf, price, atr: ind.atr };
+      if (!signalResult || signalResult.signal === 'WAIT') continue;
       
       // Cooldown de 1 trade por dia removido para aumentar número de sinais
       // const currentDate = new Date(currentCandle.time).toISOString().slice(0,10);
@@ -256,16 +247,22 @@ class BacktestEngine {
       const highs = window.map(c => c.high);
       let sl = 0, tp = 0;
       
-      if (signalResult.signal === 'BUY') {
-        const lastHL = Math.min(...lows.slice(-3));
-        sl = lastHL - (1.5 * ind.atr);
-        const slPct = Math.abs((entryPrice - sl) / entryPrice * 100);
-        tp = entryPrice * (1 + (slPct * this.rr) / 100);
+      // Usar SL/TP do sinal se disponível, caso contrário calcular com R:R configurado
+      if (signalResult.sl && signalResult.tp) {
+        sl = signalResult.sl;
+        tp = signalResult.tp;
       } else {
-        const lastLH = Math.max(...highs.slice(-3));
-        sl = lastLH + (1.5 * ind.atr);
-        const slPct = Math.abs((sl - entryPrice) / entryPrice * 100);
-        tp = entryPrice * (1 - (slPct * this.rr) / 100);
+        if (signalResult.signal === 'BUY') {
+          const lastHL = Math.min(...lows.slice(-3));
+          sl = lastHL - (1.5 * ind.atr);
+          const slPct = Math.abs((entryPrice - sl) / entryPrice * 100);
+          tp = entryPrice * (1 + (slPct * this.rr) / 100);
+        } else {
+          const lastLH = Math.max(...highs.slice(-3));
+          sl = lastLH + (1.5 * ind.atr);
+          const slPct = Math.abs((sl - entryPrice) / entryPrice * 100);
+          tp = entryPrice * (1 - (slPct * this.rr) / 100);
+        }
       }
       
       for (let j = i + 1; j < Math.min(i + 96, candles.length); j++) {
