@@ -384,52 +384,332 @@ app.get('/api/backtest', async function(req, res) {
 
 app.use(express.static(path.join(__dirname, '/')));
 
-// ── TELEGRAM ──
-async function sendTelegram(msg) {
+// ── TELEGRAM ──────────────────────────────────────────────────────────────────
+
+// Envia mensagem Markdown para o Telegram
+async function sendTelegram(msg, parseMode) {
   if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) return;
-  try { await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, { chat_id: TELEGRAM_CHAT_ID, text: msg, parse_mode: 'HTML' }); } catch (e) { console.error('Telegram Error:', e.message); }
+  try {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+      chat_id: TELEGRAM_CHAT_ID,
+      text: msg,
+      parse_mode: parseMode || 'Markdown'
+    });
+  } catch (e) { console.error('Telegram Error:', e.message); }
 }
+
+// Barra de confiança visual (igual ao BotAcoesUnificado)
+function confidenceBar(conf) {
+  const filled = Math.round(conf / 10);
+  return '█'.repeat(filled) + '░'.repeat(10 - filled);
+}
+
+// Formata número com separadores de milhar
+function fmtNum(n, decimals) {
+  return parseFloat(n).toLocaleString('pt-PT', { minimumFractionDigits: decimals || 0, maximumFractionDigits: decimals || 0 });
+}
+
+// ── COMANDOS ──────────────────────────────────────────────────────────────────
+
+async function cmdStart() {
+  const msg =
+    '🤖 *Crypto Signal Bot — BTC/ETH* está online!\n\n' +
+    'Comandos disponíveis:\n' +
+    '/status — Estado do bot\n' +
+    '/scan — Iniciar scan manual\n' +
+    '/price — Preços BTC e ETH\n' +
+    '/trades — Últimos sinais\n' +
+    '/stats — Estatísticas de performance\n' +
+    '/capital — Ver/alterar capital\n' +
+    '/backtest [dias] [symbol] — Backtest detalhado\n' +
+    '/help — Ajuda completa';
+  await sendTelegram(msg);
+}
+
+async function cmdStatus() {
+  const now = new Date().toLocaleString('pt-PT', { timeZone: 'Europe/Lisbon' });
+  const total = winCount + lossCount;
+  const winRate = total > 0 ? (winCount / total * 100).toFixed(1) : '0.0';
+  const capital = INITIAL_CAPITAL + totalPnl;
+  const msg =
+    '📊 *Status do Bot*\n\n' +
+    `🟢 Online: ${now}\n` +
+    `💰 Capital: $${fmtNum(capital, 2)}\n` +
+    `⚙️ Risco/trade: 1%\n` +
+    `📋 Símbolos: BTC/ETH\n` +
+    `🔄 Scan: cada 5 minutos\n` +
+    `📈 Sinais hoje: ${tradeHistory.filter(t => t.date === new Date().toLocaleDateString('pt-PT')).length}\n` +
+    `🏆 Win Rate: ${winRate}% (${winCount}W / ${lossCount}L)\n` +
+    `💹 P&L Total: ${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}%`;
+  await sendTelegram(msg);
+}
+
+async function cmdPrice() {
+  try {
+    const [btcP, ethP, btcS, ethS] = await Promise.all([
+      axios.get(BINANCE + '/api/v3/ticker/price?symbol=BTCUSDT'),
+      axios.get(BINANCE + '/api/v3/ticker/price?symbol=ETHUSDT'),
+      axios.get(BINANCE + '/api/v3/ticker/24hr?symbol=BTCUSDT'),
+      axios.get(BINANCE + '/api/v3/ticker/24hr?symbol=ETHUSDT')
+    ]);
+    const btcPrice = parseFloat(btcP.data.price);
+    const ethPrice = parseFloat(ethP.data.price);
+    const btcChg = parseFloat(btcS.data.priceChangePercent);
+    const ethChg = parseFloat(ethS.data.priceChangePercent);
+    const btcEmoji = btcChg >= 0 ? '📈' : '📉';
+    const ethEmoji = ethChg >= 0 ? '📈' : '📉';
+    const msg =
+      '💱 *Preços em Tempo Real*\n' +
+      '━━━━━━━━━━━━━━━━━━━━\n' +
+      `${btcEmoji} *BTC/USDT:* \`$${fmtNum(btcPrice, 2)}\` (${btcChg >= 0 ? '+' : ''}${btcChg.toFixed(2)}%)\n` +
+      `${ethEmoji} *ETH/USDT:* \`$${fmtNum(ethPrice, 2)}\` (${ethChg >= 0 ? '+' : ''}${ethChg.toFixed(2)}%)\n` +
+      `\n_Atualizado: ${new Date().toLocaleTimeString('pt-PT', { timeZone: 'Europe/Lisbon' })}_`;
+    await sendTelegram(msg);
+  } catch (e) { await sendTelegram('❌ Erro ao obter preços: ' + e.message); }
+}
+
+async function cmdTrades() {
+  if (!tradeHistory || tradeHistory.length === 0) {
+    await sendTelegram('Nenhum sinal registado ainda.');
+    return;
+  }
+  const recent = tradeHistory.slice(-5).reverse();
+  let msg = '📋 *Últimos Sinais*\n\n';
+  for (const t of recent) {
+    const emoji = t.outcome === 'WIN' ? '✅' : t.outcome === 'LOSS' ? '❌' : '⏳';
+    msg += `${emoji} *${t.symbol}* @ \`$${fmtNum(t.entry, 2)}\`\n`;
+    msg += `   SL: \`$${fmtNum(t.sl, 2)}\` | TP: \`$${fmtNum(t.tp, 2)}\`\n`;
+    if (t.pnl !== undefined) msg += `   P&L: ${t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(2)}%\n`;
+    msg += '\n';
+  }
+  await sendTelegram(msg);
+}
+
+async function cmdStats() {
+  const total = winCount + lossCount;
+  const winRate = total > 0 ? (winCount / total * 100).toFixed(1) : '0.0';
+  const capital = INITIAL_CAPITAL + totalPnl;
+  const grossProfit = tradeHistory.filter(t => t.pnl > 0).reduce((s, t) => s + t.pnl, 0);
+  const grossLoss = Math.abs(tradeHistory.filter(t => t.pnl < 0).reduce((s, t) => s + t.pnl, 0));
+  const pf = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : grossProfit > 0 ? 'MAX' : '0.00';
+  const pnlEmoji = totalPnl >= 0 ? '📈' : '📉';
+  const wrEmoji = parseFloat(winRate) >= 50 ? '🟢' : '🔴';
+  const msg =
+    '📊 *Estatísticas de Performance*\n' +
+    '━━━━━━━━━━━━━━━━━━━━\n' +
+    `📋 Total de trades: *${total}*\n` +
+    `${wrEmoji} Win Rate: *${winRate}%*\n` +
+    `✅ Ganhos: *${winCount}* | ❌ Perdas: *${lossCount}*\n` +
+    `⏳ Em aberto: *${Object.keys(activeTrades).length}*\n` +
+    '━━━━━━━━━━━━━━━━━━━━\n' +
+    `${pnlEmoji} P&L Total: *${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}%*\n` +
+    `⚡ Profit Factor: *${pf}*\n` +
+    `💰 Capital Atual: *$${fmtNum(capital, 2)}*\n` +
+    `💵 Capital Inicial: *$${fmtNum(INITIAL_CAPITAL, 2)}*`;
+  await sendTelegram(msg);
+}
+
+async function cmdCapital(args) {
+  if (args && args.length > 0) {
+    const novo = parseFloat(args[0]);
+    if (isNaN(novo) || novo <= 0) {
+      await sendTelegram('❌ Uso: /capital 10000\nExemplo: /capital 5000');
+    } else {
+      // Actualiza o P&L para reflectir o novo capital base
+      totalPnl = novo - INITIAL_CAPITAL;
+      saveStats(winCount, lossCount, totalPnl);
+      await sendTelegram(`✅ Capital actualizado: *$${fmtNum(novo, 2)}*`);
+    }
+  } else {
+    const capital = INITIAL_CAPITAL + totalPnl;
+    await sendTelegram(`💰 *Capital Actual:* \`$${fmtNum(capital, 2)}\`\n_Capital inicial: $${fmtNum(INITIAL_CAPITAL, 2)}_`);
+  }
+}
+
+async function cmdScan() {
+  await sendTelegram('🔍 *A iniciar scan manual...*\n_Aguarde um momento._');
+  try {
+    const results = await Promise.all(
+      SYMBOLS.map(async (symbol) => {
+        const r = await axios.get(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates`, { timeout: 1 }).catch(() => null);
+        // Obter sinal via API interna
+        const sigRes = await axios.get(`http://localhost:${process.env.PORT || 3001}/api/signal?symbol=${symbol}`).catch(() => null);
+        return { symbol, signal: sigRes ? sigRes.data.signal : null };
+      })
+    );
+    let signalCount = 0;
+    let details = '';
+    for (const r of results) {
+      if (r.signal && r.signal.signal !== 'WAIT') {
+        signalCount++;
+        const s = r.signal;
+        details += `\n  • *${r.symbol}* — ${s.signal} @ \`$${fmtNum(s.price, 2)}\` (conf: ${s.conf}%)`;
+      }
+    }
+    const now = new Date().toLocaleString('pt-PT', { timeZone: 'Europe/Lisbon' });
+    let msg =
+      `🔍 *Relatório de Scan* — ${now}\n` +
+      '━━━━━━━━━━━━━━━━━━━━\n' +
+      `📊 Símbolos analisados: *${SYMBOLS.length}*\n` +
+      `🎯 Sinais encontrados: *${signalCount}*\n` +
+      `🔄 Próximo scan: em *5 minutos*`;
+    if (details) msg += `\n\n📋 *Sinais:*${details}`;
+    await sendTelegram(msg);
+  } catch (e) {
+    await sendTelegram('❌ Erro no scan: ' + e.message);
+  }
+}
+
+async function cmdBacktest(args) {
+  let days = 90;
+  let symbol = 'BTCUSDT';
+
+  if (args && args.length > 0) {
+    if (/^\d+$/.test(args[0])) {
+      days = parseInt(args[0]);
+      if (args[1]) symbol = args[1].toUpperCase();
+    } else {
+      symbol = args[0].toUpperCase();
+    }
+  }
+
+  if (![30, 90, 365].includes(days)) {
+    await sendTelegram(
+      '❌ Período inválido. Use: 30, 90 ou 365\n' +
+      'Exemplos:\n' +
+      '/backtest 30\n' +
+      '/backtest 90 BTCUSDT\n' +
+      '/backtest 365'
+    );
+    return;
+  }
+
+  if (!SYMBOLS.includes(symbol)) {
+    await sendTelegram(`❌ Símbolo inválido: *${symbol}*\nDisponíveis: ${SYMBOLS.join(', ')}`);
+    return;
+  }
+
+  await sendTelegram(`⏳ *A executar backtest de ${symbol} nos últimos ${days} dias...*\n_Isto pode demorar 1-2 minutos._`);
+
+  try {
+    const limit = Math.ceil((days * 24 * 60) / 30);
+    const engine = new BacktestEngine({ symbol, interval: '30m', limit, riskPerTrade: 0.01 });
+    const r = await engine.run(generateSignal);
+
+    const pnlEmoji = r.returnPct >= 0 ? '📈' : '📉';
+    const wrEmoji = r.winRate >= 50 ? '🟢' : '🔴';
+
+    let msg =
+      `📊 *Backtest — ${symbol} — Últimos ${days} dias*\n` +
+      '─────────────────────────────\n' +
+      `📋 Total de trades: *${r.totalTrades}*\n` +
+      '─────────────────────────────\n' +
+      `${wrEmoji} Win Rate: *${r.winRate}%*\n` +
+      `✅ Ganhos: *${r.wins}* | ❌ Perdas: *${r.losses}*\n` +
+      '─────────────────────────────\n' +
+      `${pnlEmoji} Retorno Total: *${r.returnPct >= 0 ? '+' : ''}${r.returnPct}%*\n` +
+      `📉 Drawdown Máx: *${r.maxDD}%*\n` +
+      `⚡ Profit Factor: *${r.profitFactor}*\n` +
+      `💰 Capital Final: *$${fmtNum(r.finalCapital, 2)}*\n` +
+      '─────────────────────────────\n' +
+      `_Capital base: $${fmtNum(INITIAL_CAPITAL, 2)} | R:R 1:3 | Risco 1%_`;
+
+    await sendTelegram(msg);
+
+    // Enviar últimos 5 trades se existirem
+    if (r.trades && r.trades.length > 0) {
+      const top5 = r.trades.slice(-5).reverse();
+      let tradesMsg = '📋 *Últimos 5 Trades:*\n\n';
+      for (const t of top5) {
+        const emoji = t.outcome === 'WIN' ? '✅' : t.outcome === 'LOSS' ? '❌' : '⏳';
+        tradesMsg +=
+          `${emoji} *${t.symbol || symbol}* — ${t.entryTime || ''}\n` +
+          `   Entrada: \`$${fmtNum(t.entry, 2)}\` → Saída: \`$${fmtNum(t.exit || t.entry, 2)}\`\n` +
+          `   P&L: ${(t.pnl || 0) >= 0 ? '+' : ''}${(t.pnl || 0).toFixed(2)}%\n\n`;
+      }
+      await sendTelegram(tradesMsg);
+    }
+  } catch (e) {
+    console.error('[Backtest] Erro:', e);
+    await sendTelegram('❌ Erro ao executar o backtest: ' + e.message.slice(0, 200) + '\nTente: /backtest 30 BTCUSDT');
+  }
+}
+
+async function cmdHelp() {
+  const msg =
+    '📖 *Crypto Signal Bot — Ajuda*\n\n' +
+    '*Estratégia (30M Multi-Timeframe):*\n' +
+    '1️⃣ Tendência macro 4H (EMA50/EMA200)\n' +
+    '2️⃣ Alinhamento EMAs 30M (9 > 21 > 50)\n' +
+    '3️⃣ ADX > 20 (força da tendência)\n' +
+    '4️⃣ RSI < 70 (BUY) ou RSI > 30 (SELL)\n' +
+    '5️⃣ Confirmação tendência 15M\n\n' +
+    '*Gestão de Risco:*\n' +
+    '• R:R 1:3 | Risco 1%/trade | SL dinâmico (ATR)\n\n' +
+    '*Comandos:*\n' +
+    '/start — Início e lista de comandos\n' +
+    '/status — Estado detalhado do bot\n' +
+    '/scan — Scan manual BTC e ETH\n' +
+    '/price — Preços actuais BTC/ETH\n' +
+    '/trades — Últimos 5 sinais\n' +
+    '/stats — Estatísticas de performance\n' +
+    '/capital [valor] — Ver/alterar capital\n' +
+    '/backtest [dias] [symbol] — Backtest detalhado\n\n' +
+    '*Exemplos de backtest:*\n' +
+    '/backtest 30\n' +
+    '/backtest 90 BTCUSDT\n' +
+    '/backtest 365 ETHUSDT\n\n' +
+    '_Símbolos disponíveis: BTCUSDT, ETHUSDT_';
+  await sendTelegram(msg);
+}
+
+// ── LOOP DE POLLING ───────────────────────────────────────────────────────────
 
 var lastUpdateId = 0;
 async function handleTelegramCommands() {
   if (!TELEGRAM_TOKEN) return;
   try {
-    const r = await axios.get(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates?offset=${lastUpdateId + 1}&timeout=30`);
-    if (r.data && r.data.result) {
-      for (const update of r.data.result) {
-        lastUpdateId = update.update_id;
-        if (!update.message || !update.message.text) continue;
-        const text = update.message.text.toLowerCase();
-        if (text === '/start' || text === '/help') {
-          await sendTelegram('<b>Comandos:</b>\n/price - Preco BTC/ETH\n/stats - Performance\n/backtest - Teste 90d BTC\n/status - Estado Bot');
-        } else if (text === '/price') {
-          const bp = await axios.get(BINANCE + '/api/v3/ticker/price?symbol=BTCUSDT');
-          const ep = await axios.get(BINANCE + '/api/v3/ticker/price?symbol=ETHUSDT');
-          await sendTelegram(`<b>Precos:</b>\nBTC: $${parseFloat(bp.data.price).toLocaleString()}\nETH: $${parseFloat(ep.data.price).toLocaleString()}`);
-        } else if (text === '/stats') {
-          const total = winCount + lossCount;
-          await sendTelegram(`<b>Estatisticas:</b>\nWins: ${winCount}\nLosses: ${lossCount}\nWin Rate: ${total > 0 ? (winCount/total*100).toFixed(1) : 0}%\nP&L: ${totalPnl.toFixed(2)}%`);
-        } else if (text === '/backtest' || text === '/btc') {
-          runBacktest('BTCUSDT');
-        } else if (text === '/eth') {
-          runBacktest('ETHUSDT');
-        } else if (text === '/status') {
-          const now = new Date().toLocaleString('pt-PT', { timeZone: 'Europe/Lisbon' });
-          await sendTelegram(`<b>Estado:</b> Ativo\nSinais: BTC/ETH\nTimeframe: 30M\nHora: ${now}`);
-        }
+    const r = await axios.get(
+      `https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates?offset=${lastUpdateId + 1}&timeout=30`
+    );
+    if (!r.data || !r.data.result) return;
+    for (const update of r.data.result) {
+      lastUpdateId = update.update_id;
+      if (!update.message || !update.message.text) continue;
+
+      const raw = update.message.text.trim();
+      // Suporta comandos com @BotName e argumentos
+      const parts = raw.split(/\s+/);
+      const cmd = parts[0].split('@')[0].toLowerCase();
+      const args = parts.slice(1);
+
+      if (cmd === '/start') {
+        await cmdStart();
+      } else if (cmd === '/status') {
+        await cmdStatus();
+      } else if (cmd === '/price') {
+        await cmdPrice();
+      } else if (cmd === '/trades') {
+        await cmdTrades();
+      } else if (cmd === '/stats') {
+        await cmdStats();
+      } else if (cmd === '/capital') {
+        await cmdCapital(args);
+      } else if (cmd === '/scan') {
+        await cmdScan();
+      } else if (cmd === '/backtest' || cmd === '/btc' || cmd === '/eth') {
+        // /btc e /eth como atalhos
+        if (cmd === '/btc') { await cmdBacktest(['90', 'BTCUSDT']); }
+        else if (cmd === '/eth') { await cmdBacktest(['90', 'ETHUSDT']); }
+        else { await cmdBacktest(args); }
+      } else if (cmd === '/help') {
+        await cmdHelp();
       }
     }
-  } catch (e) {}
+  } catch (e) { console.error('[Telegram polling]', e.message); }
 }
 
-async function runBacktest(symbol) {
-  await sendTelegram('<b>Backtest ' + symbol + '</b>\nA processar...');
-  try {
-    const engine = new BacktestEngine({ symbol: symbol, interval: '30m', limit: 4320 });
-    const results = await engine.run(generateSignal);
-    await sendTelegram(`<b>Resultado ${symbol}:</b>\nTrades: ${results.totalTrades}\nWin Rate: ${results.winRate}%\nRetorno: ${results.returnPct}%`);
-  } catch (e) { await sendTelegram('Erro: ' + e.message); }
-}
+// ── NOTIFICAÇÕES AUTOMÁTICAS ─────────────────────────────────────────────────
 
 async function runBot() {
   // Lógica do bot original aqui...
@@ -438,7 +718,16 @@ async function runBot() {
 var PORT = process.env.PORT || 3001;
 app.listen(PORT, function() {
   console.log('Server porta ' + PORT);
-  sendTelegram('<b>Bot Ativo!</b>\nSite e Comandos interativos disponiveis.');
+  const now = new Date().toLocaleString('pt-PT', { timeZone: 'Europe/Lisbon' });
+  sendTelegram(
+    '🟢 *Crypto Signal Bot — Online*\n' +
+    '━━━━━━━━━━━━━━━━━━━━\n' +
+    `⏰ Iniciado: ${now}\n` +
+    `🔄 Scan: cada 5 minutos\n` +
+    `📊 Símbolos: ${SYMBOLS.join(', ')} | Risco: 1%/trade\n` +
+    `🎯 5 filtros MTF activos\n\n` +
+    `_Bot pronto para operar._`
+  );
   setInterval(runBot, 5 * 60 * 1000);
   setInterval(handleTelegramCommands, 5000);
 });
