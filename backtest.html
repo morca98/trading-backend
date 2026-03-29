@@ -112,10 +112,10 @@ td { padding: 10px 8px; border-bottom: 1px solid var(--border); }
     <div class="stat-card c6"><div class="stat-val" id="sReturn">0.00%</div><div class="stat-lbl">Retorno %</div></div>
   </div>
 
-  <div class="card">
-    <div class="card-title">Curva de Equity</div>
-    <div id="chartContainer"><canvas id="equityChart"></canvas></div>
-  </div>
+	  <div class="card">
+	    <div class="card-title" id="chartTitle">EVOLUÇÃO DO CAPITAL</div>
+	    <div id="chartContainer"><canvas id="equityChart"></canvas></div>
+	  </div>
 
   <div class="card">
     <div class="card-title">Histórico Detalhado</div>
@@ -210,42 +210,85 @@ function renderChart(trades) {
   const ctx = document.getElementById('equityChart').getContext('2d');
   if(chart) chart.destroy();
   
+  document.getElementById('chartTitle').textContent = `EVOLUÇÃO DO CAPITAL (${days} DIAS)`;
+  
   let current = 1000;
   const data = [1000];
   const labels = ['Início'];
   
+  // Criar gradiente para o preenchimento
+  const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+  gradient.addColorStop(0, 'rgba(0, 229, 255, 0.2)');
+  gradient.addColorStop(1, 'rgba(0, 229, 255, 0)');
+  
   trades.forEach((t, i) => {
     current += t.pnl;
     data.push(current);
-    labels.push('#' + (i + 1));
+    // Formatar data para o eixo X (YYYY-MM-DD)
+    const d = new Date(t.time).toISOString().slice(0, 10);
+    labels.push(d);
   });
   
-  const isProfit = current >= 1000;
-  const col = isProfit ? '#00e676' : '#ff3d57';
+  const accentCol = '#00e5ff'; // Ciana vibrante como na imagem
   
   chart = new Chart(ctx, {
     type: 'line',
     data: {
       labels: labels,
       datasets: [{
-        label: 'Equity',
+        label: 'Capital',
         data: data,
-        borderColor: col,
+        borderColor: accentCol,
         borderWidth: 2,
-        pointRadius: 2,
-        pointBackgroundColor: col,
-        backgroundColor: isProfit ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 61, 87, 0.1)',
+        pointRadius: 3,
+        pointBackgroundColor: accentCol,
+        pointBorderColor: 'rgba(0, 229, 255, 0.3)',
+        pointBorderWidth: 4,
+        backgroundColor: gradient,
         fill: true,
-        tension: 0.3
+        tension: 0.1 // Linhas mais retas como na imagem
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      interaction: { intersect: false, mode: 'index' },
+      plugins: { 
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0d1420',
+          titleColor: '#707a8a',
+          bodyColor: '#e1e6ed',
+          borderColor: '#1a1f2e',
+          borderWidth: 1,
+          padding: 10,
+          displayColors: false,
+          callbacks: {
+            label: function(context) {
+              return 'Capital: $' + context.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2});
+            }
+          }
+        }
+      },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#707a8a', font: { size: 9 } } },
-        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#707a8a', font: { size: 9 } } }
+        x: { 
+          grid: { display: false }, 
+          ticks: { 
+            color: '#4a5568', 
+            font: { size: 9 },
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 8
+          } 
+        },
+        y: { 
+          grid: { color: 'rgba(255,255,255,0.03)' }, 
+          ticks: { 
+            color: '#4a5568', 
+            font: { size: 9 },
+            callback: function(value) { return value.toLocaleString(); }
+          } 
+        }
       }
     }
   });
