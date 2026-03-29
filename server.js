@@ -166,8 +166,8 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData, symb
     macroTrend: macroTrend, trend15m: trend15m, atr: atr.toFixed(2),
     positionSize: positionSize.toFixed(0),
     rsi: rsi.toFixed(1), adx: adx.toFixed(1),
-    useTP1: useTP1, // Informar sobre a Realização Parcial (50% @ 1% lucro)
-    tp1Pct: 1.0
+    useTP1: useTP1, // Informar sobre a Realização Parcial (50% @ 1:1 RR)
+    tp1Pct: slPct
   };
 }
 
@@ -555,7 +555,7 @@ async function cmdScan() {
         if (s.useTP1) {
           // Lógica de Realização Parcial (ex: ETH Pro)
           const tp1Price = s.signal === 'BUY' ? s.price * (1 + s.tp1Pct/100) : s.price * (1 - s.tp1Pct/100);
-          details += `\n    🎯 TP1 (50%): \`$${fmtNum(tp1Price, 2)}\` (1.0%)`;
+          details += `\n    🎯 TP1 (50%): \`$${fmtNum(tp1Price, 2)}\` (${parseFloat(s.tp1Pct).toFixed(2)}%)`;
           details += `\n    🎯 TP2 (Final): \`$${fmtNum(s.tp, 2)}\` (${s.tpPct}%)`;
         } else {
           details += `\n    🎯 TP: \`$${fmtNum(s.tp, 2)}\` (${s.tpPct}%)`;

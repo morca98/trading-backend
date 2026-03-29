@@ -250,37 +250,42 @@ class BacktestEngine {
       let tp1Reached = false;
       
       // Usar SL/TP do sinal se disponível, caso contrário calcular com R:R configurado
+      let slPct = signalResult.slPct || 0;
       if (signalResult.sl && signalResult.tp) {
         sl = signalResult.sl;
         tp = signalResult.tp;
         slActual = sl;
+        if (!slPct) slPct = Math.abs((entryPrice - sl) / entryPrice * 100);
       } else {
         if (signalResult.signal === 'BUY') {
           const lastHL = Math.min(...lows.slice(-3));
           sl = lastHL - (1.5 * ind.atr);
-          const slPct = Math.abs((entryPrice - sl) / entryPrice * 100);
+          slPct = Math.abs((entryPrice - sl) / entryPrice * 100);
           tp = entryPrice * (1 + (slPct * this.rr) / 100);
         } else {
           const lastLH = Math.max(...highs.slice(-3));
           sl = lastLH + (1.5 * ind.atr);
-          const slPct = Math.abs((sl - entryPrice) / entryPrice * 100);
+          slPct = Math.abs((sl - entryPrice) / entryPrice * 100);
           tp = entryPrice * (1 - (slPct * this.rr) / 100);
         }
       }
       
+      // Se TP1 estiver ativo mas sem percentagem definida, usar 1:1 RR (slPct)
+      const tp1Threshold = signalResult.tp1Pct || slPct;
+      
       for (let j = i + 1; j < Math.min(i + 96, candles.length); j++) {
         const next = candles[j];
         
-        // Lógica de Realização Parcial (ETH Pro: TP1 50% @ 1% lucro)
+        // Lógica de Realização Parcial (ETH Pro: TP1 50% @ 1:1 RR)
         if (signalResult.useTP1 && !tp1Reached && j > i + 1) {
           const currentProfitPct = signalResult.signal === 'BUY' ? 
             ((next.close - entryPrice) / entryPrice * 100) : 
             ((entryPrice - next.close) / entryPrice * 100);
           
-          if (currentProfitPct >= signalResult.tp1Pct) {
+          if (currentProfitPct >= tp1Threshold) {
             tp1Reached = true;
             // Simula realização de 50%
-            const partialPnlPct = signalResult.tp1Pct / 100;
+            const partialPnlPct = tp1Threshold / 100;
             const partialPnl = (this.capital * 0.01 * 0.5) * (partialPnlPct - this.fee);
             this.capital += partialPnl;
           }
