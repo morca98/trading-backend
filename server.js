@@ -547,7 +547,7 @@ async function cmdScan() {
       if (r.signal && r.signal.signal !== 'WAIT') {
         signalCount++;
         const s = r.signal;
-        details += `\n  • *${r.symbol}* — ${s.signal} @ \`$${fmtNum(s.price, 2)}\` (conf: ${s.conf}%)`;
+        details += `\n  • *${r.symbol}* — ${s.signal} @ \`$${fmtNum(s.price, 2)}\``;
         
         // Adicionar detalhes de SL e TP
         details += `\n    🛑 SL: \`$${fmtNum(s.sl, 2)}\` (${s.slPct}%)`;
