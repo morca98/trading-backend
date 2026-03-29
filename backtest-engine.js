@@ -225,7 +225,7 @@ class BacktestEngine {
       }
 
       // Usar a função de sinal passada ou a lógica Trend Master
-      const signalResult = generateSignalFn(window, price, macroTrend, 'UP', ind.atr, null);
+      const signalResult = generateSignalFn(window, price, macroTrend, 'UP', ind.atr, null, this.symbol);
       
       if (!signalResult || signalResult.signal === 'WAIT') continue;
       

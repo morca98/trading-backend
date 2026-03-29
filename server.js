@@ -116,7 +116,7 @@ function calcTrend(closes) {
   return ema9 > ema21 ? 'UP' : 'DOWN';
 }
 
-function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
+function generateSignal(candles, price, macroTrend, trend15m, atr, liqData, symbol) {
   var closes = candles.map(function(c) { return c.close; });
   var lows = candles.map(function(c) { return c.low; });
   var highs = candles.map(function(c) { return c.high; });
@@ -124,39 +124,34 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var rsi = calcRSI(closes, 14);
   var adx = calcADX(candles, 14);
   
+  // Parâmetros Dinâmicos por Símbolo (Otimização Dual)
+  var isEth = (symbol && symbol.includes('ETH'));
+  var minADX = isEth ? 35 : 30;
+  var atrMult = isEth ? 2.0 : 1.5;
+  var rrRatio = isEth ? 2.0 : 2.5;
+
   var signal = 'WAIT', conf = 0;
-  // Filtros de qualidade para aumentar Profit Factor:
-  // 1. Tendência forte (ADX > 20)
-  // 2. Alinhamento de EMAs (9 > 21 > 50 para BUY)
-  // 3. RSI não sobrecomprado para BUY (< 70) e não sobrevenda para SELL (> 30)
-  var isBull = price > ema9 && ema9 > ema21 && ema21 > ema50;
-  var isBear = price < ema9 && ema9 < ema21 && ema21 < ema50;
-  
-  // ESTRATÉGIA TREND MASTER: Alta Precisão (PF 1.84)
-  // Requisito: ADX > 25, Alinhamento Triplo (EMA 9 > 21 > 50) e MacroTrend BULL/BEAR
   var isStrongBull = price > ema9 && ema9 > ema21 && ema21 > ema50;
   var isStrongBear = price < ema9 && ema9 < ema21 && ema21 < ema50;
-  var isMacroTrendOk = (macroTrend === 'UP' || macroTrend.includes('BULL') || macroTrend === 'DOWN' || macroTrend.includes('BEAR'));
 
-  if (isStrongBull && adx > 30 && rsi < 65 && (macroTrend === 'UP' || macroTrend.includes('BULL'))) {
+  if (isStrongBull && adx > minADX && rsi < 65 && (macroTrend === 'UP' || macroTrend.includes('BULL'))) {
     signal = 'BUY'; conf = 85;
-  } else if (isStrongBear && adx > 30 && rsi > 35 && (macroTrend === 'DOWN' || macroTrend.includes('BEAR'))) {
+  } else if (isStrongBear && adx > minADX && rsi > 35 && (macroTrend === 'DOWN' || macroTrend.includes('BEAR'))) {
     signal = 'SELL'; conf = 85;
   }
 
-  // Novo Stop Loss: HL/LH de 30min com buffer de 1.5 * ATR
   var sl = 0, tp = 0, slPct = 0, tpPct = 0;
   if (signal === 'BUY') {
-    var lastHL = Math.min.apply(null, lows.slice(-3)); // Mínimo das últimas 3 velas (30m cada)
-    sl = lastHL - (1.5 * atr);
+    var lastHL = Math.min.apply(null, lows.slice(-3));
+    sl = lastHL - (atrMult * atr);
     slPct = Math.abs((price - sl) / price * 100);
-    tpPct = slPct * 2.5; // Alvo dinâmico baseado no R:R de 2.5 (Trend Master)
+    tpPct = slPct * rrRatio;
     tp = price * (1 + tpPct/100);
   } else if (signal === 'SELL') {
-    var lastLH = Math.max.apply(null, highs.slice(-3)); // Máximo das últimas 3 velas
-    sl = lastLH + (1.5 * atr);
+    var lastLH = Math.max.apply(null, highs.slice(-3));
+    sl = lastLH + (atrMult * atr);
     slPct = Math.abs((sl - price) / price * 100);
-    tpPct = slPct * 2.5;
+    tpPct = slPct * rrRatio;
     tp = price * (1 - tpPct/100);
   }
 
@@ -215,7 +210,7 @@ app.get('/api/signal', async function(req, res) {
     var macroTrend = (lastPrice4h > macroEma50 && macroEma50 > macroEma200) ? 'BULL' : (lastPrice4h < macroEma50 && macroEma50 < macroEma200) ? 'BEAR' : 'NEUTRAL';
     var trend15m = calcTrend(results[3].data.map(function(k) { return +k[4]; }));
     var atr = calcATR(candles, 14);
-    var signal = generateSignal(candles, price, macroTrend, trend15m, atr, null);
+    var signal = generateSignal(candles, price, macroTrend, trend15m, atr, null, symbol);
     var closes = candles.map(function(c) { return c.close; });
     res.json({ success: true, signal: signal, price: price, candles: candles.slice(-60), ema9: calcEMALine(closes, 9).slice(-60), ema21: calcEMALine(closes, 21).slice(-60), ema50: calcEMALine(closes, 50).slice(-60), macroTrend: macroTrend, trend15m: trend15m });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
