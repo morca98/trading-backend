@@ -102,15 +102,32 @@ class BacktestEngine {
   calculateIndicators(candles) {
     const closes = candles.map(c => c.close);
     const rsi = this.calcRSI(closes);
-    const ema20 = this.calcEMA(closes.slice(-20), 20);
-    const ema50 = closes.length >= 50 ? this.calcEMA(closes.slice(-50), 50) : ema20;
+    const ema9 = this.calcEMA(closes.slice(-9), 9);
+    const ema21 = this.calcEMA(closes.slice(-21), 21);
+    const ema50 = this.calcEMA(closes.slice(-50), 50);
     const atr = this.calcATR(candles, 14);
+    const adx = this.calcADX(candles, 14);
     
-    // Dynamic Trend Calculation
-    const macroTrend = this.calcTrend(closes, 50); // Using 50 periods as proxy for macro
-    const trend15m = this.calcTrend(closes, 10); // Using 10 periods as proxy for short term
-    
-    return { rsi, ema20, ema50, atr, macroTrend, trend15m };
+    return { rsi, ema9, ema21, ema50, atr, adx };
+  }
+
+  calcADX(candles, period = 14) {
+    if (candles.length < period * 2) return 20;
+    var plusDM = [], minusDM = [], tr = [];
+    for (var i = 1; i < candles.length; i++) {
+      var h = candles[i].high, l = candles[i].low, ph = candles[i-1].high, pl = candles[i-1].low, pc = candles[i-1].close;
+      tr.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+      var moveUp = h - ph, moveDown = pl - l;
+      plusDM.push(moveUp > 0 && moveUp > moveDown ? moveUp : 0);
+      minusDM.push(moveDown > 0 && moveDown > moveUp ? moveDown : 0);
+    }
+    var smoothTR = tr.slice(-period).reduce((a, b) => a + b);
+    var smoothPlusDM = plusDM.slice(-period).reduce((a, b) => a + b);
+    var smoothMinusDM = minusDM.slice(-period).reduce((a, b) => a + b);
+    var plusDI = 100 * (smoothPlusDM / smoothTR);
+    var minusDI = 100 * (smoothMinusDM / smoothTR);
+    var dx = 100 * Math.abs(plusDI - minusDI) / (plusDI + minusDI || 1);
+    return dx;
   }
 
   calcEMA(data, period) {
@@ -198,26 +215,28 @@ class BacktestEngine {
         }
       }
       
-      const indicators = this.calculateIndicators(window);
-      // Override macroTrend with the one from 4h candles
-      indicators.macroTrend = macroTrend;
-      indicators.macroEma50 = macroEma50;
-      indicators.macroEma200 = macroEma200;
+      const ind = this.calculateIndicators(window);
       
-      // Cooldown de 90min (3 velas de 30m) após QUALQUER trade para evitar entradas duplicadas
+      // Cooldown de 90min (3 velas de 30m) após QUALQUER trade
       if (lastLossCandle > 0 && i - lastLossCandle < 3) continue;
-      
-      // Cooldown adicional após o fecho de um trade para evitar reentrada imediata no mesmo candle
       if (this.trades.length > 0) {
         const lastTrade = this.trades[this.trades.length - 1];
         if (currentCandle.time <= lastTrade.exitTime) continue;
       }
+
+      // Lógica TREND MASTER idêntica ao server.js
+      let signal = 'WAIT', conf = 0;
+      const isStrongBull = price > ind.ema9 && ind.ema9 > ind.ema21 && ind.ema21 > ind.ema50;
+      const isStrongBear = price < ind.ema9 && ind.ema9 < ind.ema21 && ind.ema21 < ind.ema50;
       
-      const signalResult = generateSignalFn(window, price, indicators.macroTrend, indicators.trend15m, indicators.atr, null);
-      
-      // Sincronizado com o bot real (65% conforme server.js)
-      if (!signalResult || (signalResult.signal === 'WAIT' && signalResult.conf < 65)) continue;
-      if (signalResult.signal === 'WAIT') continue;
+      if (isStrongBull && ind.adx > 25 && ind.rsi < 65 && (macroTrend === 'UP' || macroTrend === 'BULL')) {
+        signal = 'BUY'; conf = 85;
+      } else if (isStrongBear && ind.adx > 25 && ind.rsi > 35 && (macroTrend === 'DOWN' || macroTrend === 'BEAR')) {
+        signal = 'SELL'; conf = 85;
+      }
+
+      if (signal === 'WAIT') continue;
+      const signalResult = { signal, conf, price, atr: ind.atr };
       
       // Cooldown de 1 trade por dia removido para aumentar número de sinais
       // const currentDate = new Date(currentCandle.time).toISOString().slice(0,10);
@@ -239,14 +258,14 @@ class BacktestEngine {
       
       if (signalResult.signal === 'BUY') {
         const lastHL = Math.min(...lows.slice(-3));
-        sl = lastHL - (1.5 * indicators.atr);
-        const slPct = Math.abs((entryPrice - sl) / entryPrice);
-        tp = entryPrice * (1 + (slPct * this.rr));
+        sl = lastHL - (1.5 * ind.atr);
+        const slPct = Math.abs((entryPrice - sl) / entryPrice * 100);
+        tp = entryPrice * (1 + (slPct * this.rr) / 100);
       } else {
         const lastLH = Math.max(...highs.slice(-3));
-        sl = lastLH + (1.5 * indicators.atr);
-        const slPct = Math.abs((sl - entryPrice) / entryPrice);
-        tp = entryPrice * (1 - (slPct * this.rr));
+        sl = lastLH + (1.5 * ind.atr);
+        const slPct = Math.abs((sl - entryPrice) / entryPrice * 100);
+        tp = entryPrice * (1 - (slPct * this.rr) / 100);
       }
       
       for (let j = i + 1; j < Math.min(i + 96, candles.length); j++) {
