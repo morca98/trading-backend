@@ -6,7 +6,7 @@ class BacktestEngine {
     this.riskPerTrade = options.riskPerTrade || 0.01;
     this.fee = options.fee || 0.001; // 0.1%
     this.slippage = options.slippage || 0.0005; // 0.05%
-    this.rr = options.rr || 2.5; // R:R 1:2.5 (Trend Master: melhor Profit Factor)
+    this.rr = options.rr || 2.5; // R:R 1:2.5 (Trend Master)
     this.symbol = options.symbol || 'BTCUSDT';
     this.interval = '30m'; // Fixo em 30m para sinais
     this.limit = options.limit || 1000;
@@ -204,8 +204,14 @@ class BacktestEngine {
       indicators.macroEma50 = macroEma50;
       indicators.macroEma200 = macroEma200;
       
-      // Cooldown: aguardar 3 velas (1.5h) após uma perda antes de nova entrada
+      // Cooldown de 90min (3 velas de 30m) após QUALQUER trade para evitar entradas duplicadas
       if (lastLossCandle > 0 && i - lastLossCandle < 3) continue;
+      
+      // Cooldown adicional após o fecho de um trade para evitar reentrada imediata no mesmo candle
+      if (this.trades.length > 0) {
+        const lastTrade = this.trades[this.trades.length - 1];
+        if (currentCandle.time <= lastTrade.exitTime) continue;
+      }
       
       const signalResult = generateSignalFn(window, price, indicators.macroTrend, indicators.trend15m, indicators.atr, null);
       
@@ -235,12 +241,12 @@ class BacktestEngine {
         const lastHL = Math.min(...lows.slice(-3));
         sl = lastHL - (1.5 * indicators.atr);
         const slPct = Math.abs((entryPrice - sl) / entryPrice);
-        tp = entryPrice * (1 + (slPct * 2.5)); // R:R de 2.5
+        tp = entryPrice * (1 + (slPct * this.rr));
       } else {
         const lastLH = Math.max(...highs.slice(-3));
         sl = lastLH + (1.5 * indicators.atr);
         const slPct = Math.abs((sl - entryPrice) / entryPrice);
-        tp = entryPrice * (1 - (slPct * 2.5)); // R:R de 2.5
+        tp = entryPrice * (1 - (slPct * this.rr));
       }
       
       for (let j = i + 1; j < Math.min(i + 96, candles.length); j++) {
