@@ -144,13 +144,13 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
     var lastHL = Math.min.apply(null, lows.slice(-3)); // Mínimo das últimas 3 velas (30m cada)
     sl = lastHL - (1.5 * atr);
     slPct = Math.abs((price - sl) / price * 100);
-    tpPct = slPct * 3.0; // Alvo dinâmico baseado no R:R de 3.0
+    tpPct = slPct * 2.0; // Alvo dinâmico baseado no R:R de 2.0
     tp = price * (1 + tpPct/100);
   } else if (signal === 'SELL') {
     var lastLH = Math.max.apply(null, highs.slice(-3)); // Máximo das últimas 3 velas
     sl = lastLH + (1.5 * atr);
     slPct = Math.abs((sl - price) / price * 100);
-    tpPct = slPct * 3.0;
+    tpPct = slPct * 2.0;
     tp = price * (1 - tpPct/100);
   }
 
@@ -612,7 +612,7 @@ async function cmdBacktest(args) {
       `⚡ Profit Factor: *${r.profitFactor}*\n` +
       `💰 Capital Final: *$${fmtNum(r.finalCapital, 2)}*\n` +
       '─────────────────────────────\n' +
-      `_Capital base: $${fmtNum(INITIAL_CAPITAL, 2)} | R:R 1:3 | Risco 1%_`;
+      `_Capital base: $${fmtNum(INITIAL_CAPITAL, 2)} | R:R 1:2 | Risco 1%_`;
 
     await sendTelegram(msg);
 
@@ -645,7 +645,7 @@ async function cmdHelp() {
     '4️⃣ RSI < 70 (BUY) ou RSI > 30 (SELL)\n' +
     '5️⃣ Confirmação tendência 15M\n\n' +
     '*Gestão de Risco:*\n' +
-    '• R:R 1:3 | Risco 1%/trade | SL dinâmico (ATR)\n\n' +
+    '• R:R 1:2 | Risco 1%/trade | SL dinâmico (ATR)\n\n' +
     '*Comandos:*\n' +
     '/start — Início e lista de comandos\n' +
     '/status — Estado detalhado do bot\n' +

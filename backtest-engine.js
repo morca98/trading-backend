@@ -6,7 +6,7 @@ class BacktestEngine {
     this.riskPerTrade = options.riskPerTrade || 0.01;
     this.fee = options.fee || 0.001; // 0.1%
     this.slippage = options.slippage || 0.0005; // 0.05%
-    this.rr = options.rr || 2.2;
+    this.rr = options.rr || 2.0; // R:R 1:2 (melhor retorno e menor drawdown vs 1:3)
     this.symbol = options.symbol || 'BTCUSDT';
     this.interval = '30m'; // Fixo em 30m para sinais
     this.limit = options.limit || 1000;
@@ -235,12 +235,12 @@ class BacktestEngine {
         const lastHL = Math.min(...lows.slice(-3));
         sl = lastHL - (1.5 * indicators.atr);
         const slPct = Math.abs((entryPrice - sl) / entryPrice);
-        tp = entryPrice * (1 + (slPct * 3.0)); // R:R de 3.0
+        tp = entryPrice * (1 + (slPct * 2.0)); // R:R de 2.0
       } else {
         const lastLH = Math.max(...highs.slice(-3));
         sl = lastLH + (1.5 * indicators.atr);
         const slPct = Math.abs((sl - entryPrice) / entryPrice);
-        tp = entryPrice * (1 - (slPct * 3.0)); // R:R de 3.0
+        tp = entryPrice * (1 - (slPct * 2.0)); // R:R de 2.0
       }
       
       for (let j = i + 1; j < Math.min(i + 96, candles.length); j++) {
