@@ -132,12 +132,16 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var isBull = price > ema9 && ema9 > ema21 && ema21 > ema50;
   var isBear = price < ema9 && ema9 < ema21 && ema21 < ema50;
   
-  // Otimização: ADX > 15 e inclusão de MacroTrend NEUTRAL para aumentar sinais
-  var macroOk = (macroTrend === 'UP' || macroTrend.includes('BULL') || macroTrend === 'LOCAL' || macroTrend === 'NEUTRAL');
-  if (isBull && adx > 15 && rsi < 70 && macroOk) {
-    signal = 'BUY'; conf = 75;
-  } else if (isBear && adx > 15 && rsi > 30 && macroOk) {
-    signal = 'SELL'; conf = 75;
+  // ESTRATÉGIA TREND MASTER (OPÇÃO 1): Alta Precisão (PF 1.73)
+  // Requisito: ADX > 25, Alinhamento Triplo (EMA 9 > 21 > 50) e MacroTrend BULL/BEAR
+  var isStrongBull = price > ema9 && ema9 > ema21 && ema21 > ema50;
+  var isStrongBear = price < ema9 && ema9 < ema21 && ema21 < ema50;
+  var isMacroTrendOk = (macroTrend === 'UP' || macroTrend.includes('BULL') || macroTrend === 'DOWN' || macroTrend.includes('BEAR'));
+
+  if (isStrongBull && adx > 25 && rsi < 65 && (macroTrend === 'UP' || macroTrend.includes('BULL'))) {
+    signal = 'BUY'; conf = 85;
+  } else if (isStrongBear && adx > 25 && rsi > 35 && (macroTrend === 'DOWN' || macroTrend.includes('BEAR'))) {
+    signal = 'SELL'; conf = 85;
   }
 
   // Novo Stop Loss: HL/LH de 30min com buffer de 1.5 * ATR
@@ -146,13 +150,13 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
     var lastHL = Math.min.apply(null, lows.slice(-3)); // Mínimo das últimas 3 velas (30m cada)
     sl = lastHL - (1.5 * atr);
     slPct = Math.abs((price - sl) / price * 100);
-    tpPct = slPct * 2.0; // Alvo dinâmico baseado no R:R de 2.0
+    tpPct = slPct * 2.5; // Alvo dinâmico baseado no R:R de 2.5 (Trend Master)
     tp = price * (1 + tpPct/100);
   } else if (signal === 'SELL') {
     var lastLH = Math.max.apply(null, highs.slice(-3)); // Máximo das últimas 3 velas
     sl = lastLH + (1.5 * atr);
     slPct = Math.abs((sl - price) / price * 100);
-    tpPct = slPct * 2.0;
+    tpPct = slPct * 2.5;
     tp = price * (1 - tpPct/100);
   }
 
