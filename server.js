@@ -573,13 +573,13 @@ async function cmdBacktest(args) {
     }
   }
 
-  if (![30, 90, 365].includes(days)) {
+  if (![30, 60, 90].includes(days)) {
     await sendTelegram(
-      '❌ Período inválido. Use: 30, 90 ou 365\n' +
+      '❌ Período inválido. Use: 30, 60 ou 90\n' +
       'Exemplos:\n' +
       '/backtest 30\n' +
       '/backtest 90 BTCUSDT\n' +
-      '/backtest 365'
+      '/backtest 60'
     );
     return;
   }
@@ -658,7 +658,7 @@ async function cmdHelp() {
     '*Exemplos de backtest:*\n' +
     '/backtest 30\n' +
     '/backtest 90 BTCUSDT\n' +
-    '/backtest 365 ETHUSDT\n\n' +
+    '/backtest 60 ETHUSDT\n\n' +
     '_Símbolos disponíveis: BTCUSDT, ETHUSDT_';
   await sendTelegram(msg);
 }

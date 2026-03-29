@@ -82,7 +82,7 @@ td { padding: 10px 8px; border-bottom: 1px solid var(--border); }
     <div class="sel-grp">
       <button class="sel-btn" onclick="setDays(30, this)">30 DIAS</button>
       <button class="sel-btn" onclick="setDays(90, this)">90 DIAS</button>
-      <button class="sel-btn active" onclick="setDays(365, this)">365 DIAS</button>
+      <button class="sel-btn active" onclick="setDays(60, this)">60 DIAS</button>
     </div>
     <div class="input-grp">
       <select id="btSym">
@@ -142,7 +142,7 @@ td { padding: 10px 8px; border-bottom: 1px solid var(--border); }
 </div>
 
 <script>
-let days = 365;
+let days = 60;
 let chart = null;
 
 function setDays(d, btn) {
