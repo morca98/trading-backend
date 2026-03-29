@@ -272,6 +272,9 @@ class BacktestEngine {
       
       // Se TP1 estiver ativo mas sem percentagem definida, usar 1:1 RR (slPct)
       const tp1Threshold = signalResult.tp1Pct || slPct;
+      const tp1Target = signalResult.signal === 'BUY' ? 
+        entryPrice * (1 + tp1Threshold / 100) : 
+        entryPrice * (1 - tp1Threshold / 100);
       
       for (let j = i + 1; j < Math.min(i + 96, candles.length); j++) {
         const next = candles[j];
@@ -351,7 +354,8 @@ class BacktestEngine {
           conf: signalResult.conf,
           positionSize: fullPositionSize,
           tp1: tp1Reached,
-          tp1Price: finalTp1Price
+          tp1Price: finalTp1Price,
+          tp1Target: tp1Target
         });
         
         // Skip to exit time to avoid overlapping trades on same symbol

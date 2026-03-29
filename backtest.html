@@ -264,7 +264,9 @@ function renderTable(trades) {
     const isWin = t.outcome === 'WIN';
     const isLong = t.signal === 'BUY';
     const tp1Status = t.tp1 ? `<span style="color:var(--green); font-size:9px;">● ATIVADO</span>` : `<span style="color:var(--muted); font-size:9px;">○ INATIVO</span>`;
-    const tp1PriceDisplay = t.tp1Price > 0 ? `$${t.tp1Price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '--';
+    const tp1PriceDisplay = t.tp1Price > 0 ? 
+      `$${t.tp1Price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 
+      (t.tp1Target > 0 ? `<span style="opacity:0.5">$${t.tp1Target.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>` : '--');
     
     return `
       <tr style="${t.tp1 && !isWin && t.outcome !== 'LOSS' ? 'background: rgba(255, 145, 0, 0.05);' : ''}">
