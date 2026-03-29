@@ -651,7 +651,7 @@ async function cmdHelp() {
     '4️⃣ RSI < 65 (BUY) ou RSI > 35 (SELL)\n' +
     '5️⃣ Cooldown dinâmico de 90min\n\n' +
     '*Gestão de Risco:*\n' +
-    '• R:R 1:2.5 | Risco 1%/trade | SL dinâmico (ATR)\n\n' ++
+    '• R:R 1:2.5 | Risco 1%/trade | SL dinâmico (ATR)\n\n' +
     '*Comandos:*\n' +
     '/start — Início e lista de comandos\n' +
     '/status — Estado detalhado do bot\n' +
