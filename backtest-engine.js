@@ -213,10 +213,10 @@ class BacktestEngine {
       if (!signalResult || (signalResult.signal === 'WAIT' && signalResult.conf < 65)) continue;
       if (signalResult.signal === 'WAIT') continue;
       
-      // Limite de 1 trade por dia para evitar overtrading (opcional no backtest para mais dados)
-      const currentDate = new Date(currentCandle.time).toISOString().slice(0,10);
-      if (signalResult.signal === 'BUY' && currentDate === this.lastTradeDateBuy) continue;
-      if (signalResult.signal === 'SELL' && currentDate === this.lastTradeDateSell) continue;
+      // Cooldown de 1 trade por dia removido para aumentar número de sinais
+      // const currentDate = new Date(currentCandle.time).toISOString().slice(0,10);
+      // if (signalResult.signal === 'BUY' && currentDate === this.lastTradeDateBuy) continue;
+      // if (signalResult.signal === 'SELL' && currentDate === this.lastTradeDateSell) continue;
       
       // Simulate Trade
       let outcome = null;

@@ -19,9 +19,9 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
 const SIGNAL_COOLDOWN = 90 * 60 * 1000; // 90 minutos = 3 velas de 30m (igual ao cooldown do backtest)
-// Limite de 1 sinal por dia por direção (espelha o backtest-engine)
-var lastSignalDateBuy = { BTCUSDT: '', ETHUSDT: '' };
-var lastSignalDateSell = { BTCUSDT: '', ETHUSDT: '' };
+// Limite de 1 sinal por dia removido para aumentar sinais
+// var lastSignalDateBuy = { BTCUSDT: '', ETHUSDT: '' };
+// var lastSignalDateSell = { BTCUSDT: '', ETHUSDT: '' };
 const STATS_FILE = process.env.STATS_FILE || '/tmp/stats.json';
 const TRADES_FILE = process.env.TRADES_FILE || '/tmp/trades.json';
 const INITIAL_CAPITAL = 1000; // Capital inicial do bot
@@ -132,9 +132,11 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var isBull = price > ema9 && ema9 > ema21 && ema21 > ema50;
   var isBear = price < ema9 && ema9 < ema21 && ema21 < ema50;
   
-  if (isBull && adx > 20 && rsi < 70 && (macroTrend === 'UP' || macroTrend.includes('BULL') || macroTrend === 'LOCAL')) {
+  // Otimização: ADX > 15 e inclusão de MacroTrend NEUTRAL para aumentar sinais
+  var macroOk = (macroTrend === 'UP' || macroTrend.includes('BULL') || macroTrend === 'LOCAL' || macroTrend === 'NEUTRAL');
+  if (isBull && adx > 15 && rsi < 70 && macroOk) {
     signal = 'BUY'; conf = 75;
-  } else if (isBear && adx > 20 && rsi > 30 && (macroTrend === 'DOWN' || macroTrend.includes('BEAR') || macroTrend === 'LOCAL')) {
+  } else if (isBear && adx > 15 && rsi > 30 && macroOk) {
     signal = 'SELL'; conf = 75;
   }
 
