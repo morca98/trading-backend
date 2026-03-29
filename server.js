@@ -129,6 +129,7 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData, symb
   var minADX = isEth ? 35 : 30;
   var atrMult = isEth ? 2.0 : 1.5;
   var rrRatio = isEth ? 2.0 : 2.5;
+  var useBreakeven = isEth; // Ativar Breakeven Dinâmico apenas para o ETH
 
   var signal = 'WAIT', conf = 0;
   var isStrongBull = price > ema9 && ema9 > ema21 && ema21 > ema50;
@@ -164,7 +165,8 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData, symb
     ema9: ema9.toFixed(2), ema21: ema21.toFixed(2), ema50: ema50.toFixed(2), 
     macroTrend: macroTrend, trend15m: trend15m, atr: atr.toFixed(2),
     positionSize: positionSize.toFixed(0),
-    rsi: rsi.toFixed(1), adx: adx.toFixed(1)
+    rsi: rsi.toFixed(1), adx: adx.toFixed(1),
+    useBreakeven: useBreakeven // Informar o bot/motor sobre a proteção de Breakeven
   };
 }
 

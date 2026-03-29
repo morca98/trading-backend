@@ -246,11 +246,13 @@ class BacktestEngine {
       const lows = window.map(c => c.low);
       const highs = window.map(c => c.high);
       let sl = 0, tp = 0;
+      let slActual = 0;
       
       // Usar SL/TP do sinal se disponível, caso contrário calcular com R:R configurado
       if (signalResult.sl && signalResult.tp) {
         sl = signalResult.sl;
         tp = signalResult.tp;
+        slActual = sl;
       } else {
         if (signalResult.signal === 'BUY') {
           const lastHL = Math.min(...lows.slice(-3));
@@ -267,11 +269,29 @@ class BacktestEngine {
       
       for (let j = i + 1; j < Math.min(i + 96, candles.length); j++) {
         const next = candles[j];
+        
+        // Lógica de Breakeven Dinâmico (ETH Pro)
+        if (signalResult.useBreakeven && j > i + 1) {
+          const currentProfitPct = signalResult.signal === 'BUY' ? 
+            ((next.close - entryPrice) / entryPrice * 100) : 
+            ((entryPrice - next.close) / entryPrice * 100);
+          
+          if (currentProfitPct >= 1.0) {
+            slActual = entryPrice; // Move SL para entrada (Breakeven)
+          }
+        }
+
         if (signalResult.signal === 'BUY') {
-          if (next.low <= sl) { outcome = 'LOSS'; exitPrice = sl; exitTime = next.time; break; }
+          if (next.low <= slActual) { 
+            outcome = (slActual === entryPrice) ? 'BREAKEVEN' : 'LOSS';
+            exitPrice = slActual; exitTime = next.time; break; 
+          }
           if (next.high >= tp) { outcome = 'WIN'; exitPrice = tp; exitTime = next.time; break; }
         } else {
-          if (next.high >= sl) { outcome = 'LOSS'; exitPrice = sl; exitTime = next.time; break; }
+          if (next.high >= slActual) { 
+            outcome = (slActual === entryPrice) ? 'BREAKEVEN' : 'LOSS';
+            exitPrice = slActual; exitTime = next.time; break; 
+          }
           if (next.low <= tp) { outcome = 'WIN'; exitPrice = tp; exitTime = next.time; break; }
         }
       }
@@ -280,7 +300,7 @@ class BacktestEngine {
         const slDistPct = Math.abs(entryPrice - sl) / entryPrice;
         const positionSize = (this.capital * 0.01) / slDistPct;
         const exitDistPct = Math.abs(entryPrice - exitPrice) / entryPrice;
-        const grossPnl = positionSize * exitDistPct * (outcome === 'WIN' ? 1 : -1);
+        const grossPnl = positionSize * exitDistPct * (outcome === 'WIN' ? 1 : outcome === 'LOSS' ? -1 : 0);
         const feeAmount = (positionSize * this.fee) + ((positionSize + grossPnl) * this.fee);
         const netPnl = grossPnl - feeAmount;
         
