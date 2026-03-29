@@ -816,20 +816,26 @@ function renderPerfChart(data,initialCapital){
   var el=document.getElementById('perfChart');
   if(!data||!data.length){el.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">Sem trades</div>';return;}
   initialCapital=initialCapital||1000;
-  var W=460,H=120,P=12,min=Math.min.apply(null,data),max=Math.max.apply(null,data),range=max-min||1;
-  var cw=(W-P*2)/(data.length-1||1);
-  var py=function(v){return P+(H-P*2)-(v-min)/range*(H-P*2);};
-  var path='M '+P+' '+py(data[0]);
-  data.forEach(function(v,i){if(i>0)path+=' L '+(P+i*cw)+' '+py(v);});
+  var W=460,H=140,PL=45,PR=15,PT=15,PB=25;
+  var min=Math.min.apply(null,data),max=Math.max.apply(null,data),range=max-min||1;
+  var cw=(W-PL-PR)/(data.length-1||1);
+  var py=function(v){return PT+(H-PT-PB)-(v-min)/range*(H-PT-PB);};
+  var px=function(i){return PL+i*cw;};
+  var path='M '+px(0)+' '+py(data[0]);
+  data.forEach(function(v,i){if(i>0)path+=' L '+px(i)+' '+py(v);});
   var accentCol = '#00e5ff';
-  el.innerHTML='<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="display:block;background:rgba(0,229,255,0.02);border-radius:2px">'
+  var svg = '<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="display:block;background:rgba(0,229,255,0.01);border-radius:2px">'
     +'<defs><linearGradient id="gradPerf" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+accentCol+'" stop-opacity="0.2"/><stop offset="100%" stop-color="'+accentCol+'" stop-opacity="0"/></linearGradient></defs>'
-    +'<line x1="'+P+'" x2="'+(W-P)+'" y1="'+py(initialCapital)+'" y2="'+py(initialCapital)+'" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="4 4"/>'
-    +'<path d="'+path+' L '+(P+(data.length-1)*cw)+' '+(H-P)+' L '+P+' '+(H-P)+' Z" fill="url(#gradPerf)"/>'
-    +'<path d="'+path+'" fill="none" stroke="'+accentCol+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
-    +'<circle cx="'+(P+(data.length-1)*cw)+'" cy="'+py(data[data.length-1])+'" r="4" fill="'+accentCol+'"/>'
-    +'<text x="'+(W-P)+'" y="'+(py(data[data.length-1])-8)+'" text-anchor="end" fill="'+accentCol+'" font-size="10" font-family="monospace" font-weight="700">$'+data[data.length-1].toFixed(0)+'</text>'
+    +'<line x1="'+PL+'" x2="'+(W-PR)+'" y1="'+py(initialCapital)+'" y2="'+py(initialCapital)+'" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="4 4"/>'
+    +'<path d="'+path+' L '+px(data.length-1)+' '+(H-PB)+' L '+PL+' '+(H-PB)+' Z" fill="url(#gradPerf)"/>'
+    +'<path d="'+path+'" fill="none" stroke="'+accentCol+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+    +'<circle cx="'+px(data.length-1)+'" cy="'+py(data[data.length-1])+'" r="3" fill="'+accentCol+'"/>'
+    +'<text x="'+(PL-8)+'" y="'+py(max)+'" text-anchor="end" fill="#4a6080" font-size="8" font-family="monospace">$'+max.toFixed(0)+'</text>'
+    +'<text x="'+(PL-8)+'" y="'+py(min)+'" text-anchor="end" fill="#4a6080" font-size="8" font-family="monospace">$'+min.toFixed(0)+'</text>'
+    +'<text x="'+PL+'" y="'+(H-8)+'" text-anchor="start" fill="#4a6080" font-size="8" font-family="monospace">INÍCIO</text>'
+    +'<text x="'+(W-PR)+'" y="'+(H-8)+'" text-anchor="end" fill="#4a6080" font-size="8" font-family="monospace">HOJE</text>'
     +'</svg>';
+  el.innerHTML = svg;
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────

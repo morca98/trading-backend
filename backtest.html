@@ -272,21 +272,24 @@ function renderChart(trades) {
       },
       scales: {
         x: { 
-          grid: { display: false }, 
+          grid: { color: 'rgba(255,255,255,0.02)', borderDash: [5, 5] }, 
           ticks: { 
-            color: '#4a5568', 
-            font: { size: 9 },
+            color: '#718096', 
+            font: { size: 10, family: "'JetBrains Mono', monospace" },
             maxRotation: 0,
             autoSkip: true,
-            maxTicksLimit: 8
+            maxTicksLimit: 6,
+            padding: 10
           } 
         },
         y: { 
-          grid: { color: 'rgba(255,255,255,0.03)' }, 
+          position: 'left',
+          grid: { color: 'rgba(255,255,255,0.05)' }, 
           ticks: { 
-            color: '#4a5568', 
-            font: { size: 9 },
-            callback: function(value) { return value.toLocaleString(); }
+            color: '#718096', 
+            font: { size: 10, family: "'JetBrains Mono', monospace" },
+            padding: 10,
+            callback: function(value) { return '$' + value.toLocaleString(); }
           } 
         }
       }
