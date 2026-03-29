@@ -138,9 +138,9 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var isStrongBear = price < ema9 && ema9 < ema21 && ema21 < ema50;
   var isMacroTrendOk = (macroTrend === 'UP' || macroTrend.includes('BULL') || macroTrend === 'DOWN' || macroTrend.includes('BEAR'));
 
-  if (isStrongBull && adx > 25 && rsi < 65 && (macroTrend === 'UP' || macroTrend.includes('BULL'))) {
+  if (isStrongBull && adx > 30 && rsi < 65 && (macroTrend === 'UP' || macroTrend.includes('BULL'))) {
     signal = 'BUY'; conf = 85;
-  } else if (isStrongBear && adx > 25 && rsi > 35 && (macroTrend === 'DOWN' || macroTrend.includes('BEAR'))) {
+  } else if (isStrongBear && adx > 30 && rsi > 35 && (macroTrend === 'DOWN' || macroTrend.includes('BEAR'))) {
     signal = 'SELL'; conf = 85;
   }
 
@@ -647,7 +647,7 @@ async function cmdHelp() {
     'Estratégia (Trend Master 1.84 PF):*\n' +
     '1️⃣ Tendência macro 4H (Forte BULL/BEAR)\n' +
     '2️⃣ Alinhamento Triplo 30M (9 > 21 > 50)\n' +
-    '3️⃣ ADX > 25 (Tendência de Alta Convicção)\n' +
+    '3️⃣ ADX > 30 (Filtro ADX+ Alta Convicção)\n' +
     '4️⃣ RSI < 65 (BUY) ou RSI > 35 (SELL)\n' +
     '5️⃣ Cooldown dinâmico de 90min\n\n' +
     '*Gestão de Risco:*\n' +

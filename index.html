@@ -284,7 +284,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
         <div style="margin-bottom:15px">
           <div style="color:var(--accent);font-weight:700;margin-bottom:5px;font-size:10px;letter-spacing:1px">INDICADORES CHAVE</div>
           <ul style="list-style:none;padding-left:10px">
-            <li>&middot; <b>ADX (14):</b> Filtro de forca de tendencia (Exige > 25).</li>
+            <li>&middot; <b>ADX (14):</b> Filtro de forca de tendencia (Exige > 30).</li>
             <li>&middot; <b>EMA (9, 21, 50):</b> Alinhamento triplo para confirmacao de momentum.</li>
             <li>&middot; <b>ATR (14):</b> Calculo de volatilidade para Stop Loss dinamico.</li>
             <li>&middot; <b>Profit Factor:</b> Otimizado para 1.84 (Backtest 60d).</li>
@@ -295,7 +295,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
           <div style="color:var(--green);font-weight:700;margin-bottom:5px;font-size:10px;letter-spacing:1px">CONDICOES DE COMPRA (LONG)</div>
           <ul style="list-style:none;padding-left:10px">
             <li>1. Preco > EMA9 > EMA21 > EMA50 (Alinhamento Triplo).</li>
-            <li>2. ADX > 25 (Tendencia de Alta Conviccao).</li>
+            <li>2. ADX > 30 (Filtro ADX+ Alta Conviccao).</li>
             <li>3. RSI < 65 (Evita sobrecompra extrema).</li>
             <li>4. Macro Tendencia (4H) em estado BULL/UP.</li>
           </ul>
@@ -305,7 +305,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
           <div style="color:var(--red);font-weight:700;margin-bottom:5px;font-size:10px;letter-spacing:1px">CONDICOES DE VENDA (SHORT)</div>
           <ul style="list-style:none;padding-left:10px">
             <li>1. Preco < EMA9 < EMA21 < EMA50 (Alinhamento Triplo).</li>
-            <li>2. ADX > 25 (Tendencia de Alta Conviccao).</li>
+            <li>2. ADX > 30 (Filtro ADX+ Alta Conviccao).</li>
             <li>3. RSI > 35 (Evita sobrevenda extrema).</li>
             <li>4. Macro Tendencia (4H) em estado BEAR/DOWN.</li>
           </ul>
