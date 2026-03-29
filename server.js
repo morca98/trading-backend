@@ -132,7 +132,7 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData) {
   var isBull = price > ema9 && ema9 > ema21 && ema21 > ema50;
   var isBear = price < ema9 && ema9 < ema21 && ema21 < ema50;
   
-  // ESTRATÉGIA TREND MASTER (OPÇÃO 1): Alta Precisão (PF 1.73)
+  // ESTRATÉGIA TREND MASTER: Alta Precisão (PF 1.84)
   // Requisito: ADX > 25, Alinhamento Triplo (EMA 9 > 21 > 50) e MacroTrend BULL/BEAR
   var isStrongBull = price > ema9 && ema9 > ema21 && ema21 > ema50;
   var isStrongBear = price < ema9 && ema9 < ema21 && ema21 < ema50;
