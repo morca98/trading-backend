@@ -644,14 +644,14 @@ async function cmdBacktest(args) {
 async function cmdHelp() {
   const msg =
     '📖 *Crypto Signal Bot — Ajuda*\n\n' +
-    '*Estratégia (30M Multi-Timeframe):*\n' +
-    '1️⃣ Tendência macro 4H (EMA50/EMA200)\n' +
-    '2️⃣ Alinhamento EMAs 30M (9 > 21 > 50)\n' +
-    '3️⃣ ADX > 20 (força da tendência)\n' +
-    '4️⃣ RSI < 70 (BUY) ou RSI > 30 (SELL)\n' +
-    '5️⃣ Confirmação tendência 15M\n\n' +
+    'Estratégia (Trend Master 1.84 PF):*\n' +
+    '1️⃣ Tendência macro 4H (Forte BULL/BEAR)\n' +
+    '2️⃣ Alinhamento Triplo 30M (9 > 21 > 50)\n' +
+    '3️⃣ ADX > 25 (Tendência de Alta Convicção)\n' +
+    '4️⃣ RSI < 65 (BUY) ou RSI > 35 (SELL)\n' +
+    '5️⃣ Cooldown dinâmico de 90min\n\n' +
     '*Gestão de Risco:*\n' +
-    '• R:R 1:2 | Risco 1%/trade | SL dinâmico (ATR)\n\n' +
+    '• R:R 1:2.5 | Risco 1%/trade | SL dinâmico (ATR)\n\n' ++
     '*Comandos:*\n' +
     '/start — Início e lista de comandos\n' +
     '/status — Estado detalhado do bot\n' +
@@ -731,7 +731,7 @@ app.listen(PORT, function() {
     `⏰ Iniciado: ${now}\n` +
     `🔄 Scan: cada 5 minutos\n` +
     `📊 Símbolos: ${SYMBOLS.join(', ')} | Risco: 1%/trade\n` +
-    `🎯 5 filtros MTF activos\n\n` +
+    `🎯 Estratégia Trend Master (PF 1.84) Ativa\n\n` +
     `_Bot pronto para operar._`
   );
   setInterval(runBot, 5 * 60 * 1000);
