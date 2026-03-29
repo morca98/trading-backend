@@ -277,17 +277,26 @@ class BacktestEngine {
         const next = candles[j];
         
         // Lógica de Realização Parcial (ETH Pro: TP1 50% @ 1:1 RR)
-        if (signalResult.useTP1 && !tp1Reached && j > i + 1) {
-          const currentProfitPct = signalResult.signal === 'BUY' ? 
-            ((next.close - entryPrice) / entryPrice * 100) : 
-            ((entryPrice - next.close) / entryPrice * 100);
+        if (signalResult.useTP1 && !tp1Reached) {
+          const tp1Price = signalResult.signal === 'BUY' ? 
+            entryPrice * (1 + tp1Threshold / 100) : 
+            entryPrice * (1 - tp1Threshold / 100);
+
+          const reachedInCandle = signalResult.signal === 'BUY' ? 
+            (next.high >= tp1Price) : (next.low <= tp1Price);
           
-          if (currentProfitPct >= tp1Threshold) {
+          if (reachedInCandle) {
             tp1Reached = true;
-            // Simula realização de 50%
-            const partialPnlPct = tp1Threshold / 100;
-            const partialPnl = (this.capital * 0.01 * 0.5) * (partialPnlPct - this.fee);
-            this.capital += partialPnl;
+            // Simula realização de 50% da posição original
+            const slDistPct = Math.abs(entryPrice - sl) / entryPrice;
+            const fullPositionSize = (this.capital * 0.01) / slDistPct;
+            const partialPositionSize = fullPositionSize * 0.5;
+            const partialGrossPnl = partialPositionSize * (tp1Threshold / 100);
+            const partialFee = (partialPositionSize * this.fee) + ((partialPositionSize + partialGrossPnl) * this.fee);
+            const partialNetPnl = partialGrossPnl - partialFee;
+            
+            this.capital += partialNetPnl;
+            this.partialPnlForTrade = partialNetPnl; // Guardar para somar ao trade final
           }
         }
 
@@ -303,13 +312,19 @@ class BacktestEngine {
       if (outcome) {
         const slDistPct = Math.abs(entryPrice - sl) / entryPrice;
         // Se TP1 foi atingido, apenas 50% da posição original está aberta
-        const positionSize = ((this.capital * 0.01) / slDistPct) * (tp1Reached ? 0.5 : 1.0);
+        // Nota: O capital já foi atualizado com o lucro do TP1, mas o tamanho da posição baseia-se no capital inicial do trade
+        const capitalAtStart = this.capital - (this.partialPnlForTrade || 0);
+        const fullPositionSize = (capitalAtStart * 0.01) / slDistPct;
+        const positionSize = fullPositionSize * (tp1Reached ? 0.5 : 1.0);
+        
         const exitDistPct = Math.abs(entryPrice - exitPrice) / entryPrice;
         const grossPnl = positionSize * exitDistPct * (outcome === 'WIN' ? 1 : outcome === 'LOSS' ? -1 : 0);
         const feeAmount = (positionSize * this.fee) + ((positionSize + grossPnl) * this.fee);
         const netPnl = grossPnl - feeAmount;
         
         this.capital += netPnl;
+        const totalTradeNetPnl = netPnl + (this.partialPnlForTrade || 0);
+        this.partialPnlForTrade = 0; // Reset para o próximo trade
         this.maxCapital = Math.max(this.maxCapital, this.capital);
         this.maxDD = Math.max(this.maxDD, (this.maxCapital - this.capital) / this.maxCapital * 100);
         
@@ -327,11 +342,12 @@ class BacktestEngine {
           entry: entryPrice,
           exit: exitPrice,
           outcome: outcome,
-          pnl: netPnl,
-          pnlPct: (netPnl / (this.capital - netPnl)) * 100,
+          pnl: totalTradeNetPnl,
+          pnlPct: (totalTradeNetPnl / (this.capital - totalTradeNetPnl)) * 100,
           capital: this.capital,
           conf: signalResult.conf,
-          positionSize: positionSize
+          positionSize: fullPositionSize,
+          tp1: tp1Reached
         });
         
         // Skip to exit time to avoid overlapping trades on same symbol
