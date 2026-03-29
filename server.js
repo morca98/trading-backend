@@ -548,6 +548,19 @@ async function cmdScan() {
         signalCount++;
         const s = r.signal;
         details += `\n  • *${r.symbol}* — ${s.signal} @ \`$${fmtNum(s.price, 2)}\` (conf: ${s.conf}%)`;
+        
+        // Adicionar detalhes de SL e TP
+        details += `\n    🛑 SL: \`$${fmtNum(s.sl, 2)}\` (${s.slPct}%)`;
+        
+        if (s.useTP1) {
+          // Lógica de Realização Parcial (ex: ETH Pro)
+          const tp1Price = s.signal === 'BUY' ? s.price * (1 + s.tp1Pct/100) : s.price * (1 - s.tp1Pct/100);
+          details += `\n    🎯 TP1 (50%): \`$${fmtNum(tp1Price, 2)}\` (1.0%)`;
+          details += `\n    🎯 TP2 (Final): \`$${fmtNum(s.tp, 2)}\` (${s.tpPct}%)`;
+        } else {
+          details += `\n    🎯 TP: \`$${fmtNum(s.tp, 2)}\` (${s.tpPct}%)`;
+        }
+        details += `\n`;
       }
     }
     const now = new Date().toLocaleString('pt-PT', { timeZone: 'Europe/Lisbon' });
