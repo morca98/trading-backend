@@ -11,9 +11,9 @@
 <style>
 :root {
   --bg: #080c12; --bg2: #0d1420; --bg3: #111927;
-  --accent: #00d4ff; --green: #00e676; --red: #ff3d57; --yellow: #ffd600; --purple: #e040fb; --cyan: #00e5ff;
-  --text: #e1e6ed; --muted: #707a8a; --border: #1a1f2e; --border2: #2a2f3e;
-}
+	  --accent: #00d4ff; --green: #00e676; --red: #ff3d57; --yellow: #ffd600; --purple: #e040fb; --cyan: #00e5ff; --orange: #ff9100;
+	  --text: #e1e6ed; --muted: #707a8a; --border: #1a1f2e; --border2: #2a2f3e;
+	}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; overflow-x: hidden; }
 .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; }
@@ -127,10 +127,11 @@ td { padding: 10px 8px; border-bottom: 1px solid var(--border); }
             <th>TICKER</th>
             <th>TIPO</th>
             <th>DATA ENT.</th>
-            <th>DATA SAÍ.</th>
-            <th>PREÇO ENT.</th>
-            <th>PREÇO SAÍ.</th>
-            <th>TAMANHO</th>
+	            <th>DATA SAÍ.</th>
+	            <th>PREÇO ENT.</th>
+	            <th>TP1 PARCIAL</th>
+	            <th>PREÇO SAÍ.</th>
+	            <th>TAMANHO</th>
             <th>P&L %</th>
             <th>P&L $</th>
             <th>RESULTADO</th>
@@ -262,14 +263,21 @@ function renderTable(trades) {
     const exitDate = new Date(t.exitTime).toISOString().slice(5, 16).replace('T', ' ');
     const isWin = t.outcome === 'WIN';
     const isLong = t.signal === 'BUY';
+    const tp1Status = t.tp1 ? `<span style="color:var(--green); font-size:9px;">● ATIVADO</span>` : `<span style="color:var(--muted); font-size:9px;">○ INATIVO</span>`;
+    const tp1PriceDisplay = t.tp1Price > 0 ? `$${t.tp1Price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '--';
+    
     return `
-      <tr>
+      <tr style="${t.tp1 && !isWin && t.outcome !== 'LOSS' ? 'background: rgba(255, 145, 0, 0.05);' : ''}">
         <td style="color:var(--muted)">${trades.length - i}</td>
         <td style="font-weight:700">${t.symbol.replace('USDT', '')}</td>
         <td style="color:${isLong ? 'var(--green)' : 'var(--red)'}; font-weight:700">${isLong ? 'LONG' : 'SHORT'}</td>
         <td>${date}</td>
         <td>${exitDate}</td>
         <td style="color:var(--yellow)">$${t.entry.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+        <td>
+          <div style="color:var(--orange)">${tp1PriceDisplay}</div>
+          ${tp1Status}
+        </td>
         <td style="color:var(--purple)">$${t.exit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
         <td style="color:var(--cyan)">$${Math.round(t.positionSize)}</td>
         <td style="color:${isWin ? 'var(--green)' : 'var(--red)'}">${(t.pnlPct >= 0 ? '+' : '') + t.pnlPct.toFixed(2)}%</td>

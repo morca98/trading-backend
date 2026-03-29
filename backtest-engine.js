@@ -297,6 +297,7 @@ class BacktestEngine {
             
             this.capital += partialNetPnl;
             this.partialPnlForTrade = partialNetPnl; // Guardar para somar ao trade final
+            this.tp1PriceForTrade = tp1Price; // Guardar o preço de execução do TP1
           }
         }
 
@@ -324,7 +325,9 @@ class BacktestEngine {
         
         this.capital += netPnl;
         const totalTradeNetPnl = netPnl + (this.partialPnlForTrade || 0);
+        const finalTp1Price = this.tp1PriceForTrade || 0;
         this.partialPnlForTrade = 0; // Reset para o próximo trade
+        this.tp1PriceForTrade = 0; // Reset para o próximo trade
         this.maxCapital = Math.max(this.maxCapital, this.capital);
         this.maxDD = Math.max(this.maxDD, (this.maxCapital - this.capital) / this.maxCapital * 100);
         
@@ -347,7 +350,8 @@ class BacktestEngine {
           capital: this.capital,
           conf: signalResult.conf,
           positionSize: fullPositionSize,
-          tp1: tp1Reached
+          tp1: tp1Reached,
+          tp1Price: finalTp1Price
         });
         
         // Skip to exit time to avoid overlapping trades on same symbol
