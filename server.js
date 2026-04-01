@@ -416,10 +416,16 @@ function fmtNum(n, decimals) {
 // ── COMANDOS ──────────────────────────────────────────────────────────────────
 
 async function cmdStart() {
+  const now = new Date().toLocaleString('pt-PT', { timeZone: 'Europe/Lisbon' });
   const msg =
     '🟢 *MORCA BOT CRIPTO* — Online\n' +
     '━━━━━━━━━━━━━━━━━━━━\n' +
-    'Comandos disponíveis:\n' +
+    `⏰ Iniciado: ${now}\n` +
+    `🔄 Scan: cada 5 minutos\n` +
+    `📊 Símbolos: ${SYMBOLS.join(', ')} | Risco: 1% operação\n` +
+    `🎯 Estratégia: *MORCA CRYPTO MASTER V1*\n` +
+    '✅ *Bot pronto para operar.*\n\n' +
+    '*Comandos disponíveis:*\n' +
     '/status — Estado detalhado do bot\n' +
     '/scan — Iniciar scan manual BTC e ETH\n' +
     '/price — Preços actuais BTC/ETH\n' +
@@ -446,7 +452,16 @@ async function cmdStatus() {
     `🔄 Scan: cada 5 minutos\n` +
     `📈 Sinais hoje: ${tradeHistory.filter(t => t.date === new Date().toLocaleDateString('pt-PT')).length}\n` +
     `🏆 Win Rate: ${winRate}% (${winCount}W / ${lossCount}L)\n` +
-    `💹 P&L Total: ${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}%`;
+    `💹 P&L Total: ${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}%\n\n` +
+    '*Comandos disponíveis:*\n' +
+    '/status — Estado detalhado do bot\n' +
+    '/scan — Iniciar scan manual BTC e ETH\n' +
+    '/price — Preços actuais BTC/ETH\n' +
+    '/trades — Ver últimos sinais gerados\n' +
+    '/stats — Estatísticas de performance\n' +
+    '/capital — Ver ou alterar capital disponível\n' +
+    '/backtest — Simulação histórica da estratégia\n' +
+    '/help — Guia completo da estratégia';
   await sendTelegram(msg);
 }
 
@@ -658,14 +673,14 @@ async function cmdHelp() {
   const msg =
     '📖 *MORCA BOT CRIPTO — Ajuda*\n' +
     '━━━━━━━━━━━━━━━━━━━━\n' +
-    '*Estratégia (Trend Master 1.84 PF):*\n' +
+    '*Estratégia (MORCA CRYPTO MASTER V1):*\n' +
     '1️⃣ Tendência macro 4H (Forte BULL/BEAR)\n' +
     '2️⃣ Alinhamento Triplo 30M (9 > 21 > 50)\n' +
     '3️⃣ ADX > 30 (Filtro ADX+ Alta Convicção)\n' +
     '4️⃣ RSI < 65 (BUY) ou RSI > 35 (SELL)\n' +
     '5️⃣ Cooldown dinâmico de 90min\n\n' +
     '*Gestão de Risco:*\n' +
-    '• R:R 1:2.5 | Risco 1%/trade | SL dinâmico (ATR)\n\n' +
+    '• R:R 1:2.5 | Risco 1% operação | SL dinâmico (ATR)\n\n' +
     '*Comandos:*\n' +
     '/start — Início e lista de comandos\n' +
     '/status — Estado detalhado do bot\n' +
@@ -776,7 +791,7 @@ async function runBot() {
           `📉 Trend 15M: *${s.trend15m}*\n` +
           `📏 RSI: \`${s.rsi}\` | ADX: \`${s.adx}\`\n` +
           `💼 Tamanho: \`$${fmtNum(s.positionSize, 0)}\` (Risco 1%)\n\n` +
-          `_Estratégia Trend Master 1.84 PF_`;
+          `_Estratégia MORCA CRYPTO MASTER V1_`;
 
         await sendTelegram(msg);
       }
@@ -795,8 +810,17 @@ app.listen(PORT, function() {
     '━━━━━━━━━━━━━━━━━━━━\n' +
     `⏰ Iniciado: ${now}\n` +
     `🔄 Scan: cada 5 minutos\n` +
-    `📊 Símbolos: ${SYMBOLS.join(', ')} | Risco: 1%/trade\n` +
-    `🎯 Estratégia Trend Master (PF 1.84) Ativa\n\n` +
+    `📊 Símbolos: ${SYMBOLS.join(', ')} | Risco: 1% operação\n` +
+    `🎯 Estratégia *MORCA CRYPTO MASTER V1* Ativa\n\n` +
+    '*Comandos disponíveis:*\n' +
+    '/status — Estado detalhado do bot\n' +
+    '/scan — Iniciar scan manual BTC e ETH\n' +
+    '/price — Preços actuais BTC/ETH\n' +
+    '/trades — Ver últimos sinais gerados\n' +
+    '/stats — Estatísticas de performance\n' +
+    '/capital — Ver ou alterar capital disponível\n' +
+    '/backtest — Simulação histórica da estratégia\n' +
+    '/help — Guia completo da estratégia\n\n' +
     `_Bot pronto para operar._`
   );
   setInterval(runBot, 5 * 60 * 1000);

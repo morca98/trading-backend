@@ -279,7 +279,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
     <div class="card">
       <div class="card-title">Logica da Estrategia</div>
       <div style="color:var(--text);font-size:11px;line-height:1.6;padding:10px">
-        <p style="margin-bottom:12px">O bot utiliza a estrategia <b>Trend Master</b>, focada em seguimento de tendencia de alta precisao com confluencia multi-timeframe.</p>
+        <p style="margin-bottom:12px">O bot utiliza a estrategia <b>MORCA CRYPTO MASTER V1</b>, focada em seguimento de tendencia de alta precisao com confluencia multi-timeframe.</p>
         
         <div style="margin-bottom:15px">
           <div style="color:var(--accent);font-weight:700;margin-bottom:5px;font-size:10px;letter-spacing:1px">OTIMIZACAO DUAL (BTC vs ETH)</div>
@@ -306,7 +306,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
         <div>
           <div style="color:var(--yellow);font-weight:700;margin-bottom:5px;font-size:10px;letter-spacing:1px">GESTAO DE RISCO</div>
           <ul style="list-style:none;padding-left:10px">
-            <li>&middot; <b>Risco Controlado:</b> 1% de risco real sobre o capital por trade.</li>
+            <li>&middot; <b>Risco Controlado:</b> 1% de risco real sobre o capital por operação.</li>
             <li>&middot; <b>Stop Loss Dinamico:</b> Baseado na volatilidade (ATR) e estruturas.</li>
             <li>&middot; <b>ETH Pro:</b> Realizacao Parcial de 50% ao atingir 1% de lucro.</li>
             <li>&middot; <b>Take Profit:</b> Alvo fixo baseado no R:R otimizado de cada moeda.</li>
@@ -1008,7 +1008,7 @@ async function runAnalysis(){
 
   if(serverData&&serverData.success){
     result=serverData.signal;fromServer=true;
-    if(serverData.ema9&&serverData.ema9.length){ema20Line=serverData.ema9;ema50Line=serverData.ema50||[];}else if(serverData.ema20&&serverData.ema20.length){ema20Line=serverData.ema20;ema50Line=serverData.ema50||[];}
+    if(serverData.ema9&&serverData.ema9.length){ema20Line=serverData.ema9;ema50Line=serverData.ema21||serverData.ema50||[];}else if(serverData.ema20&&serverData.ema20.length){ema20Line=serverData.ema20;ema50Line=serverData.ema50||[];}
     if(serverData.candles&&serverData.candles.length){candles=serverData.candles;vpData=calcVP(candles);levelsData=calcLevels(candles);cloudsData=calcClouds(candles,vpData);}
     renderAll();
   }
