@@ -564,6 +564,26 @@ async function cmdScan() {
       if (r.signal && r.signal.signal !== 'WAIT') {
         signalCount++;
         const s = r.signal;
+        
+        // Persistência: Adicionar ao histórico e guardar em ficheiro (apenas se não houver sinal recente)
+        const now = Date.now();
+        if (now - (lastSignalTime[r.symbol] || 0) >= SIGNAL_COOLDOWN) {
+          lastSignalTime[r.symbol] = now;
+          tradeHistory.push({
+            time: now,
+            date: new Date().toLocaleDateString('pt-PT'),
+            symbol: r.symbol,
+            signal: s.signal,
+            price: s.price,
+            sl: s.sl,
+            tp: s.tp,
+            conf: s.conf,
+            outcome: 'OPEN',
+            pnl: 0
+          });
+          saveTrades();
+        }
+
         details += `\n  • *${r.symbol}* — ${s.signal} @ \`$${fmtNum(s.price, 2)}\``;
         
         // Adicionar detalhes de SL e TP
@@ -765,6 +785,21 @@ async function runBot() {
         
         lastSignalTime[r.symbol] = now;
         lastSignal[r.symbol] = s;
+
+        // Persistência: Adicionar ao histórico e guardar em ficheiro
+        tradeHistory.push({
+          time: now,
+          date: new Date().toLocaleDateString('pt-PT'),
+          symbol: r.symbol,
+          signal: s.signal,
+          price: s.price,
+          sl: s.sl,
+          tp: s.tp,
+          conf: s.conf,
+          outcome: 'OPEN', // Sinal enviado, aguardando resultado
+          pnl: 0
+        });
+        saveTrades();
 
         const emoji = s.signal === 'BUY' ? '🟢' : '🔴';
         const type = s.signal === 'BUY' ? 'COMPRA (LONG)' : 'VENDA (SHORT)';
