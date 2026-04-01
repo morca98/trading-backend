@@ -1018,13 +1018,21 @@ async function runAnalysis(){
   var signal=result?result.signal:'WAIT',conf=result?result.conf:50;
   var p=result?result.price:(currentPrice||candles[candles.length-1].close);
   var poc=vpData.poc,vah=vpData.vah,val=vpData.val;
-  var sl=result?result.sl:p*.988,tp=result?result.tp:p*1.0264;
-  var slPct=result?result.slPct:'1.20',tpPct=result?result.tpPct:'2.64';
-  var rr=((parseFloat(tpPct)/parseFloat(slPct)).toFixed(1));
+  var sl=result && result.sl ? result.sl : p*.988, tp=result && result.tp ? result.tp : p*1.0264;
+  var slPct=result && result.slPct ? result.slPct : '1.20', tpPct=result && result.tpPct ? result.tpPct : '2.64';
+  var rrVal = parseFloat(slPct) > 0 ? (parseFloat(tpPct)/parseFloat(slPct)).toFixed(1) : '2.5';
+  var rr = isNaN(rrVal) ? '2.5' : rrVal;
   var bias=result?result.macroTrend||'NEUTRAL':'NEUTRAL';
-  var rsi=result?result.rsi:'--',pattern=result?result.pattern:'NONE',divergence=result?result.divergence:'NONE';
-  var macro=result?result.macroTrend:'--',tf15m=result?result.trend15m:'--';
-  var score=result?(result.buyScore!==undefined||result.sellScore!==undefined?(Math.max(result.buyScore||0,result.sellScore||0)+'/16'):(result.conf||0)+'%'):'--';
+  var rsi=result?result.rsi||'--':'--', pattern=result?result.pattern||'NONE':'NONE', divergence=result?result.divergence||'NONE':'NONE';
+  var macro=result?result.macroTrend||'--':'--', tf15m=result?result.trend15m||'--':'--';
+  var score = '--';
+  if (result) {
+    if (result.buyScore !== undefined || result.sellScore !== undefined) {
+      score = Math.max(result.buyScore || 0, result.sellScore || 0) + '/16';
+    } else if (result.conf !== undefined) {
+      score = result.conf + '%';
+    }
+  }
 
   if(signal==='BUY'||signal==='SELL'){
     playSignal(signal);
@@ -1047,7 +1055,7 @@ async function runAnalysis(){
     +'<div class="sig-badge '+sc+'"><span style="font-size:20px;color:'+sigC[signal]+'">'+(signal==='BUY'?'&#9650;':signal==='SELL'?'&#9660;':signal==='HOLD'?'&#9899;':'&#9675;')+'</span><div><div class="sig-text" style="color:'+sigC[signal]+'">'+signal+'</div><div class="sig-conf">CONF: '+conf+'%</div></div></div>'
     +'<svg width="70" height="70" viewBox="0 0 70 70"><circle cx="35" cy="35" r="'+r2+'" fill="none" stroke="var(--border)" stroke-width="5"/><circle cx="35" cy="35" r="'+r2+'" fill="none" stroke="'+ringCol+'" stroke-width="5" stroke-dasharray="'+dash+' '+circ+'" stroke-linecap="round" transform="rotate(-90 35 35)"/><text x="35" y="40" text-anchor="middle" fill="'+ringCol+'" font-size="13" font-weight="700" font-family="JetBrains Mono,monospace">'+conf+'%</text></svg>'
     +'<div style="flex:1;min-width:160px"><div class="tboxes"><div class="tbox"><div class="tbox-lbl">ENTRADA</div><div class="tbox-val" style="color:var(--text)">$'+p.toLocaleString('en-US',{maximumFractionDigits:0})+'</div></div><div class="tbox"><div class="tbox-lbl">STOP</div><div class="tbox-val" style="color:var(--red)">$'+sl.toLocaleString('en-US',{maximumFractionDigits:0})+'</div></div><div class="tbox"><div class="tbox-lbl">ALVO</div><div class="tbox-val" style="color:var(--green)">$'+tp.toLocaleString('en-US',{maximumFractionDigits:0})+'</div></div></div>'
-    +'<div class="tags">'+srcTag+'<span class="tag" style="color:var(--accent);border-color:rgba(0,212,255,.2)">R/R 1:'+rr+'</span><span class="tag" style="color:'+biasCol+'">'+bias+'</span><span class="tag">RSI '+rsi+'</span><span class="tag">Score '+score+'</span>'+(pattern!=='NONE'?'<span class="tag" style="color:var(--yellow)">'+pattern+'</span>':'')+(divergence!=='NONE'?'<span class="tag" style="color:var(--purple)">DIV '+divergence+'</span>':'')+'<span class="tag">4H:'+macro+'</span><span class="tag">15M:'+tf15m+'</span></div></div></div>'
+    +'<div class="tags">'+srcTag+'<span class="tag" style="color:var(--accent);border-color:rgba(0,212,255,.2)">R/R 1:'+rr+'</span><span class="tag" style="color:'+biasCol+'">'+bias+'</span><span class="tag">RSI '+rsi+'</span><span class="tag">Score '+score+'</span>'+(pattern && pattern!=='NONE'?'<span class="tag" style="color:var(--yellow)">'+pattern+'</span>':'')+(divergence && divergence!=='NONE'?'<span class="tag" style="color:var(--purple)">DIV '+divergence+'</span>':'')+'<span class="tag">4H:'+macro+'</span><span class="tag">15M:'+tf15m+'</span></div></div></div>'
     +'<div class="atexts"><div class="atext"><div class="atext-lbl">ANALISE</div><div class="atext-val">'+reasons[signal]+'</div></div><div class="atext"><div class="atext-lbl">VOLUME PROFILE</div><div class="atext-val">POC:$'+poc.toFixed(0)+' VA:$'+val.toFixed(0)+'-$'+vah.toFixed(0)+'</div></div><div class="atext"><div class="atext-lbl">LIQMAP</div><div class="atext-val" id="anaLiq">A carregar...</div></div></div></div>';
 
   document.getElementById('anaCard').innerHTML=html;
