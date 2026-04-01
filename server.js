@@ -732,7 +732,58 @@ async function handleTelegramCommands() {
 // ── NOTIFICAÇÕES AUTOMÁTICAS ─────────────────────────────────────────────────
 
 async function runBot() {
-  // Lógica do bot original aqui...
+  try {
+    const results = await Promise.all(
+      SYMBOLS.map(async (symbol) => {
+        const sigRes = await axios.get(`http://localhost:${process.env.PORT || 3001}/api/signal?symbol=${symbol}`).catch(() => null);
+        return { symbol, signal: sigRes ? sigRes.data.signal : null };
+      })
+    );
+
+    for (const r of results) {
+      if (r.signal && r.signal.signal !== 'WAIT') {
+        const s = r.signal;
+        const now = Date.now();
+        
+        // Evitar sinais duplicados (cooldown de 90 min)
+        if (now - (lastSignalTime[r.symbol] || 0) < SIGNAL_COOLDOWN) continue;
+        
+        lastSignalTime[r.symbol] = now;
+        lastSignal[r.symbol] = s;
+
+        const emoji = s.signal === 'BUY' ? '🟢' : '🔴';
+        const type = s.signal === 'BUY' ? 'COMPRA (LONG)' : 'VENDA (SHORT)';
+        
+        let msg = 
+          `${emoji} *NOVO SINAL: ${r.symbol}*\n` +
+          '━━━━━━━━━━━━━━━━━━━━\n' +
+          `🎯 Tipo: *${type}*\n` +
+          `💰 Preço: \`$${fmtNum(s.price, 2)}\`\n` +
+          `📊 Confiança: \`${s.conf}%\` [${confidenceBar(s.conf)}]\n` +
+          `🛑 SL: \`$${fmtNum(s.sl, 2)}\` (${s.slPct}%)\n`;
+
+        if (s.useTP1) {
+          const tp1Price = s.signal === 'BUY' ? s.price * (1 + s.tp1Pct/100) : s.price * (1 - s.tp1Pct/100);
+          msg += `🎯 TP1 (50%): \`$${fmtNum(tp1Price, 2)}\` (${parseFloat(s.tp1Pct).toFixed(2)}%)\n`;
+          msg += `🎯 TP2 (Final): \`$${fmtNum(s.tp, 2)}\` (${s.tpPct}%)\n`;
+        } else {
+          msg += `🎯 TP: \`$${fmtNum(s.tp, 2)}\` (${s.tpPct}%)\n`;
+        }
+        
+        msg += 
+          '━━━━━━━━━━━━━━━━━━━━\n' +
+          `📈 Macro 4H: *${s.macroTrend}*\n` +
+          `📉 Trend 15M: *${s.trend15m}*\n` +
+          `📏 RSI: \`${s.rsi}\` | ADX: \`${s.adx}\`\n` +
+          `💼 Tamanho: \`$${fmtNum(s.positionSize, 0)}\` (Risco 1%)\n\n` +
+          `_Estratégia Trend Master 1.84 PF_`;
+
+        await sendTelegram(msg);
+      }
+    }
+  } catch (e) {
+    console.error('[runBot Error]:', e.message);
+  }
 }
 
 var PORT = process.env.PORT || 3001;
