@@ -417,16 +417,17 @@ function fmtNum(n, decimals) {
 
 async function cmdStart() {
   const msg =
-    '🤖 *Crypto Signal Bot — BTC/ETH* está online!\n\n' +
+    '🟢 *MORCA BOT CRIPTO* — Online\n' +
+    '━━━━━━━━━━━━━━━━━━━━\n' +
     'Comandos disponíveis:\n' +
-    '/status — Estado do bot\n' +
-    '/scan — Iniciar scan manual\n' +
-    '/price — Preços BTC e ETH\n' +
-    '/trades — Últimos sinais\n' +
+    '/status — Estado detalhado do bot\n' +
+    '/scan — Iniciar scan manual BTC e ETH\n' +
+    '/price — Preços actuais BTC/ETH\n' +
+    '/trades — Ver últimos sinais gerados\n' +
     '/stats — Estatísticas de performance\n' +
-    '/capital — Ver/alterar capital\n' +
-    '/backtest [dias] [symbol] — Backtest detalhado\n' +
-    '/help — Ajuda completa';
+    '/capital — Ver ou alterar capital disponível\n' +
+    '/backtest — Simulação histórica da estratégia\n' +
+    '/help — Guia completo da estratégia';
   await sendTelegram(msg);
 }
 
@@ -436,11 +437,12 @@ async function cmdStatus() {
   const winRate = total > 0 ? (winCount / total * 100).toFixed(1) : '0.0';
   const capital = INITIAL_CAPITAL + totalPnl;
   const msg =
-    '📊 *Status do Bot*\n\n' +
+    '📊 *MORCA BOT CRIPTO — Status*\n' +
+    '━━━━━━━━━━━━━━━━━━━━\n' +
     `🟢 Online: ${now}\n` +
     `💰 Capital: $${fmtNum(capital, 2)}\n` +
     `⚙️ Risco/trade: 1%\n` +
-    `📋 Símbolos: BTC/ETH\n` +
+    `📋 Símbolos: ${SYMBOLS.join(', ')}\n` +
     `🔄 Scan: cada 5 minutos\n` +
     `📈 Sinais hoje: ${tradeHistory.filter(t => t.date === new Date().toLocaleDateString('pt-PT')).length}\n` +
     `🏆 Win Rate: ${winRate}% (${winCount}W / ${lossCount}L)\n` +
@@ -654,8 +656,9 @@ async function cmdBacktest(args) {
 
 async function cmdHelp() {
   const msg =
-    '📖 *Crypto Signal Bot — Ajuda*\n\n' +
-    'Estratégia (Trend Master 1.84 PF):*\n' +
+    '📖 *MORCA BOT CRIPTO — Ajuda*\n' +
+    '━━━━━━━━━━━━━━━━━━━━\n' +
+    '*Estratégia (Trend Master 1.84 PF):*\n' +
     '1️⃣ Tendência macro 4H (Forte BULL/BEAR)\n' +
     '2️⃣ Alinhamento Triplo 30M (9 > 21 > 50)\n' +
     '3️⃣ ADX > 30 (Filtro ADX+ Alta Convicção)\n' +
@@ -668,9 +671,9 @@ async function cmdHelp() {
     '/status — Estado detalhado do bot\n' +
     '/scan — Scan manual BTC e ETH\n' +
     '/price — Preços actuais BTC/ETH\n' +
-    '/trades — Últimos 5 sinais\n' +
+    '/trades — Ver últimos sinais gerados\n' +
     '/stats — Estatísticas de performance\n' +
-    '/capital [valor] — Ver/alterar capital\n' +
+    '/capital [valor] — Ver ou alterar capital disponível\n' +
     '/backtest [dias] [symbol] — Backtest detalhado\n\n' +
     '*Exemplos de backtest:*\n' +
     '/backtest 30\n' +
@@ -737,7 +740,7 @@ app.listen(PORT, function() {
   console.log('Server porta ' + PORT);
   const now = new Date().toLocaleString('pt-PT', { timeZone: 'Europe/Lisbon' });
   sendTelegram(
-    '🟢 *Crypto Signal Bot — Online*\n' +
+    '🟢 *MORCA BOT CRIPTO* — Online\n' +
     '━━━━━━━━━━━━━━━━━━━━\n' +
     `⏰ Iniciado: ${now}\n` +
     `🔄 Scan: cada 5 minutos\n` +
