@@ -922,11 +922,13 @@ async function notifyTradeResolved(trade) {
   await sendTelegram(msg);
 }
 
-// Funcao para fechar trades que atingem TP ou SL
+// Funcao para fechar trades que atingem TP ou SL (Server-side monitoring)
 async function checkAndCloseTrades() {
   try {
     const trades = loadTradeHistory();
     let updated = false;
+    
+    console.log(`[Server Monitor] Verificando ${trades.filter(t => t.outcome === 'OPEN').length} trades abertos`)
     
     for (const trade of trades) {
       if (trade.outcome !== 'OPEN') continue;
@@ -971,10 +973,22 @@ async function checkAndCloseTrades() {
         trade.closeReason = closeReason;
         trade.closedAt = new Date().toISOString();
         updated = true;
+        
+        console.log(`[Server Monitor] ✓ FECHANDO ${trade.symbol} em ${closeReason} - Preço: ${currentPrice}, Fecho: ${closePrice}`);
       }
     }
     
     if (updated) {
+      saveTradeHistory(trades);
+      console.log(`[Server Monitor] ✓ ${trades.filter(t => t.outcome !== 'OPEN').length} trades fechados`);
+      
+      // Enviar notificações para Telegram dos trades fechados
+      for (const trade of trades) {
+        if (trade.outcome !== 'OPEN' && !trade.notifiedTelegram) {
+          await notifyTradeResolved(trade);
+          trade.notifiedTelegram = true;
+        }
+      }
       saveTradeHistory(trades);
     }
   } catch (e) {

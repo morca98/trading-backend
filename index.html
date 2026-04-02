@@ -1108,6 +1108,17 @@ function renderClouds(){ /* Nuvens de liquidez removidas */ }
 // Monitorizar trades abertos usando o preço do gráfico em tempo real
 var tradesMonitoredByGraph = {};
 
+
+// Função para logar erros de rede no console e mostrar alerta
+function logNetworkError(context, error) {
+  const msg = `[Network Error] ${context}: ${error}`;
+  console.error(msg);
+  // Mostrar alerta visual se houver erro crítico
+  if (context.includes('close-trade')) {
+    console.warn('⚠️ FALHA AO FECHAR ORDEM - Verifique a conexão com o servidor');
+  }
+}
+
 async function checkOpenTradesWithGraphPrice() {
   try {
     // Obter histórico de trades do servidor
@@ -1176,6 +1187,7 @@ async function checkOpenTradesWithGraphPrice() {
         
         // Enviar ordem de fecho para o backend
         try {
+          console.log(`[Network] Enviando fecho para: ${BACKEND}/api/close-trade`);
           const closeResponse = await fetch(BACKEND + '/api/close-trade', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1187,6 +1199,7 @@ async function checkOpenTradesWithGraphPrice() {
               time: trade.time
             })
           });
+          console.log(`[Network] Resposta recebida: ${closeResponse.status}`);
           
           const result = await closeResponse.json();
           if (result.success) {
