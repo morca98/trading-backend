@@ -524,7 +524,9 @@ async function cmdTrades() {
   for (const t of recent) {
     const emoji = t.outcome === 'WIN' ? '✅' : t.outcome === 'LOSS' ? '❌' : '⏳';
     msg += `${emoji} *${t.symbol}* @ \`$${fmtNum(t.entry, 2)}\`\n`;
-    msg += `   Tamanho: \`$${t.positionSize || 0}\` | SL: \`$${fmtNum(t.sl, 2)}\` | TP: \`$${fmtNum(t.tp, 2)}\`\n`;
+    const cryptoSym = t.symbol.replace('USDT', '');
+    const cryptoSize = t.positionSize ? (t.positionSize / t.entry).toFixed(6) : '0.000000';
+    msg += `   Tamanho: \`$${t.positionSize || 0}\` (${cryptoSize} ${cryptoSym}) | SL: \`$${fmtNum(t.sl, 2)}\` | TP: \`$${fmtNum(t.tp, 2)}\`\n`;
     if (t.pnl !== undefined) {
       const pnlDollar = (t.positionSize * t.pnl) / 100;
       msg += `   P&L: ${t.pnl >= 0 ? '+' : ''}$${pnlDollar.toFixed(2)}\n`;
