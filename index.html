@@ -882,12 +882,21 @@ async function loadPerf() {
       var wr=d.winRate||0, pnl=d.totalPnl||0;
       document.getElementById('pWR').textContent=wr+'%'; document.getElementById('pWR').style.color=wr>=50?'var(--green)':'var(--red)';
       document.getElementById('pTotal').textContent=d.total||0;
-      document.getElementById('pPnl').textContent=(pnl>=0?'+':'')+pnl.toFixed(1)+'%'; document.getElementById('pPnl').style.color=pnl>=0?'var(--green)':'var(--red)';
+      document.getElementById('pPnl').textContent=(pnl>=0?'+':'')+'$'+Math.abs(pnl).toFixed(2); document.getElementById('pPnl').style.color=pnl>=0?'var(--green)':'var(--red)';
       document.getElementById('pActive').textContent=d.numAssets||0;
-      var capitalGain=d.currentCapital-d.initialCapital||0;
+      var capitalGain=d.totalPnl||0;
       var capEl=document.getElementById('pCapital');
       if(capEl){capEl.textContent=(capitalGain>=0?'+':'')+'$'+Math.abs(capitalGain).toFixed(2);capEl.style.color=capitalGain>=0?'var(--green)':'var(--red)';}
-      renderPerfChart(d.capitalCurve||[d.initialCapital||1000],d.initialCapital||1000);
+      
+      // Construir curva de capital a partir do histórico
+      var initialCap = 1000;
+      var curve = [initialCap];
+      var current = initialCap;
+      hist.filter(function(t){return t.outcome!=='OPEN';}).forEach(function(t){
+        current += (t.positionSize * t.pnl) / 100;
+        curve.push(current);
+      });
+      renderPerfChart(curve, initialCap);
 
       // Ordens Abertas - cards detalhados com todos os dados da ordem
       var hist=d.tradeHistory||[];
@@ -912,7 +921,7 @@ async function loadPerf() {
           var recent=hist.slice().reverse().slice(0,30);
           if(tcEl)tcEl.textContent='ULTIMAS '+recent.length+' DE '+hist.length;
           var tbl='<table class="trade-table"><thead><tr>';
-          tbl+='<th>DATA</th><th>ATIVO</th><th>TIPO</th><th>ENTRADA</th><th>SL</th><th>TP1</th><th>TP2</th><th>TAMANHO</th><th>ESTADO</th><th>P&amp;L %</th><th>P&amp;L $</th>';
+          tbl+='<th>DATA</th><th>ATIVO</th><th>TIPO</th><th>ENTRADA</th><th>SL</th><th>TP1</th><th>TP2</th><th>TAMANHO</th><th>ESTADO</th><th>P&amp;L</th>';
           tbl+='</tr></thead><tbody>';
           recent.forEach(function(t){
             var dt = t.date || '--';
@@ -920,7 +929,6 @@ async function loadPerf() {
             var isBuy=(t.signal==='BUY');
             var outcome=t.outcome||'OPEN';
             var pnlVal=t.pnl||0;
-            var pnlStr=outcome==='OPEN'?'--':(pnlVal>=0?'+':'')+pnlVal.toFixed(2)+'%';
             var pnlDollarVal=(t.positionSize * pnlVal) / 100;
             var pnlDollarStr=outcome==='OPEN'?'--':(pnlDollarVal>=0?'+':'')+'$'+Math.abs(pnlDollarVal).toFixed(2);
             var pnlColor=outcome==='WIN'?'var(--green)':outcome==='LOSS'?'var(--red)':'var(--muted)';
@@ -941,7 +949,6 @@ async function loadPerf() {
             tbl+='<td style="color:var(--green)">'+(tp2?fmtPrice(tp2):'--')+'</td>';
             tbl+='<td style="color:var(--yellow)">'+posSize+'</td>';
             tbl+='<td><span class="trade-badge '+outcome.toLowerCase()+'">'+outcome+'</span></td>';
-            tbl+='<td style="color:'+pnlColor+';font-weight:700">'+pnlStr+'</td>';
             tbl+='<td style="color:'+pnlColor+';font-weight:700">'+pnlDollarStr+'</td>';
             tbl+='</tr>';
           });
@@ -960,24 +967,47 @@ function renderPerfChart(data,initialCapital){
   var el=document.getElementById('perfChart');
   if(!data||!data.length){el.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">Sem trades</div>';return;}
   initialCapital=initialCapital||1000;
-  var W=460,H=200,PL=45,PR=15,PT=15,PB=25;
-  var min=Math.min.apply(null,data),max=Math.max.apply(null,data),range=max-min||1;
+  
+  // Adicionar margem de segurança para o gráfico não bater no topo/fundo
+  var minVal=Math.min.apply(null,data.concat([initialCapital])), maxVal=Math.max.apply(null,data.concat([initialCapital]));
+  var padding = (maxVal - minVal) * 0.2 || 10;
+  var min=minVal - padding, max=maxVal + padding, range=max-min;
+  
+  var W=460,H=200,PL=50,PR=20,PT=20,PB=30;
   var cw=(W-PL-PR)/(data.length-1||1);
   var py=function(v){return PT+(H-PT-PB)-(v-min)/range*(H-PT-PB);};
   var px=function(i){return PL+i*cw;};
+  
   var path='M '+px(0)+' '+py(data[0]);
   data.forEach(function(v,i){if(i>0)path+=' L '+px(i)+' '+py(v);});
-  var accentCol = '#00e5ff';
-  var svg = '<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="display:block;background:rgba(0,229,255,0.01);border-radius:2px">'
-    +'<defs><linearGradient id="gradPerf" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+accentCol+'" stop-opacity="0.2"/><stop offset="100%" stop-color="'+accentCol+'" stop-opacity="0"/></linearGradient></defs>'
-    +'<line x1="'+PL+'" x2="'+(W-PR)+'" y1="'+py(initialCapital)+'" y2="'+py(initialCapital)+'" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="4 4"/>'
+  
+  var accentCol = '#00d4ff', greenCol = '#00e676', redCol = '#ff3d57';
+  var isProfit = data[data.length-1] >= initialCapital;
+  var lineCol = isProfit ? greenCol : redCol;
+  
+  var svg = '<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="display:block;background:var(--bg2);border-radius:4px;border:1px solid var(--border2)">'
+    +'<defs>'
+    +'<linearGradient id="gradPerf" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+lineCol+'" stop-opacity="0.15"/><stop offset="100%" stop-color="'+lineCol+'" stop-opacity="0"/></linearGradient>'
+    +'<filter id="glow"><feGaussianBlur stdDeviation="2" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    +'</defs>'
+    // Grelha horizontal
+    +'<line x1="'+PL+'" x2="'+(W-PR)+'" y1="'+py(maxVal)+'" y2="'+py(maxVal)+'" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="2 4"/>'
+    +'<line x1="'+PL+'" x2="'+(W-PR)+'" y1="'+py(minVal)+'" y2="'+py(minVal)+'" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="2 4"/>'
+    // Linha de capital inicial (Base)
+    +'<line x1="'+PL+'" x2="'+(W-PR)+'" y1="'+py(initialCapital)+'" y2="'+py(initialCapital)+'" stroke="var(--muted)" stroke-width="1" stroke-dasharray="5 5" opacity="0.3"/>'
+    // Área preenchida
     +'<path d="'+path+' L '+px(data.length-1)+' '+(H-PB)+' L '+PL+' '+(H-PB)+' Z" fill="url(#gradPerf)"/>'
-    +'<path d="'+path+'" fill="none" stroke="'+accentCol+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
-    +'<circle cx="'+px(data.length-1)+'" cy="'+py(data[data.length-1])+'" r="3" fill="'+accentCol+'"/>'
-    +'<text x="'+(PL-8)+'" y="'+py(max)+'" text-anchor="end" fill="#4a6080" font-size="8" font-family="monospace">$'+max.toFixed(0)+'</text>'
-    +'<text x="'+(PL-8)+'" y="'+py(min)+'" text-anchor="end" fill="#4a6080" font-size="8" font-family="monospace">$'+min.toFixed(0)+'</text>'
-    +'<text x="'+PL+'" y="'+(H-8)+'" text-anchor="start" fill="#4a6080" font-size="8" font-family="monospace">INÍCIO</text>'
-    +'<text x="'+(W-PR)+'" y="'+(H-8)+'" text-anchor="end" fill="#4a6080" font-size="8" font-family="monospace">HOJE</text>'
+    // Linha principal
+    +'<path d="'+path+'" fill="none" stroke="'+lineCol+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)"/>'
+    // Ponto final
+    +'<circle cx="'+px(data.length-1)+'" cy="'+py(data[data.length-1])+'" r="4" fill="'+lineCol+'" stroke="var(--bg2)" stroke-width="2"/>'
+    // Labels de preço
+    +'<text x="'+(PL-10)+'" y="'+(py(maxVal)+3)+'" text-anchor="end" fill="var(--muted)" font-size="9" font-family="JetBrains Mono">$'+maxVal.toFixed(0)+'</text>'
+    +'<text x="'+(PL-10)+'" y="'+(py(minVal)+3)+'" text-anchor="end" fill="var(--muted)" font-size="9" font-family="JetBrains Mono">$'+minVal.toFixed(0)+'</text>'
+    +'<text x="'+(PL-10)+'" y="'+(py(initialCapital)+3)+'" text-anchor="end" fill="var(--accent)" font-size="8" font-family="JetBrains Mono" opacity="0.6">BASE</text>'
+    // Labels de tempo
+    +'<text x="'+PL+'" y="'+(H-10)+'" text-anchor="start" fill="var(--muted)" font-size="9" font-family="JetBrains Mono">INÍCIO</text>'
+    +'<text x="'+(W-PR)+'" y="'+(H-10)+'" text-anchor="end" fill="var(--muted)" font-size="9" font-family="JetBrains Mono">HOJE</text>'
     +'</svg>';
   el.innerHTML = svg;
 }

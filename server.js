@@ -527,7 +527,7 @@ async function cmdTrades() {
     msg += `   SL: \`$${fmtNum(t.sl, 2)}\` | TP: \`$${fmtNum(t.tp, 2)}\`\n`;
     if (t.pnl !== undefined) {
       const pnlDollar = (t.positionSize * t.pnl) / 100;
-      msg += `   P&L: ${t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(2)}% (${t.pnl >= 0 ? '+' : ''}$${pnlDollar.toFixed(2)})\n`;
+      msg += `   P&L: ${t.pnl >= 0 ? '+' : ''}$${pnlDollar.toFixed(2)}\n`;
     }
     msg += '\n';
   }
@@ -931,7 +931,7 @@ async function notifyTradeResolved(trade) {
     `🛑 Stop Loss: \`$${fmtNum(trade.sl, 2)}\` (${trade.slPct}%)\n` +
     `🎯 Take Profit: \`$${fmtNum(trade.tp, 2)}\` (${trade.tpPct}%)\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
-    `${pnlEmoji} *Resultado: ${pnlStr}${trade.pnl.toFixed(2)}% (${pnlStr}$${((trade.positionSize * trade.pnl) / 100).toFixed(2)})*\n` +
+    `${pnlEmoji} *Resultado: ${pnlStr}$${Math.abs((trade.positionSize * trade.pnl) / 100).toFixed(2)}*\n` +
     `💼 Tamanho: \`${positionStr}\`\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `${capitalEmoji} *Capital Atual: $${fmtNum(currentCap, 2)}*\n` +
