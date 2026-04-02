@@ -71,6 +71,7 @@ function saveTrades() {
 
 // Alias para loadTrades (compatibilidade com código que usa loadTradeHistory)
 function loadTradeHistory() {
+  tradeHistory = loadTrades();
   return tradeHistory;
 }
 
