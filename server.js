@@ -1030,7 +1030,9 @@ async function checkAndCloseTrades() {
 
 async function getCurrentPrice(symbol) {
   try {
-    const res = await axios.get(`${BINANCE_FUTURES}/ticker/price?symbol=${symbol}`);
+    const res = await axios.get(`${BINANCE_FUTURES}/ticker/price?symbol=${symbol}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
     return parseFloat(res.data.price);
   } catch (e) {
     console.error(`[Price Fetch Error ${symbol}]:`, e.message);
