@@ -860,7 +860,7 @@ function renderSignalCard(t) {
   html += '</div>';
   if (t.useTP1) {
     html += '<div style="margin-bottom:6px;padding:5px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:2px;font-size:8px;display:flex;justify-content:space-between">';
-    html += '<span style="color:var(--muted)">TAMANHO DA POSICAO</span><span style="color:var(--yellow)">' + posSize + ' &nbsp;(Risco 1%)</span></div>';
+    html += '<span style="color:var(--muted)">TAMANHO DA POSICAO</span><span style="color:var(--yellow)">' + posSize + '</span></div>';
   }
   html += '<div class="sig-indicators">';
   if (t.conf) html += '<span class="sig-ind" style="color:var(--accent)">CONF ' + conf + '</span>';
@@ -1162,8 +1162,7 @@ async function checkOpenTradesWithGraphPrice() {
       }
       
       if (shouldClose) {
-        console.log(`[Graph Monitor] FECHANDO ${trade.symbol} em ${closeReason} - Preço: ${closePrice}`);
-        tradesMonitoredByGraph[tradeKey] = true;
+        console.log(`[Graph Monitor] FECHANDO ${trade.symbol} em ${closeReason} - Preço: ${price}, TP2: ${tp2}, SL: ${sl}`);
         
         // Enviar ordem de fecho para o backend
         try {
@@ -1182,10 +1181,13 @@ async function checkOpenTradesWithGraphPrice() {
           const result = await closeResponse.json();
           if (result.success) {
             console.log(`[Graph Monitor] Trade fechado com sucesso: ${trade.symbol}`);
+            tradesMonitoredByGraph[tradeKey] = true; // Marcar APÓS sucesso
             playBeep(800, 0.5, 'sine');
             sendBrowserNotif('Trade Fechado', `${trade.symbol} fechado em ${closeReason} a $${closePrice.toFixed(2)}`);
             // Recarregar dados em 2 segundos
             setTimeout(loadPerf, 2000);
+          } else {
+            console.error(`[Graph Monitor] Erro ao fechar trade: ${result.message || 'Desconhecido'}`);
           }
         } catch (e) {
           console.error(`[Graph Monitor] Erro ao fechar trade: ${e.message}`);
