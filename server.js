@@ -789,10 +789,6 @@ async function handleTelegramCommands() {
 
 async function runBot() {
   try {
-    // PRIMEIRO: Verificar e fechar trades abertos
-    await checkAndCloseTrades();
-    
-    // DEPOIS: Gerar novos sinais
     const results = await Promise.all(
       SYMBOLS.map(async (symbol) => {
         const sigRes = await axios.get(`http://localhost:${process.env.PORT || 3001}/api/signal?symbol=${symbol}`).catch(() => null);
@@ -936,12 +932,7 @@ async function checkAndCloseTrades() {
       if (trade.outcome !== 'OPEN') continue;
       
       const currentPrice = await getCurrentPrice(trade.symbol);
-      if (!currentPrice) {
-        console.log(`[Trade Monitor] Nao consegui obter preco para ${trade.symbol}`);
-        continue;
-      }
-      
-      console.log(`[Trade Monitor] ${trade.symbol} ${trade.signal} - Preco: ${currentPrice}, Entry: ${trade.entry}, TP: ${trade.tp}, SL: ${trade.sl}`);
+      if (!currentPrice) continue;
       
       let shouldClose = false;
       let closePrice = null;
@@ -991,62 +982,14 @@ async function checkAndCloseTrades() {
   }
 }
 
-const priceCache = {};
-
 async function getCurrentPrice(symbol) {
-  // Tentar múltiplas fontes de preço
-  const sources = [
-    async () => {
-      try {
-        const res = await axios.get(`${BINANCE_FUTURES}/ticker/price?symbol=${symbol}`, { timeout: 5000 });
-        const price = parseFloat(res.data.price);
-        console.log(`[Price] ${symbol} from Binance: ${price}`);
-        return price;
-      } catch (e) {
-        console.log(`[Price] Binance failed for ${symbol}: ${e.message}`);
-        return null;
-      }
-    },
-    async () => {
-      try {
-        const res = await axios.get(`https://api.mexc.com/api/v3/ticker/price?symbol=${symbol}`, { timeout: 5000 });
-        const price = parseFloat(res.data.price);
-        console.log(`[Price] ${symbol} from MEXC: ${price}`);
-        return price;
-      } catch (e) {
-        console.log(`[Price] MEXC failed for ${symbol}: ${e.message}`);
-        return null;
-      }
-    },
-    async () => {
-      try {
-        const res = await axios.get(`https://api.gateio.ws/api/v4/spot/tickers?currency_pair=${symbol}`, { timeout: 5000 });
-        const price = parseFloat(res.data[0].last);
-        console.log(`[Price] ${symbol} from Gate.io: ${price}`);
-        return price;
-      } catch (e) {
-        console.log(`[Price] Gate.io failed for ${symbol}: ${e.message}`);
-        return null;
-      }
-    }
-  ];
-  
-  for (const source of sources) {
-    const price = await source();
-    if (price) {
-      priceCache[symbol] = price;
-      return price;
-    }
+  try {
+    const res = await axios.get(`${BINANCE_FUTURES}/ticker/price?symbol=${symbol}`);
+    return parseFloat(res.data.price);
+  } catch (e) {
+    console.error(`[Price Fetch Error ${symbol}]:`, e.message);
+    return null;
   }
-  
-  // Se todas as fontes falharem, usar cache
-  if (priceCache[symbol]) {
-    console.log(`[Price] Using cached price for ${symbol}: ${priceCache[symbol]}`);
-    return priceCache[symbol];
-  }
-  
-  console.error(`[Price] Could not fetch price for ${symbol} from any source`);
-  return null;
 }
 
 app.post('/api/close-trade', async function(req, res) {
@@ -1081,11 +1024,6 @@ app.post('/api/close-trade', async function(req, res) {
   }
 });
 
-// Iniciar runBot imediatamente e depois a cada 5 minutos (junto com a geracao de sinais)
-runBot();
-setInterval(runBot, 5 * 60 * 1000);
-
-// Tambem verificar trades a cada 30 segundos entre ciclos de runBot
 setInterval(checkAndCloseTrades, 30 * 1000);
 
 // Monitorar trades resolvidos a cada 1 minuto

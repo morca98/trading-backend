@@ -878,9 +878,6 @@ async function loadPerf() {
       var capEl=document.getElementById('pCapital');
       if(capEl){capEl.textContent=(capitalGain>=0?'+':'')+'$'+Math.abs(capitalGain).toFixed(2);capEl.style.color=capitalGain>=0?'var(--green)':'var(--red)';}
       renderPerfChart(d.capitalCurve||[d.initialCapital||1000],d.initialCapital||1000);
-      
-      // Monitorizar trades abertos e fechar automaticamente em TP/SL
-      monitorOpenTrades(hist);
 
       // Sinais do Dia - cards detalhados com todos os dados da ordem
       var hist=d.tradeHistory||[];
@@ -952,99 +949,6 @@ async function loadPerf() {
   }
 }
 
-// Monitorizar trades abertos e fechar automaticamente quando TP/SL eh atingido
-var openTradesMonitored = {};
-
-async function monitorOpenTrades(tradeHistory) {
-  if (!tradeHistory || !tradeHistory.length) return;
-  
-  const openTrades = tradeHistory.filter(t => t.outcome === 'OPEN');
-  if (!openTrades.length) return;
-  
-  for (const trade of openTrades) {
-    const symbol = trade.symbol || 'BTCUSDT';
-    const tradeKey = symbol + '_' + trade.entry + '_' + (trade.time || 0);
-    
-    // Evitar monitorizar o mesmo trade multiplas vezes
-    if (openTradesMonitored[tradeKey]) continue;
-    openTradesMonitored[tradeKey] = true;
-    
-    // Obter preco atual
-    const priceData = await apiPrice(symbol.replace('USDT', ''));
-    if (!priceData) continue;
-    
-    const currentPrice = priceData.price;
-    const entry = trade.entry || trade.price;
-    const tp = trade.tp;
-    const sl = trade.sl;
-    const isBuy = trade.signal === 'BUY';
-    
-    console.log(`[Trade Monitor] ${symbol} ${trade.signal} - Current: ${currentPrice}, Entry: ${entry}, TP: ${tp}, SL: ${sl}`);
-    
-    let shouldClose = false;
-    let closePrice = null;
-    let closeReason = null;
-    
-    if (isBuy) {
-      if (currentPrice >= tp) {
-        shouldClose = true;
-        closePrice = tp;
-        closeReason = 'TP';
-      } else if (currentPrice <= sl) {
-        shouldClose = true;
-        closePrice = sl;
-        closeReason = 'SL';
-      }
-    } else {
-      if (currentPrice <= tp) {
-        shouldClose = true;
-        closePrice = tp;
-        closeReason = 'TP';
-      } else if (currentPrice >= sl) {
-        shouldClose = true;
-        closePrice = sl;
-        closeReason = 'SL';
-      }
-    }
-    
-    if (shouldClose) {
-      console.log(`[Trade Monitor] FECHANDO ${symbol} em ${closeReason} - Preco: ${closePrice}`);
-      
-      // Enviar ordem de fecho para o backend
-      try {
-        const response = await fetch(BACKEND + '/api/close-trade', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            symbol: symbol,
-            entry: entry,
-            exitPrice: closePrice,
-            closeReason: closeReason,
-            time: trade.time
-          })
-        });
-        
-        const result = await response.json();
-        if (result.success) {
-          console.log(`[Trade Monitor] Trade fechado com sucesso: ${symbol}`);
-          delete openTradesMonitored[tradeKey];
-          // Recarregar dados para atualizar o dashboard
-          setTimeout(loadPerf, 1000);
-        }
-      } catch (e) {
-        console.error(`[Trade Monitor] Erro ao fechar trade: ${e.message}`);
-      }
-    }
-  }
-}
-
-// Monitorizar trades a cada 10 segundos enquanto o site estiver aberto
-setInterval(function() {
-  if (document.getElementById('perfChart')) {
-    loadPerf();
-  }
-}, 10 * 1000);
-
 function renderPerfChart(data,initialCapital){
   var el=document.getElementById('perfChart');
   if(!data||!data.length){el.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">Sem trades</div>';return;}
@@ -1070,9 +974,6 @@ function renderPerfChart(data,initialCapital){
     +'</svg>';
   el.innerHTML = svg;
 }
-
-// ── MONITORAMENTO DE TRADES ───────────────────────────────────────────────────
-// Ja definido acima em monitorOpenTrades()
 
 // ── API ───────────────────────────────────────────────────────────────────────
 var BINANCE_API = 'https://api.binance.com';
@@ -1104,16 +1005,7 @@ async function apiCandles(sym,interval,limit){
   try{var r=await fetch(BACKEND+'/api/candles?symbol='+SYM_MAP[sym]+'&interval='+(interval||'1h')+'&limit='+(limit||60));if(!r.ok)throw new Error('backend');var d=await r.json();if(!d.success)throw new Error('backend');var raw=d.candles||d;if(!Array.isArray(raw)||!raw.length)throw new Error('backend');return raw.map(function(k){return Array.isArray(k)?{time:+k[0],open:+k[1],high:+k[2],low:+k[3],close:+k[4],volume:+k[5]}:{time:+k.time,open:+k.open,high:+k.high,low:+k.low,close:+k.close,volume:+k.volume};});}catch(e){console.log('Backend indisponivel para candles, usando Binance direto');return apiCandlesDirect(sym,interval,limit);}
 }
 async function apiPrice(sym){
-  try{
-    var r=await fetch(BACKEND+'/api/price?symbol='+SYM_MAP[sym]);
-    if(!r.ok)throw new Error('backend');
-    var d=await r.json();
-    if(!d.success)throw new Error('backend');
-    return{price:+d.price,change:+d.change};
-  }catch(e){
-    console.log('Backend indisponivel para price, usando Binance direto');
-    return apiPriceDirect(sym);
-  }
+  try{var r=await fetch(BACKEND+'/api/price?symbol='+SYM_MAP[sym]);if(!r.ok)throw new Error('backend');var d=await r.json();if(!d.success)throw new Error('backend');return{price:+d.price,change:+d.change};}catch(e){console.log('Backend indisponivel para price, usando Binance direto');return apiPriceDirect(sym);}
 }
 async function apiSignal(sym){
   try{var r=await fetch(BACKEND+'/api/signal?symbol='+SYM_MAP[sym]+'&interval=30m');if(!r.ok)return null;return await r.json();}catch(e){return null;}
