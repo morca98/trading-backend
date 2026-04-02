@@ -945,7 +945,7 @@ function renderPerfChart(data,initialCapital){
   var el=document.getElementById('perfChart');
   if(!data||!data.length){el.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">Sem trades</div>';return;}
   initialCapital=initialCapital||1000;
-  var W=460,H=165,PL=45,PR=15,PT=15,PB=25;
+  var W=460,H=200,PL=45,PR=15,PT=15,PB=25;
   var min=Math.min.apply(null,data),max=Math.max.apply(null,data),range=max-min||1;
   var cw=(W-PL-PR)/(data.length-1||1);
   var py=function(v){return PT+(H-PT-PB)-(v-min)/range*(H-PT-PB);};

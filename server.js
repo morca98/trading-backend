@@ -328,8 +328,10 @@ app.get('/api/liqmap', async function(req, res) {
 });
 
 app.get('/api/stats', function(req, res) {
-  const total = winCount + lossCount;
-  const winRate = total > 0 ? Math.round((winCount / total) * 100) : 0;
+  const totalClosed = winCount + lossCount;
+  const totalOpen = tradeHistory.filter(t => t.outcome === 'OPEN').length;
+  const total = tradeHistory.length; // Total de todos os trades (abertos + fechados)
+  const winRate = totalClosed > 0 ? Math.round((winCount / totalClosed) * 100) : 0;
   
   // Calcular curva de capital a partir do histórico de trades
   let currentCap = INITIAL_CAPITAL;
