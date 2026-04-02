@@ -296,13 +296,12 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 <!-- PERFORMANCE -->
 <div class="tab-content" id="tab-perf">
   <!-- Stats Row -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
     <div class="stat c-green"><div class="stat-val" id="pWR">--%</div><div class="stat-lbl">WIN RATE</div></div>
     <div class="stat c-purple"><div class="stat-val" id="pTotal">0</div><div class="stat-lbl">TRADES</div></div>
     <div class="stat c-yellow"><div class="stat-val" id="pPnl">+0.0%</div><div class="stat-lbl">P&amp;L</div></div>
-    <div class="stat c-cyan"><div class="stat-val" id="pActive">0</div><div class="stat-lbl">ATIVOS</div></div>
+    <div class="stat c-green"><div class="stat-val" id="pPF">0.00</div><div class="stat-lbl">PROFIT FACTOR</div></div>
   </div>
-  <div class="stat c-green" style="margin-bottom:10px"><div class="stat-val" id="pPF">0.00</div><div class="stat-lbl">PROFIT FACTOR</div></div>
 
   <!-- Curva de Capital -->
   <div class="card">
@@ -945,7 +944,7 @@ function renderPerfChart(data,initialCapital){
   var el=document.getElementById('perfChart');
   if(!data||!data.length){el.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">Sem trades</div>';return;}
   initialCapital=initialCapital||1000;
-  var W=460,H=140,PL=45,PR=15,PT=15,PB=25;
+  var W=460,H=180,PL=45,PR=15,PT=15,PB=25;
   var min=Math.min.apply(null,data),max=Math.max.apply(null,data),range=max-min||1;
   var cw=(W-PL-PR)/(data.length-1||1);
   var py=function(v){return PT+(H-PT-PB)-(v-min)/range*(H-PT-PB);};
