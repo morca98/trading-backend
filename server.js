@@ -932,7 +932,12 @@ async function checkAndCloseTrades() {
       if (trade.outcome !== 'OPEN') continue;
       
       const currentPrice = await getCurrentPrice(trade.symbol);
-      if (!currentPrice) continue;
+      if (!currentPrice) {
+        console.log(`[Trade Monitor] Nao consegui obter preco para ${trade.symbol}`);
+        continue;
+      }
+      
+      console.log(`[Trade Monitor] ${trade.symbol} ${trade.signal} - Preco: ${currentPrice}, Entry: ${trade.entry}, TP: ${trade.tp}, SL: ${trade.sl}`);
       
       let shouldClose = false;
       let closePrice = null;
@@ -982,12 +987,21 @@ async function checkAndCloseTrades() {
   }
 }
 
+const priceCache = {};
+
 async function getCurrentPrice(symbol) {
   try {
     const res = await axios.get(`${BINANCE_FUTURES}/ticker/price?symbol=${symbol}`);
-    return parseFloat(res.data.price);
+    const price = parseFloat(res.data.price);
+    priceCache[symbol] = price;
+    return price;
   } catch (e) {
     console.error(`[Price Fetch Error ${symbol}]:`, e.message);
+    // Retornar preço em cache se disponível
+    if (priceCache[symbol]) {
+      console.log(`[Using cached price for ${symbol}]: ${priceCache[symbol]}`);
+      return priceCache[symbol];
+    }
     return null;
   }
 }
