@@ -848,7 +848,7 @@ function renderSignalCard(t) {
   html += '</div><span class="sig-time">' + dt + '</span></div>';
   html += '<div class="sig-grid">';
   if (t.outcome === 'OPEN') {
-    html += '<div class="sig-box"><div class="sig-box-lbl">PRECO ATUAL</div><div class="sig-box-val cyan">' + currentPriceDisplay + '</div></div>';
+    html += '<div class="sig-box"><div class="sig-box-lbl">PRECO ATUAL</div><div class="sig-box-val" style="color:var(--yellow)">' + currentPriceDisplay + '</div></div>';
   }
   html += '<div class="sig-box"><div class="sig-box-lbl">ENTRADA</div><div class="sig-box-val cyan">' + fmtPrice(entry) + '</div></div>';
   html += '<div class="sig-box"><div class="sig-box-lbl">STOP LOSS</div><div class="sig-box-val red">' + fmtPrice(sl) + '<br><span style="font-size:8px;color:var(--muted)">' + slPct + '</span></div></div>';
@@ -1225,31 +1225,29 @@ var assetPrices = {}; // { 'BTCUSDT': 66885.40, 'ETHUSDT': 2150.31 }
 
 async function updateAllAssetPrices() {
   try {
-    const response = await fetch(BACKEND + '/api/stats');
-    const data = await response.json();
-    if (!data.success || !data.tradeHistory) return;
+    // Sempre obter preços de BTC e ETH em paralelo
+    const [btcPrice, ethPrice] = await Promise.all([
+      apiPriceDirect('BTC/USDT').catch(e => { console.error('Erro BTC:', e); return null; }),
+      apiPriceDirect('ETH/USDT').catch(e => { console.error('Erro ETH:', e); return null; })
+    ]);
     
-    const openTrades = data.tradeHistory.filter(t => t.outcome === 'OPEN');
-    const uniqueSymbols = [...new Set(openTrades.map(t => t.symbol))];
-    
-    // Obter preços para todos os símbolos com ordens abertas
-    for (const symbol of uniqueSymbols) {
-      try {
-        const priceData = await apiPriceDirect(symbol === 'BTCUSDT' ? 'BTC/USDT' : 'ETH/USDT');
-        if (priceData) {
-          assetPrices[symbol] = priceData.price;
-        }
-      } catch (e) {
-        console.log(`Erro ao obter preço de ${symbol}:`, e);
-      }
+    if (btcPrice) {
+      assetPrices['BTCUSDT'] = btcPrice.price;
+      console.log('[Preços] BTC:', btcPrice.price);
+    }
+    if (ethPrice) {
+      assetPrices['ETHUSDT'] = ethPrice.price;
+      console.log('[Preços] ETH:', ethPrice.price);
     }
   } catch (e) {
     console.error('Erro ao atualizar preços de ativos:', e);
   }
 }
 
-// Atualizar preços de todos os ativos a cada 5 segundos
-setInterval(updateAllAssetPrices, 5000);
+// Atualizar preços de AMBOS os ativos a cada 3 segundos (mais frequente)
+setInterval(updateAllAssetPrices, 3000);
+// Executar uma vez imediatamente
+updateAllAssetPrices();
 
 setInterval(async function(){
   var t=await apiPrice(currentSym);
