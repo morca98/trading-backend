@@ -569,15 +569,28 @@ async function cmdScan() {
         const now = Date.now();
         if (now - (lastSignalTime[r.symbol] || 0) >= SIGNAL_COOLDOWN) {
           lastSignalTime[r.symbol] = now;
+          const tp1PriceScan = s.useTP1 ? (s.signal === 'BUY' ? s.price * (1 + s.tp1Pct/100) : s.price * (1 - s.tp1Pct/100)) : null;
           tradeHistory.push({
             time: now,
             date: new Date().toLocaleDateString('pt-PT'),
             symbol: r.symbol,
             signal: s.signal,
+            entry: s.price,
             price: s.price,
             sl: s.sl,
             tp: s.tp,
+            tp1: tp1PriceScan,
+            slPct: s.slPct,
+            tpPct: s.tpPct,
+            tp1Pct: s.tp1Pct,
+            useTP1: s.useTP1,
+            positionSize: s.positionSize,
             conf: s.conf,
+            macroTrend: s.macroTrend,
+            trend15m: s.trend15m,
+            rsi: s.rsi,
+            adx: s.adx,
+            atr: s.atr,
             outcome: 'OPEN',
             pnl: 0
           });
@@ -787,16 +800,29 @@ async function runBot() {
         lastSignal[r.symbol] = s;
 
         // Persistência: Adicionar ao histórico e guardar em ficheiro
+        const tp1Price = s.useTP1 ? (s.signal === 'BUY' ? s.price * (1 + s.tp1Pct/100) : s.price * (1 - s.tp1Pct/100)) : null;
         tradeHistory.push({
           time: now,
           date: new Date().toLocaleDateString('pt-PT'),
           symbol: r.symbol,
           signal: s.signal,
+          entry: s.price,
           price: s.price,
           sl: s.sl,
           tp: s.tp,
+          tp1: tp1Price,
+          slPct: s.slPct,
+          tpPct: s.tpPct,
+          tp1Pct: s.tp1Pct,
+          useTP1: s.useTP1,
+          positionSize: s.positionSize,
           conf: s.conf,
-          outcome: 'OPEN', // Sinal enviado, aguardando resultado
+          macroTrend: s.macroTrend,
+          trend15m: s.trend15m,
+          rsi: s.rsi,
+          adx: s.adx,
+          atr: s.atr,
+          outcome: 'OPEN',
           pnl: 0
         });
         saveTrades();

@@ -118,7 +118,41 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 .fadein{animation:fadein .35s ease}
 @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .footer{text-align:center;padding:14px 0;font-size:8px;color:var(--border2);letter-spacing:2px}
-@media(max-width:480px){.g4{grid-template-columns:1fr 1fr}.atexts,.tboxes{grid-template-columns:1fr 1fr}.price-main{font-size:30px}.chart-wrap{grid-template-columns:1fr 44px}}
+/* Signal Card Styles */
+.sig-card{background:var(--bg3);border:1px solid var(--border2);border-radius:2px;padding:12px;margin-bottom:8px;position:relative;overflow:hidden}
+.sig-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.sig-card.buy::before{background:var(--green)}
+.sig-card.sell::before{background:var(--red)}
+.sig-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px}
+.sig-asset{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--text)}
+.sig-type{font-size:9px;letter-spacing:2px;padding:3px 8px;border-radius:2px;font-weight:700}
+.sig-type.buy{color:var(--green);background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.3)}
+.sig-type.sell{color:var(--red);background:rgba(255,61,87,.1);border:1px solid rgba(255,61,87,.3)}
+.sig-time{font-size:8px;color:var(--muted);letter-spacing:1px}
+.sig-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.sig-box{background:var(--bg2);border:1px solid var(--border);border-radius:2px;padding:7px;text-align:center}
+.sig-box-lbl{font-size:7px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;text-transform:uppercase}
+.sig-box-val{font-size:11px;font-weight:700;letter-spacing:.5px}
+.sig-box-val.green{color:var(--green)}
+.sig-box-val.red{color:var(--red)}
+.sig-box-val.cyan{color:var(--cyan)}
+.sig-box-val.yellow{color:var(--yellow)}
+.sig-indicators{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.sig-ind{font-size:8px;padding:2px 7px;border-radius:2px;border:1px solid var(--border);color:var(--muted)}
+/* Trade History Table */
+.trade-table{width:100%;border-collapse:collapse}
+.trade-table th{font-size:7px;color:var(--muted);letter-spacing:1px;padding:5px 4px;text-align:left;border-bottom:1px solid var(--border2);white-space:nowrap}
+.trade-table td{font-size:9px;padding:6px 4px;border-bottom:1px solid var(--border);vertical-align:middle}
+.trade-table tr:last-child td{border-bottom:none}
+.trade-table tr:hover td{background:rgba(255,255,255,.02)}
+.trade-badge{display:inline-block;padding:2px 6px;border-radius:2px;font-size:7px;letter-spacing:1px;font-weight:700}
+.trade-badge.buy{color:var(--green);background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.25)}
+.trade-badge.sell{color:var(--red);background:rgba(255,61,87,.1);border:1px solid rgba(255,61,87,.25)}
+.trade-badge.open{color:var(--muted);background:rgba(74,96,128,.1);border:1px solid rgba(74,96,128,.25)}
+.trade-badge.win{color:var(--green);background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.25)}
+.trade-badge.loss{color:var(--red);background:rgba(255,61,87,.1);border:1px solid rgba(255,61,87,.25)}
+.asset-badge{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px}
+@media(max-width:480px){.g4{grid-template-columns:1fr 1fr}.atexts,.tboxes{grid-template-columns:1fr 1fr}.price-main{font-size:30px}.chart-wrap{grid-template-columns:1fr 44px}.sig-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body class="dark-bg" id="body">
@@ -261,17 +295,39 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 
 <!-- PERFORMANCE -->
 <div class="tab-content" id="tab-perf">
-  <div class="g4">
+  <!-- Stats Row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
     <div class="stat c-green"><div class="stat-val" id="pWR">--%</div><div class="stat-lbl">WIN RATE</div></div>
     <div class="stat c-purple"><div class="stat-val" id="pTotal">0</div><div class="stat-lbl">TRADES</div></div>
-    <div class="stat c-yellow"><div class="stat-val" id="pPnl">0%</div><div class="stat-lbl">P&L</div></div>
+    <div class="stat c-yellow"><div class="stat-val" id="pPnl">+0.0%</div><div class="stat-lbl">P&amp;L</div></div>
     <div class="stat c-cyan"><div class="stat-val" id="pActive">0</div><div class="stat-lbl">ATIVOS</div></div>
-    <div class="stat c-green"><div class="stat-val" id="pPF">--</div><div class="stat-lbl">PROFIT FACTOR</div></div>
   </div>
-  <div class="card"><div class="card-title">Curva de Capital</div><div id="perfChart"><div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">A carregar...</div></div></div>
-  <div class="card"><div class="card-title">Sinais do Dia</div><div id="dailySig"><div style="color:var(--muted);font-size:10px">A carregar...</div></div></div>
-  <div class="card"><div class="card-title">Histórico de Trades Reais</div><div id="tradeHistoryList"><div style="color:var(--muted);font-size:10px;text-align:center;padding:8px">A carregar...</div></div></div>
-  <button class="btn primary" onclick="loadPerf()">ATUALIZAR</button>
+  <div class="stat c-green" style="margin-bottom:10px"><div class="stat-val" id="pPF">0.00</div><div class="stat-lbl">PROFIT FACTOR</div></div>
+
+  <!-- Curva de Capital -->
+  <div class="card">
+    <div class="card-title">Curva de Capital</div>
+    <div id="perfChart"><div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">A carregar...</div></div>
+  </div>
+
+  <!-- Sinais do Dia -->
+  <div class="card">
+    <div class="card-title">Sinais do Dia</div>
+    <div id="dailySig"><div style="color:var(--muted);font-size:10px;text-align:center;padding:16px">Sem sinais hoje</div></div>
+  </div>
+
+  <!-- Historico de Trades -->
+  <div class="card">
+    <div class="card-title" style="justify-content:space-between">
+      <span>Histórico de Ordens</span>
+      <span id="tradeCount" style="font-size:8px;color:var(--muted)"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <div id="tradeHistoryList"><div style="color:var(--muted);font-size:10px;text-align:center;padding:8px">A carregar...</div></div>
+    </div>
+  </div>
+
+  <button class="btn primary" onclick="loadPerf()" style="width:100%;margin-top:4px">ATUALIZAR</button>
 </div>
 
   <!-- STRATEGY -->
@@ -754,7 +810,56 @@ async function runBacktest() {
   btn.disabled = false; btn.textContent = 'CORRER BACKTEST';
 }
 
-// ── Performance ───────────────────────────────────────────────────────────────
+// ── Performance ─────────────────────────────────────────────────────────────────────────────
+function fmtPrice(v, decimals) {
+  if (!v && v !== 0) return '--';
+  var d = decimals !== undefined ? decimals : (parseFloat(v) > 1000 ? 2 : parseFloat(v) > 10 ? 3 : 4);
+  return '$' + parseFloat(v).toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d});
+}
+function renderSignalCard(t) {
+  var isBuy = (t.signal === 'BUY');
+  var sym = (t.symbol || t.pair || 'UNKNOWN').replace('USDT','');
+  var dateObj = new Date(t.time);
+  var dt = isNaN(dateObj.getTime()) ? '--' : (dateObj.getDate()<10?'0':'')+dateObj.getDate()+'/'+(dateObj.getMonth()+1<10?'0':'')+(dateObj.getMonth()+1)+' '+(dateObj.getHours()<10?'0':'')+dateObj.getHours()+':'+(dateObj.getMinutes()<10?'0':'')+dateObj.getMinutes();
+  var entry = t.entry || t.price;
+  var tp1 = t.tp1 || null;
+  var tp2 = t.tp || null;
+  var sl = t.sl || null;
+  var posSize = t.positionSize ? '$' + Math.round(t.positionSize) : '--';
+  var conf = t.conf ? t.conf + '%' : '--';
+  var slPct = t.slPct ? parseFloat(t.slPct).toFixed(2) + '%' : '--';
+  var tpPct = t.tpPct ? parseFloat(t.tpPct).toFixed(2) + '%' : '--';
+  var tp1Pct = t.tp1Pct ? parseFloat(t.tp1Pct).toFixed(2) + '%' : '--';
+  var html = '<div class="sig-card ' + (isBuy ? 'buy' : 'sell') + ' fadein">';
+  html += '<div class="sig-header">';
+  html += '<div style="display:flex;align-items:center;gap:10px">';
+  html += '<span class="sig-asset">' + sym + '/USDT</span>';
+  html += '<span class="sig-type ' + (isBuy ? 'buy' : 'sell') + '">' + (isBuy ? 'LONG' : 'SHORT') + '</span>';
+  html += '</div><span class="sig-time">' + dt + '</span></div>';
+  html += '<div class="sig-grid">';
+  html += '<div class="sig-box"><div class="sig-box-lbl">ENTRADA</div><div class="sig-box-val cyan">' + fmtPrice(entry) + '</div></div>';
+  html += '<div class="sig-box"><div class="sig-box-lbl">STOP LOSS</div><div class="sig-box-val red">' + fmtPrice(sl) + '<br><span style="font-size:8px;color:var(--muted)">' + slPct + '</span></div></div>';
+  if (t.useTP1 && tp1) {
+    html += '<div class="sig-box"><div class="sig-box-lbl">TP1 (50%)</div><div class="sig-box-val green">' + fmtPrice(tp1) + '<br><span style="font-size:8px;color:var(--muted)">' + tp1Pct + '</span></div></div>';
+    html += '<div class="sig-box"><div class="sig-box-lbl">TP2 (FINAL)</div><div class="sig-box-val green">' + fmtPrice(tp2) + '<br><span style="font-size:8px;color:var(--muted)">' + tpPct + '</span></div></div>';
+  } else {
+    html += '<div class="sig-box"><div class="sig-box-lbl">TAKE PROFIT</div><div class="sig-box-val green">' + fmtPrice(tp2) + '<br><span style="font-size:8px;color:var(--muted)">' + tpPct + '</span></div></div>';
+    html += '<div class="sig-box"><div class="sig-box-lbl">TAMANHO</div><div class="sig-box-val yellow">' + posSize + '</div></div>';
+  }
+  html += '</div>';
+  if (t.useTP1) {
+    html += '<div style="margin-bottom:6px;padding:5px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:2px;font-size:8px;display:flex;justify-content:space-between">';
+    html += '<span style="color:var(--muted)">TAMANHO DA POSICAO</span><span style="color:var(--yellow)">' + posSize + ' &nbsp;(Risco 1%)</span></div>';
+  }
+  html += '<div class="sig-indicators">';
+  if (t.conf) html += '<span class="sig-ind" style="color:var(--accent)">CONF ' + conf + '</span>';
+  if (t.rsi) html += '<span class="sig-ind">RSI ' + parseFloat(t.rsi).toFixed(1) + '</span>';
+  if (t.adx) html += '<span class="sig-ind">ADX ' + parseFloat(t.adx).toFixed(1) + '</span>';
+  if (t.macroTrend) html += '<span class="sig-ind" style="color:' + (t.macroTrend.includes('BULL') ? 'var(--green)' : t.macroTrend.includes('BEAR') ? 'var(--red)' : 'var(--yellow)') + '">4H ' + t.macroTrend + '</span>';
+  if (t.trend15m) html += '<span class="sig-ind">15M ' + t.trend15m + '</span>';
+  html += '</div></div>';
+  return html;
+}
 async function loadPerf() {
   try {
     var r=await fetch(BACKEND+'/api/stats'),d=await r.json();
@@ -764,51 +869,76 @@ async function loadPerf() {
       document.getElementById('pTotal').textContent=d.total||0;
       document.getElementById('pPnl').textContent=(pnl>=0?'+':'')+pnl.toFixed(1)+'%'; document.getElementById('pPnl').style.color=pnl>=0?'var(--green)':'var(--red)';
       document.getElementById('pActive').textContent=d.activeTrades||0;
-      
       var pfEl=document.getElementById('pPF');
-      if(pfEl){
-        var pf = d.profitFactor || '0.00';
-        pfEl.textContent = pf;
-        pfEl.style.color = (pf === 'MAX' || parseFloat(pf) >= 1) ? 'var(--green)' : 'var(--red)';
+      if(pfEl){var pf=d.profitFactor||'0.00';pfEl.textContent=pf;pfEl.style.color=(pf==='MAX'||parseFloat(pf)>=1)?'var(--green)':'var(--red)';}
+      renderPerfChart(d.capitalCurve||[d.initialCapital||1000],d.initialCapital||1000);
+
+      // Sinais do Dia - cards detalhados com todos os dados da ordem
+      var hist=d.tradeHistory||[];
+      var today=new Date().toLocaleDateString('pt-PT');
+      var todaySigs=hist.filter(function(t){return new Date(t.time).toLocaleDateString('pt-PT')===today||t.date===today;});
+      var dailySigEl=document.getElementById('dailySig');
+      if(todaySigs.length){
+        var sigHtml='';
+        todaySigs.slice().reverse().forEach(function(t){sigHtml+=renderSignalCard(t);});
+        dailySigEl.innerHTML=sigHtml;
+      } else {
+        var lastSig=hist.length?hist[hist.length-1]:null;
+        if(lastSig){
+          dailySigEl.innerHTML='<div style="font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;padding:4px 0;border-bottom:1px solid var(--border)">ULTIMO SINAL REGISTADO</div>'+renderSignalCard(lastSig);
+        } else {
+          dailySigEl.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:16px">Sem sinais hoje</div>';
+        }
       }
 
-      renderPerfChart(d.capitalCurve||[d.initialCapital||1000], d.initialCapital||1000);
-      
-      var ds=''; 
-      var dr = d.dailyResults || {};
-      Object.keys(dr).forEach(function(sym){
-        var res=dr[sym]||[];
-        if(res.length){
-          var b=res.filter(function(r){return r.signal==='BUY';}).length;
-          ds+='<div class="lvl-row"><span>'+sym.replace('USDT','/USDT')+'</span><span style="color:var(--green)">'+b+'B</span><span style="color:var(--red)">'+(res.length-b)+'S</span><span style="color:var(--muted)">'+res.length+' total</span></div>';
-        }
-      });
-      document.getElementById('dailySig').innerHTML=ds||'<div style="color:var(--muted);font-size:10px">Sem sinais hoje</div>';
-
-      var hist=d.tradeHistory||[]; 
+      // Historico de Ordens - tabela profissional
       var hEl=document.getElementById('tradeHistoryList');
+      var tcEl=document.getElementById('tradeCount');
       if(hEl){
         if(!hist.length){
-          hEl.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:8px">Sem trades gravados</div>';
+          hEl.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:12px">Sem ordens registadas</div>';
+          if(tcEl)tcEl.textContent='';
         } else {
-          var rows=hist.slice().reverse().slice(0,20).map(function(t){
-            var dateObj = new Date(t.time);
-            var dt = isNaN(dateObj.getTime()) ? '--/-- --:--' : dateObj.toISOString().slice(5,16).replace('T',' ');
-            var outcome = t.outcome || 'OPEN';
-            var col = outcome === 'WIN' ? 'var(--green)' : outcome === 'LOSS' ? 'var(--red)' : 'var(--muted)';
-            var pnlVal = t.pnl || 0;
-            var pnlStr = outcome === 'OPEN' ? 'ABERTO' : (pnlVal >= 0 ? '+' : '') + pnlVal.toFixed(2) + '%';
-            var posStr = t.positionSize ? '$' + Math.round(t.positionSize) : '--';
-            var signal = t.signal || 'WAIT';
-            return '<div class="lvl-row" style="font-size:10px"><span style="color:var(--muted)">'+dt+'</span><span>'+(t.pair||'--')+'</span><span style="color:'+(signal==='BUY'?'var(--green)':'var(--red)')+'">'+signal+'</span><span style="color:var(--cyan)">'+posStr+'</span><span style="color:'+col+'">'+outcome+'</span><span style="color:'+col+'">'+pnlStr+'</span></div>';
+          var recent=hist.slice().reverse().slice(0,30);
+          if(tcEl)tcEl.textContent='ULTIMAS '+recent.length+' DE '+hist.length;
+          var tbl='<table class="trade-table"><thead><tr>';
+          tbl+='<th>DATA</th><th>ATIVO</th><th>TIPO</th><th>ENTRADA</th><th>SL</th><th>TP1</th><th>TP2</th><th>TAMANHO</th><th>ESTADO</th><th>P&amp;L</th>';
+          tbl+='</tr></thead><tbody>';
+          recent.forEach(function(t){
+            var do2=new Date(t.time);
+            var dt=isNaN(do2.getTime())?'--':(do2.getDate()<10?'0':'')+do2.getDate()+'/'+(do2.getMonth()+1<10?'0':'')+(do2.getMonth()+1)+' '+(do2.getHours()<10?'0':'')+do2.getHours()+':'+(do2.getMinutes()<10?'0':'')+do2.getMinutes();
+            var sym=(t.symbol||t.pair||'??').replace('USDT','');
+            var isBuy=(t.signal==='BUY');
+            var outcome=t.outcome||'OPEN';
+            var pnlVal=t.pnl||0;
+            var pnlStr=outcome==='OPEN'?'--':(pnlVal>=0?'+':'')+pnlVal.toFixed(2)+'%';
+            var pnlColor=outcome==='WIN'?'var(--green)':outcome==='LOSS'?'var(--red)':'var(--muted)';
+            var entry=t.entry||t.price;
+            var tp1=t.tp1||null;
+            var tp2=t.tp||null;
+            var sl=t.sl||null;
+            var posSize=t.positionSize?'$'+Math.round(t.positionSize):'--';
+            tbl+='<tr>';
+            tbl+='<td style="color:var(--muted);white-space:nowrap;font-size:8px">'+dt+'</td>';
+            tbl+='<td><span class="asset-badge">'+sym+'</span></td>';
+            tbl+='<td><span class="trade-badge '+(isBuy?'buy':'sell')+'">'+(isBuy?'LONG':'SHORT')+'</span></td>';
+            tbl+='<td style="color:var(--cyan)">'+fmtPrice(entry)+'</td>';
+            tbl+='<td style="color:var(--red)">'+fmtPrice(sl)+'</td>';
+            tbl+='<td style="color:var(--green)">'+(tp1?fmtPrice(tp1):'--')+'</td>';
+            tbl+='<td style="color:var(--green)">'+(tp2?fmtPrice(tp2):'--')+'</td>';
+            tbl+='<td style="color:var(--yellow)">'+posSize+'</td>';
+            tbl+='<td><span class="trade-badge '+outcome.toLowerCase()+'">'+outcome+'</span></td>';
+            tbl+='<td style="color:'+pnlColor+';font-weight:700">'+pnlStr+'</td>';
+            tbl+='</tr>';
           });
-          hEl.innerHTML=rows.join('');
+          tbl+='</tbody></table>';
+          hEl.innerHTML=tbl;
         }
       }
     }
-  } catch(e) { 
-    console.error('Erro na performance:', e);
-    document.getElementById('dailySig').innerHTML='<div style="color:var(--muted);font-size:10px">Erro ao carregar dados</div>'; 
+  } catch(e){
+    console.error('Erro na performance:',e);
+    document.getElementById('dailySig').innerHTML='<div style="color:var(--red);font-size:10px;text-align:center;padding:12px">Erro ao carregar dados. Verifique a ligacao ao servidor.</div>';
   }
 }
 
