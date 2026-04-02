@@ -991,7 +991,10 @@ async function checkAndCloseTrades() {
           continue;
         }
         
-        if (trade.signal === 'BUY') {
+        const isLong = trade.signal === 'BUY' || trade.signal === 'LONG';
+        const isShort = trade.signal === 'SELL' || trade.signal === 'SHORT';
+
+        if (isLong) {
           if (currentPrice <= sl) {
             shouldClose = true;
             closePrice = sl;
@@ -1001,7 +1004,7 @@ async function checkAndCloseTrades() {
             closePrice = tp;
             closeReason = 'TP';
           }
-        } else {
+        } else if (isShort) {
           if (currentPrice >= sl) {
             shouldClose = true;
             closePrice = sl;
