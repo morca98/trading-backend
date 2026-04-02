@@ -57,6 +57,7 @@ function saveStats(wins, losses, pnl) {
     winCount = wins;
     lossCount = losses;
     totalPnl = pnl;
+    console.log(`[Stats] Guardado: ${wins}W - ${losses}L | P&L: $${pnl.toFixed(2)}`);
   } catch(e) {
     console.error('[saveStats Error]:', e.message);
   }
@@ -1032,13 +1033,19 @@ async function checkAndCloseTrades() {
           trade.closedAt = new Date().toISOString();
           updated = true;
 
-          // Atualizar estatísticas globais
-          if (trade.outcome === 'WIN') winCount++; else lossCount++;
+          // Atualizar estatísticas globais (re-carregar para evitar concorrência)
+          const currentStats = loadStats();
+          let newWins = currentStats.wins;
+          let newLosses = currentStats.losses;
+          let newTotalPnl = currentStats.totalPnl;
+
+          if (trade.outcome === 'WIN') newWins++; else newLosses++;
           const pnlDollar = (trade.positionSize * trade.pnl) / 100;
-          totalPnl += pnlDollar;
-          saveStats(winCount, lossCount, totalPnl);
+          newTotalPnl += pnlDollar;
           
-          console.log(`[Server Monitor] ✓ FECHADO: ${trade.symbol} ${trade.outcome} (${trade.pnl}%)`);
+          saveStats(newWins, newLosses, newTotalPnl);
+          
+          console.log(`[Server Monitor] ✓ FECHADO: ${trade.symbol} ${trade.outcome} (${trade.pnl}%) - P&L: $${pnlDollar.toFixed(2)}`);
           
           // Notificar Telegram imediatamente
           try {
