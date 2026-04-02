@@ -22,8 +22,13 @@ const SIGNAL_COOLDOWN = 90 * 60 * 1000; // 90 minutos = 3 velas de 30m (igual ao
 // Limite de 1 sinal por dia removido para aumentar sinais
 // var lastSignalDateBuy = { BTCUSDT: '', ETHUSDT: '' };
 // var lastSignalDateSell = { BTCUSDT: '', ETHUSDT: '' };
-const STATS_FILE = process.env.STATS_FILE || '/tmp/stats.json';
-const TRADES_FILE = process.env.TRADES_FILE || '/tmp/trades.json';
+// Usar diretorio persistente: data/ (nao em /tmp que e volatil no Railway)
+const DATA_DIR = path.join(__dirname, 'data');
+if (!fs.existsSync(DATA_DIR)) {
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch(e) {}
+}
+const STATS_FILE = process.env.STATS_FILE || path.join(DATA_DIR, 'stats.json');
+const TRADES_FILE = process.env.TRADES_FILE || path.join(DATA_DIR, 'trades.json');
 const INITIAL_CAPITAL = 1000; // Capital inicial do bot
 
 var lastSignal = { BTCUSDT: null, ETHUSDT: null };
