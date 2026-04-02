@@ -922,6 +922,77 @@ async function notifyTradeResolved(trade) {
   await sendTelegram(msg);
 }
 
+// Funcao para fechar trades que atingem TP ou SL
+async function checkAndCloseTrades() {
+  try {
+    const trades = loadTradeHistory();
+    let updated = false;
+    
+    for (const trade of trades) {
+      if (trade.outcome !== 'OPEN') continue;
+      
+      const currentPrice = await getCurrentPrice(trade.symbol);
+      if (!currentPrice) continue;
+      
+      let shouldClose = false;
+      let closePrice = null;
+      let closeReason = null;
+      
+      if (trade.signal === 'BUY') {
+        if (currentPrice <= trade.sl) {
+          shouldClose = true;
+          closePrice = trade.sl;
+          closeReason = 'SL';
+        } else if (currentPrice >= trade.tp) {
+          shouldClose = true;
+          closePrice = trade.tp;
+          closeReason = 'TP';
+        }
+      } else {
+        if (currentPrice >= trade.sl) {
+          shouldClose = true;
+          closePrice = trade.sl;
+          closeReason = 'SL';
+        } else if (currentPrice <= trade.tp) {
+          shouldClose = true;
+          closePrice = trade.tp;
+          closeReason = 'TP';
+        }
+      }
+      
+      if (shouldClose) {
+        const pnl = trade.signal === 'BUY' 
+          ? ((closePrice - trade.entry) / trade.entry) * 100
+          : ((trade.entry - closePrice) / trade.entry) * 100;
+        
+        trade.outcome = pnl >= 0 ? 'WIN' : 'LOSS';
+        trade.pnl = parseFloat(pnl.toFixed(2));
+        trade.exitPrice = closePrice;
+        trade.closeReason = closeReason;
+        trade.closedAt = new Date().toISOString();
+        updated = true;
+      }
+    }
+    
+    if (updated) {
+      saveTradeHistory(trades);
+    }
+  } catch (e) {
+    console.error('[Check Trades Error]:', e.message);
+  }
+}
+
+async function getCurrentPrice(symbol) {
+  try {
+    const res = await axios.get(`${BINANCE_FUTURES}/ticker/price?symbol=${symbol}`);
+    return parseFloat(res.data.price);
+  } catch (e) {
+    return null;
+  }
+}
+
+setInterval(checkAndCloseTrades, 30 * 1000);
+
 // Monitorar trades resolvidos a cada 1 minuto
 setInterval(async function() {
   try {
