@@ -60,7 +60,12 @@ function loadTrades() {
 }
 
 function saveTrades() {
-  try { fs.writeFileSync(TRADES_FILE, JSON.stringify(tradeHistory)); }
+  try { 
+    fs.writeFileSync(TRADES_FILE, JSON.stringify(tradeHistory)); 
+  } catch(e) {
+    console.error('[saveTrades Error]:', e.message);
+  }
+}
 
 // Alias para loadTrades (compatibilidade com código que usa loadTradeHistory)
 function loadTradeHistory() {
@@ -72,7 +77,6 @@ function saveTradeHistory(trades) {
   tradeHistory = trades;
   saveTrades();
 }
- catch(e) {}
 }
 
 var stats = loadStats();
