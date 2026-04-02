@@ -1166,6 +1166,32 @@ setInterval(async function() {
   }
 }, 60 * 1000);
 
+app.post('/api/sync-trades', async function(req, res) {
+  try {
+    console.log('[Sync] Sincronização forçada de trades solicitada');
+    
+    // Executar fecho automático imediatamente
+    await forceCloseTrades();
+    
+    // Carregar e retornar histórico atualizado
+    const trades = loadTradeHistory();
+    const openTrades = trades.filter(t => t.outcome === 'OPEN');
+    const closedTrades = trades.filter(t => t.outcome !== 'OPEN');
+    
+    console.log(`[Sync] ✓ Sincronização concluída: ${openTrades.length} abertas, ${closedTrades.length} fechadas`);
+    
+    res.json({ 
+      success: true, 
+      openTrades: openTrades.length,
+      closedTrades: closedTrades.length,
+      tradeHistory: trades
+    });
+  } catch (e) {
+    console.error('[Sync Error]:', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 var PORT = process.env.PORT || 3001;
 app.listen(PORT, function() {
   console.log('Server porta ' + PORT);
