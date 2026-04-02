@@ -888,20 +888,14 @@ async function loadPerf() {
 
       // Ordens Abertas - cards detalhados com todos os dados da ordem
       var hist=d.tradeHistory||[];
-      var today=new Date().toLocaleDateString('pt-PT');
-      var todaySigs=hist.filter(function(t){return new Date(t.time).toLocaleDateString('pt-PT')===today||t.date===today;});
+      var openOrders=hist.filter(function(t){return t.outcome==='OPEN';});
       var dailySigEl=document.getElementById('dailySig');
-      if(todaySigs.length){
+      if(openOrders.length){
         var sigHtml='';
-        todaySigs.slice().reverse().forEach(function(t){sigHtml+=renderSignalCard(t);});
+        openOrders.slice().reverse().forEach(function(t){sigHtml+=renderSignalCard(t);});
         dailySigEl.innerHTML=sigHtml;
       } else {
-        var lastSig=hist.length?hist[hist.length-1]:null;
-        if(lastSig){
-          dailySigEl.innerHTML='<div style="font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;padding:4px 0;border-bottom:1px solid var(--border)">ULTIMO SINAL REGISTADO</div>'+renderSignalCard(lastSig);
-        } else {
-          dailySigEl.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:16px">Sem sinais hoje</div>';
-        }
+        dailySigEl.innerHTML='<div style="color:var(--muted);font-size:10px;text-align:center;padding:16px">Sem ordens abertas</div>';
       }
 
       // Historico de Ordens - tabela profissional
