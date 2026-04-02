@@ -997,7 +997,11 @@ async function checkAndCloseTrades() {
         updated = true;
 
         // Atualizar estatísticas globais
-        if (trade.outcome === 'WIN') winCount++; else lossCount++;
+        if (trade.outcome === 'WIN') {
+          winCount++;
+        } else {
+          lossCount++;
+        }
         const pnlDollar = (trade.positionSize * trade.pnl) / 100;
         totalPnl += pnlDollar;
         saveStats(winCount, lossCount, totalPnl);
@@ -1162,7 +1166,11 @@ async function forceCloseTrades() {
         trade.closedAt = new Date().toISOString();
 
         // Atualizar estatísticas globais
-        if (trade.outcome === 'WIN') winCount++; else lossCount++;
+        if (trade.outcome === 'WIN') {
+          winCount++;
+        } else {
+          lossCount++;
+        }
         const pnlDollar = (trade.positionSize * trade.pnl) / 100;
         totalPnl += pnlDollar;
         saveStats(winCount, lossCount, totalPnl);
