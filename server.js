@@ -987,9 +987,42 @@ async function getCurrentPrice(symbol) {
     const res = await axios.get(`${BINANCE_FUTURES}/ticker/price?symbol=${symbol}`);
     return parseFloat(res.data.price);
   } catch (e) {
+    console.error(`[Price Fetch Error ${symbol}]:`, e.message);
     return null;
   }
 }
+
+app.post('/api/close-trade', async function(req, res) {
+  try {
+    const { tradeIndex, exitPrice } = req.body;
+    const trades = loadTradeHistory();
+    
+    if (tradeIndex < 0 || tradeIndex >= trades.length) {
+      return res.status(400).json({ success: false, error: 'Trade not found' });
+    }
+    
+    const trade = trades[tradeIndex];
+    if (trade.outcome !== 'OPEN') {
+      return res.status(400).json({ success: false, error: 'Trade already closed' });
+    }
+    
+    const closePrice = exitPrice || (trade.signal === 'BUY' ? trade.tp : trade.tp);
+    const pnl = trade.signal === 'BUY' 
+      ? ((closePrice - trade.entry) / trade.entry) * 100
+      : ((trade.entry - closePrice) / trade.entry) * 100;
+    
+    trade.outcome = pnl >= 0 ? 'WIN' : 'LOSS';
+    trade.pnl = parseFloat(pnl.toFixed(2));
+    trade.exitPrice = closePrice;
+    trade.closedAt = new Date().toISOString();
+    
+    saveTradeHistory(trades);
+    
+    res.json({ success: true, trade: trade });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
 
 setInterval(checkAndCloseTrades, 30 * 1000);
 
