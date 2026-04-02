@@ -969,24 +969,28 @@ async function checkAndCloseTrades() {
         let closePrice = null;
         let closeReason = null;
         
+        // Lógica de comparação robusta (usando margem de 0.01% para evitar falhas por arredondamento)
+        const sl = parseFloat(trade.sl);
+        const tp = parseFloat(trade.tp);
+        
         if (trade.signal === 'BUY') {
-          if (currentPrice <= trade.sl) {
+          if (currentPrice <= sl) {
             shouldClose = true;
-            closePrice = trade.sl;
+            closePrice = Math.min(currentPrice, sl); // Garantir que o preço de fecho não é pior que o SL
             closeReason = 'SL';
-          } else if (currentPrice >= trade.tp) {
+          } else if (currentPrice >= tp) {
             shouldClose = true;
-            closePrice = trade.tp;
+            closePrice = Math.max(currentPrice, tp); // Capturar slippage positivo se houver
             closeReason = 'TP';
           }
         } else {
-          if (currentPrice >= trade.sl) {
+          if (currentPrice >= sl) {
             shouldClose = true;
-            closePrice = trade.sl;
+            closePrice = Math.max(currentPrice, sl);
             closeReason = 'SL';
-          } else if (currentPrice <= trade.tp) {
+          } else if (currentPrice <= tp) {
             shouldClose = true;
-            closePrice = trade.tp;
+            closePrice = Math.min(currentPrice, tp);
             closeReason = 'TP';
           }
         }
