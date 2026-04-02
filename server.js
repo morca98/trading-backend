@@ -881,6 +881,20 @@ async function notifyTradeResolved(trade) {
   const assetName = trade.symbol === 'BTCUSDT' ? 'BTC/USDT' : 'ETH/USDT';
   const tradeType = trade.signal === 'BUY' ? 'COMPRA (LONG)' : 'VENDA (SHORT)';
   
+  const trades = loadTradeHistory();
+  let currentCap = INITIAL_CAPITAL;
+  let totalPnlDollar = 0;
+  trades.forEach(t => {
+    if (t.outcome !== 'OPEN') {
+      const gainLoss = (t.positionSize * t.pnl) / 100;
+      totalPnlDollar += gainLoss;
+      currentCap += gainLoss;
+    }
+  });
+  
+  const capitalEmoji = currentCap >= INITIAL_CAPITAL ? '📈' : '📉';
+  const capitalStr = currentCap >= INITIAL_CAPITAL ? '+' : '';
+  
   const msg = 
     `*${emoji} — TRADE RESOLVIDO*\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
@@ -893,6 +907,9 @@ async function notifyTradeResolved(trade) {
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `${pnlEmoji} *Resultado: ${pnlStr}${trade.pnl.toFixed(2)}%*\n` +
     `💼 Tamanho: \`$${fmtNum(trade.positionSize, 0)}\`\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `${capitalEmoji} *Capital Atual: $${fmtNum(currentCap, 2)}*\n` +
+    `💵 *Lucro/Perda Total: ${capitalStr}$${fmtNum(Math.abs(totalPnlDollar), 2)}*\n` +
     `📅 Data: ${trade.date}\n\n` +
     `_Estratégia MORCA CRYPTO MASTER V1_`;
   
