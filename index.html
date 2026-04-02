@@ -1231,13 +1231,25 @@ async function updateAllAssetPrices() {
       apiPriceDirect('ETH/USDT').catch(e => { console.error('Erro ETH:', e); return null; })
     ]);
     
+    let pricesUpdated = false;
     if (btcPrice) {
       assetPrices['BTCUSDT'] = btcPrice.price;
       console.log('[Preços] BTC:', btcPrice.price);
+      pricesUpdated = true;
     }
     if (ethPrice) {
       assetPrices['ETHUSDT'] = ethPrice.price;
       console.log('[Preços] ETH:', ethPrice.price);
+      pricesUpdated = true;
+    }
+    
+    // Se preços foram atualizados, renderizar as ordens abertas e verificar fecho automático
+    if (pricesUpdated) {
+      // Renderizar os cards de ordens abertas com os novos preços
+      loadPerf();
+      
+      // Verificar fecho automático com os novos preços
+      checkOpenTradesWithGraphPrice();
     }
   } catch (e) {
     console.error('Erro ao atualizar preços de ativos:', e);

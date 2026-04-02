@@ -994,10 +994,18 @@ async function getCurrentPrice(symbol) {
 
 app.post('/api/close-trade', async function(req, res) {
   try {
-    const { tradeIndex, exitPrice } = req.body;
+    const { symbol, entry, exitPrice, closeReason, time } = req.body;
     const trades = loadTradeHistory();
     
-    if (tradeIndex < 0 || tradeIndex >= trades.length) {
+    // Encontrar o trade pelo símbolo, entrada e hora
+    const tradeIndex = trades.findIndex(t => 
+      t.outcome === 'OPEN' && 
+      t.symbol === symbol && 
+      Math.abs(t.entry - entry) < 0.01 &&
+      (t.time === time || !time)
+    );
+    
+    if (tradeIndex < 0) {
       return res.status(400).json({ success: false, error: 'Trade not found' });
     }
     
@@ -1015,8 +1023,12 @@ app.post('/api/close-trade', async function(req, res) {
     trade.pnl = parseFloat(pnl.toFixed(2));
     trade.exitPrice = closePrice;
     trade.closedAt = new Date().toISOString();
+    trade.closeReason = closeReason; // Guardar o motivo do fecho (TP2 ou SL)
     
     saveTradeHistory(trades);
+    
+    // Enviar notificação para o Telegram imediatamente
+    await notifyTradeResolved(trade);
     
     res.json({ success: true, trade: trade });
   } catch (e) {
