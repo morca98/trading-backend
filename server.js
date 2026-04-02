@@ -948,83 +948,90 @@ async function notifyTradeResolved(trade) {
 async function checkAndCloseTrades() {
   try {
     const trades = loadTradeHistory();
+    const openTrades = trades.filter(t => t.outcome === 'OPEN');
+    
+    if (openTrades.length === 0) return;
+    
+    console.log(`[Server Monitor] ${new Date().toISOString()} - Verificando ${openTrades.length} trades abertos`);
+    
     let updated = false;
-    
-    console.log(`[Server Monitor] Verificando ${trades.filter(t => t.outcome === 'OPEN').length} trades abertos`)
-    
-    for (const trade of trades) {
-      if (trade.outcome !== 'OPEN') continue;
-      
-      const currentPrice = await getCurrentPrice(trade.symbol);
-      if (!currentPrice) continue;
-      
-      let shouldClose = false;
-      let closePrice = null;
-      let closeReason = null;
-      
-      if (trade.signal === 'BUY') {
-        if (currentPrice <= trade.sl) {
-          shouldClose = true;
-          closePrice = trade.sl;
-          closeReason = 'SL';
-        } else if (currentPrice >= trade.tp) {
-          shouldClose = true;
-          closePrice = trade.tp;
-          closeReason = 'TP';
+    for (const trade of openTrades) {
+      try {
+        const currentPrice = await getCurrentPrice(trade.symbol);
+        if (!currentPrice) {
+          console.log(`[Server Monitor] Falha ao obter preço para ${trade.symbol}`);
+          continue;
         }
-      } else {
-        if (currentPrice >= trade.sl) {
-          shouldClose = true;
-          closePrice = trade.sl;
-          closeReason = 'SL';
-        } else if (currentPrice <= trade.tp) {
-          shouldClose = true;
-          closePrice = trade.tp;
-          closeReason = 'TP';
-        }
-      }
-      
-      if (shouldClose) {
-        const pnl = trade.signal === 'BUY' 
-          ? ((closePrice - trade.entry) / trade.entry) * 100
-          : ((trade.entry - closePrice) / trade.entry) * 100;
         
-        trade.outcome = pnl >= 0 ? 'WIN' : 'LOSS';
-        trade.pnl = parseFloat(pnl.toFixed(2));
-        trade.exitPrice = closePrice;
-        trade.closeReason = closeReason;
-        trade.closedAt = new Date().toISOString();
-        updated = true;
-
-        // Atualizar estatísticas globais
-        if (trade.outcome === 'WIN') {
-          winCount++;
+        console.log(`[Server Monitor] ${trade.symbol} ${trade.signal} - Atual: $${currentPrice} | SL: $${trade.sl} | TP: $${trade.tp}`);
+        
+        let shouldClose = false;
+        let closePrice = null;
+        let closeReason = null;
+        
+        if (trade.signal === 'BUY') {
+          if (currentPrice <= trade.sl) {
+            shouldClose = true;
+            closePrice = trade.sl;
+            closeReason = 'SL';
+          } else if (currentPrice >= trade.tp) {
+            shouldClose = true;
+            closePrice = trade.tp;
+            closeReason = 'TP';
+          }
         } else {
-          lossCount++;
+          if (currentPrice >= trade.sl) {
+            shouldClose = true;
+            closePrice = trade.sl;
+            closeReason = 'SL';
+          } else if (currentPrice <= trade.tp) {
+            shouldClose = true;
+            closePrice = trade.tp;
+            closeReason = 'TP';
+          }
         }
-        const pnlDollar = (trade.positionSize * trade.pnl) / 100;
-        totalPnl += pnlDollar;
-        saveStats(winCount, lossCount, totalPnl);
         
-        console.log(`[Server Monitor] ✓ FECHANDO ${trade.symbol} em ${closeReason} - Preço: ${currentPrice}, Fecho: ${closePrice}`);
+        if (shouldClose) {
+          console.log(`[Server Monitor] !!! CONDIÇÃO DE FECHO DETETADA: ${trade.symbol} em ${closeReason} !!!`);
+          
+          const pnl = trade.signal === 'BUY' 
+            ? ((closePrice - trade.entry) / trade.entry) * 100
+            : ((trade.entry - closePrice) / trade.entry) * 100;
+          
+          trade.outcome = pnl >= 0 ? 'WIN' : 'LOSS';
+          trade.pnl = parseFloat(pnl.toFixed(2));
+          trade.exitPrice = closePrice;
+          trade.closeReason = closeReason;
+          trade.closedAt = new Date().toISOString();
+          updated = true;
+
+          // Atualizar estatísticas globais
+          if (trade.outcome === 'WIN') winCount++; else lossCount++;
+          const pnlDollar = (trade.positionSize * trade.pnl) / 100;
+          totalPnl += pnlDollar;
+          saveStats(winCount, lossCount, totalPnl);
+          
+          console.log(`[Server Monitor] ✓ FECHADO: ${trade.symbol} ${trade.outcome} (${trade.pnl}%)`);
+          
+          // Notificar Telegram imediatamente
+          try {
+            await notifyTradeResolved(trade);
+            trade.notifiedTelegram = true;
+          } catch (telErr) {
+            console.error(`[Server Monitor] Erro ao notificar Telegram:`, telErr.message);
+          }
+        }
+      } catch (tradeErr) {
+        console.error(`[Server Monitor] Erro ao processar trade ${trade.symbol}:`, tradeErr.message);
       }
     }
     
     if (updated) {
       saveTradeHistory(trades);
-      console.log(`[Server Monitor] ✓ ${trades.filter(t => t.outcome !== 'OPEN').length} trades fechados`);
-      
-      // Enviar notificações para Telegram dos trades fechados
-      for (const trade of trades) {
-        if (trade.outcome !== 'OPEN' && !trade.notifiedTelegram) {
-          await notifyTradeResolved(trade);
-          trade.notifiedTelegram = true;
-        }
-      }
-      saveTradeHistory(trades);
+      console.log(`[Server Monitor] Histórico de trades atualizado e guardado.`);
     }
   } catch (e) {
-    console.error('[Check Trades Error]:', e.message);
+    console.error('[Server Monitor Global Error]:', e.message);
   }
 }
 
@@ -1108,132 +1115,21 @@ app.post('/api/close-trade', async function(req, res) {
 });
 
 
-// Função de fecho "Brute Force" - força o fecho se preço ultrapassou alvo
-async function forceCloseTrades() {
-  try {
-    const trades = loadTradeHistory();
-    const openTrades = trades.filter(t => t.outcome === 'OPEN');
-    
-    if (openTrades.length === 0) return;
-    
-    console.log(`[Force Close] Verificando ${openTrades.length} trades...`);
-    
-    for (const trade of openTrades) {
-      const price = await getCurrentPrice(trade.symbol);
-      if (!price) continue;
-      
-      const tp = parseFloat(trade.tp);
-      const sl = parseFloat(trade.sl);
-      const isBuy = trade.signal === 'BUY';
-      
-      console.log(`[Force Close] ${trade.symbol} ${trade.signal} - Preço: ${price}, TP: ${tp}, SL: ${sl}`);
-      
-      let shouldClose = false;
-      let closePrice = null;
-      let closeReason = null;
-      
-      if (isBuy) {
-        if (price >= tp) {
-          shouldClose = true;
-          closePrice = tp;
-          closeReason = 'TP';
-        } else if (price <= sl) {
-          shouldClose = true;
-          closePrice = sl;
-          closeReason = 'SL';
-        }
-      } else {
-        if (price <= tp) {
-          shouldClose = true;
-          closePrice = tp;
-          closeReason = 'TP';
-        } else if (price >= sl) {
-          shouldClose = true;
-          closePrice = sl;
-          closeReason = 'SL';
-        }
-      }
-      
-      if (shouldClose) {
-        console.log(`[Force Close] ✓ FECHANDO ${trade.symbol} em ${closeReason}!`);
-        
-        const pnl = isBuy 
-          ? ((closePrice - trade.entry) / trade.entry) * 100
-          : ((trade.entry - closePrice) / trade.entry) * 100;
-        
-        trade.outcome = pnl >= 0 ? 'WIN' : 'LOSS';
-        trade.pnl = parseFloat(pnl.toFixed(2));
-        trade.exitPrice = closePrice;
-        trade.closeReason = closeReason;
-        trade.closedAt = new Date().toISOString();
-
-        // Atualizar estatísticas globais
-        if (trade.outcome === 'WIN') {
-          winCount++;
-        } else {
-          lossCount++;
-        }
-        const pnlDollar = (trade.positionSize * trade.pnl) / 100;
-        totalPnl += pnlDollar;
-        saveStats(winCount, lossCount, totalPnl);
-        
-        // Enviar notificação Telegram
-        await notifyTradeResolved(trade);
-        trade.notifiedTelegram = true;
-      }
-    }
-    
-    // Guardar trades atualizados
-    const updatedTrades = trades.filter(t => t.outcome === 'OPEN').length < openTrades.length;
-    if (updatedTrades) {
-      saveTradeHistory(trades);
-      console.log(`[Force Close] ✓ Trades guardados`);
-    }
-  } catch (e) {
-    console.error('[Force Close Error]:', e.message);
-  }
-}
-
-// Executar força de fecho a cada 10 segundos
-setInterval(forceCloseTrades, 10 * 1000);
-
-// Executar verificação de fecho a cada 10 segundos (mais agressivo)
+// Monitorização robusta de trades a cada 10 segundos
 setInterval(checkAndCloseTrades, 10 * 1000);
-
-// Monitorar trades resolvidos a cada 1 minuto
-setInterval(async function() {
-  try {
-    const trades = loadTradeHistory();
-    for (const trade of trades) {
-      if (trade.outcome !== 'OPEN' && !trade.notifiedTelegram) {
-        await notifyTradeResolved(trade);
-        trade.notifiedTelegram = true;
-        saveTradeHistory(trades);
-      }
-    }
-  } catch (e) {
-    console.error('[Trade Monitor Error]:', e.message);
-  }
-}, 60 * 1000);
 
 app.post('/api/sync-trades', async function(req, res) {
   try {
-    console.log('[Sync] Sincronização forçada de trades solicitada');
+    console.log('[Sync] Sincronização de trades solicitada');
     
-    // Executar fecho automático imediatamente
-    await forceCloseTrades();
+    // Executar verificação imediata
+    await checkAndCloseTrades();
     
-    // Carregar e retornar histórico atualizado
     const trades = loadTradeHistory();
-    const openTrades = trades.filter(t => t.outcome === 'OPEN');
-    const closedTrades = trades.filter(t => t.outcome !== 'OPEN');
-    
-    console.log(`[Sync] ✓ Sincronização concluída: ${openTrades.length} abertas, ${closedTrades.length} fechadas`);
-    
     res.json({ 
       success: true, 
-      openTrades: openTrades.length,
-      closedTrades: closedTrades.length,
+      openTrades: trades.filter(t => t.outcome === 'OPEN').length,
+      closedTrades: trades.filter(t => t.outcome !== 'OPEN').length,
       tradeHistory: trades
     });
   } catch (e) {
