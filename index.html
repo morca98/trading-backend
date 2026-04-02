@@ -781,12 +781,15 @@ async function runBacktest() {
         var exit = parseFloat(t.exit || t.exitPrice || 0).toFixed(0);
         var pnl = parseFloat(t.pnl || 0).toFixed(1);
         var posSize = t.positionSize ? Math.round(t.positionSize) : '--';
+        var assetSymbol = t.symbol === 'BTCUSDT' ? 'BTC' : 'ETH';
+        var posInAsset = t.positionSize && t.entry ? (t.positionSize / t.entry).toFixed(6) : '--';
+        var posSizeStr = posSize !== '--' ? posSize + ' (' + posInAsset + ' ' + assetSymbol + ')' : '--';
         html+='<div class="bt-trade-row '+(isW?'bt-win':'bt-loss')+'">'
           +'<span style="color:var(--muted)">'+date+'</span>'
-          +'<span style="color:'+(t.signal==='BUY'?'var(--green)':'var(--red)')+'">'+(t.signal==='BUY'?'&#9650;':'&#9660;')+' '+t.signal+'</span>'
+          +'<span style="color:'+(t.signal==='BUY'?'var(--green)':'var(--red)')+'">\''+(t.signal==='BUY'?'&#9650;':'&#9660;')+' '+t.signal+'</span>'
           +'<span>$'+entry+'</span>'
           +'<span>$'+exit+'</span>'
-          +'<span style="color:var(--cyan)">$'+posSize+'</span>'
+          +'<span style="color:var(--cyan)">$'+posSizeStr+'</span>'
           +'<span>'+(parseFloat(t.pnl||0)>=0?'+':'')+pnl+'</span>'
           +'</div>';
       });
@@ -825,7 +828,9 @@ function renderSignalCard(t) {
   var tp1 = t.tp1 || null;
   var tp2 = t.tp || null;
   var sl = t.sl || null;
-  var posSize = t.positionSize ? '$' + Math.round(t.positionSize) : '--';
+  var assetSymbol = (t.symbol || 'BTCUSDT') === 'BTCUSDT' ? 'BTC' : 'ETH';
+  var posInAsset = t.positionSize && entry ? (t.positionSize / entry).toFixed(6) : '--';
+  var posSize = t.positionSize ? '$' + Math.round(t.positionSize) + ' (' + posInAsset + ' ' + assetSymbol + ')' : '--';
   var conf = t.conf ? t.conf + '%' : '--';
   var slPct = t.slPct ? parseFloat(t.slPct).toFixed(2) + '%' : '--';
   var tpPct = t.tpPct ? parseFloat(t.tpPct).toFixed(2) + '%' : '--';
@@ -917,7 +922,9 @@ async function loadPerf() {
             var tp1=t.tp1||null;
             var tp2=t.tp||null;
             var sl=t.sl||null;
-            var posSize=t.positionSize?'$'+Math.round(t.positionSize):'--';
+            var assetSymbol=(t.symbol||'BTCUSDT')==='BTCUSDT'?'BTC':'ETH';
+            var posInAsset=t.positionSize&&entry?(t.positionSize/entry).toFixed(6):'--';
+            var posSize=t.positionSize?'$'+Math.round(t.positionSize)+' ('+posInAsset+' '+assetSymbol+')':'--';
             tbl+='<tr>';
             tbl+='<td style="color:var(--muted);white-space:nowrap;font-size:8px">'+dt+'</td>';
             tbl+='<td><span class="asset-badge">'+sym+'</span></td>';
