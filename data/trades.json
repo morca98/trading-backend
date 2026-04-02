@@ -52,5 +52,29 @@
     "exitPrice": 66735.44,
     "closedAt": "2026-04-02T10:00:00.000Z",
     "notifiedTelegram": true
+  },
+  {
+    "time": 1743597660000,
+    "date": "02/04/2026",
+    "symbol": "BTCUSDT",
+    "signal": "SELL",
+    "entry": 66209.43,
+    "price": 66209.43,
+    "sl": 66864.75,
+    "tp": 64571.14,
+    "tp1": null,
+    "slPct": "0.99",
+    "tpPct": "2.47",
+    "tp1Pct": "0.99",
+    "useTP1": false,
+    "positionSize": 1025,
+    "conf": 85,
+    "macroTrend": "BEAR",
+    "trend15m": "DOWN",
+    "rsi": "36.6",
+    "adx": "42.5",
+    "atr": "662.09",
+    "outcome": "OPEN",
+    "pnl": 0
   }
 ]
