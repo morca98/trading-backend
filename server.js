@@ -42,6 +42,8 @@ function loadStats() {
   try {
     if (fs.existsSync(STATS_FILE)) {
       var data = JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'));
+      // Se o totalPnl for muito pequeno (ex: < 100), pode ser que ainda esteja em percentagem do código antigo
+      // Mas vamos assumir que o utilizador quer dólares agora.
       return { wins: data.wins || 0, losses: data.losses || 0, totalPnl: data.totalPnl || 0 };
     }
   } catch(e) {}
@@ -523,7 +525,10 @@ async function cmdTrades() {
     const emoji = t.outcome === 'WIN' ? '✅' : t.outcome === 'LOSS' ? '❌' : '⏳';
     msg += `${emoji} *${t.symbol}* @ \`$${fmtNum(t.entry, 2)}\`\n`;
     msg += `   SL: \`$${fmtNum(t.sl, 2)}\` | TP: \`$${fmtNum(t.tp, 2)}\`\n`;
-    if (t.pnl !== undefined) msg += `   P&L: ${t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(2)}%\n`;
+    if (t.pnl !== undefined) {
+      const pnlDollar = (t.positionSize * t.pnl) / 100;
+      msg += `   P&L: ${t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(2)}% (${t.pnl >= 0 ? '+' : ''}$${pnlDollar.toFixed(2)})\n`;
+    }
     msg += '\n';
   }
   await sendTelegram(msg);
@@ -541,12 +546,12 @@ async function cmdStats() {
   const msg =
     '📊 *Estatísticas de Performance*\n' +
     '━━━━━━━━━━━━━━━━━━━━\n' +
-    `📋 Total de trades: *${total}*\n` +
+    `📊 Total de trades: *${total}*\n` +
     `${wrEmoji} Win Rate: *${winRate}%*\n` +
     `✅ Ganhos: *${winCount}* | ❌ Perdas: *${lossCount}*\n` +
     `⏳ Em aberto: *${Object.keys(activeTrades).length}*\n` +
     '━━━━━━━━━━━━━━━━━━━━\n' +
-    `${pnlEmoji} P&L Total: *${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}%*\n` +
+    `${pnlEmoji} P&L Total: *${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}*\n` +
     `⚡ Profit Factor: *${pf}*\n` +
     `💰 Capital Atual: *$${fmtNum(capital, 2)}*\n` +
     `💵 Capital Inicial: *$${fmtNum(INITIAL_CAPITAL, 2)}*`;
@@ -926,7 +931,7 @@ async function notifyTradeResolved(trade) {
     `🛑 Stop Loss: \`$${fmtNum(trade.sl, 2)}\` (${trade.slPct}%)\n` +
     `🎯 Take Profit: \`$${fmtNum(trade.tp, 2)}\` (${trade.tpPct}%)\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
-    `${pnlEmoji} *Resultado: ${pnlStr}${trade.pnl.toFixed(2)}%*\n` +
+    `${pnlEmoji} *Resultado: ${pnlStr}${trade.pnl.toFixed(2)}% (${pnlStr}$${((trade.positionSize * trade.pnl) / 100).toFixed(2)})*\n` +
     `💼 Tamanho: \`${positionStr}\`\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `${capitalEmoji} *Capital Atual: $${fmtNum(currentCap, 2)}*\n` +
@@ -988,6 +993,12 @@ async function checkAndCloseTrades() {
         trade.closeReason = closeReason;
         trade.closedAt = new Date().toISOString();
         updated = true;
+
+        // Atualizar estatísticas globais
+        if (trade.outcome === 'WIN') winCount++; else lossCount++;
+        const pnlDollar = (trade.positionSize * trade.pnl) / 100;
+        totalPnl += pnlDollar;
+        saveStats(winCount, lossCount, totalPnl);
         
         console.log(`[Server Monitor] ✓ FECHANDO ${trade.symbol} em ${closeReason} - Preço: ${currentPrice}, Fecho: ${closePrice}`);
       }
@@ -1062,6 +1073,12 @@ app.post('/api/close-trade', async function(req, res) {
     trade.exitPrice = closePrice;
     trade.closedAt = new Date().toISOString();
     trade.closeReason = closeReason;
+
+    // Atualizar estatísticas globais
+    if (trade.outcome === 'WIN') winCount++; else lossCount++;
+    const pnlDollar = (trade.positionSize * trade.pnl) / 100;
+    totalPnl += pnlDollar;
+    saveStats(winCount, lossCount, totalPnl);
     
     console.log(`[Close Trade] ✓ Fechando: ${trade.symbol} ${trade.outcome} (${trade.pnl}%)`);
     
@@ -1141,6 +1158,12 @@ async function forceCloseTrades() {
         trade.exitPrice = closePrice;
         trade.closeReason = closeReason;
         trade.closedAt = new Date().toISOString();
+
+        // Atualizar estatísticas globais
+        if (trade.outcome === 'WIN') winCount++; else lossCount++;
+        const pnlDollar = (trade.positionSize * trade.pnl) / 100;
+        totalPnl += pnlDollar;
+        saveStats(winCount, lossCount, totalPnl);
         
         // Enviar notificação Telegram
         await notifyTradeResolved(trade);

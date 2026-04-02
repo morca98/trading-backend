@@ -912,7 +912,7 @@ async function loadPerf() {
           var recent=hist.slice().reverse().slice(0,30);
           if(tcEl)tcEl.textContent='ULTIMAS '+recent.length+' DE '+hist.length;
           var tbl='<table class="trade-table"><thead><tr>';
-          tbl+='<th>DATA</th><th>ATIVO</th><th>TIPO</th><th>ENTRADA</th><th>SL</th><th>TP1</th><th>TP2</th><th>TAMANHO</th><th>ESTADO</th><th>P&amp;L</th>';
+          tbl+='<th>DATA</th><th>ATIVO</th><th>TIPO</th><th>ENTRADA</th><th>SL</th><th>TP1</th><th>TP2</th><th>TAMANHO</th><th>ESTADO</th><th>P&amp;L %</th><th>P&amp;L $</th>';
           tbl+='</tr></thead><tbody>';
           recent.forEach(function(t){
             var dt = t.date || '--';
@@ -921,6 +921,8 @@ async function loadPerf() {
             var outcome=t.outcome||'OPEN';
             var pnlVal=t.pnl||0;
             var pnlStr=outcome==='OPEN'?'--':(pnlVal>=0?'+':'')+pnlVal.toFixed(2)+'%';
+            var pnlDollarVal=(t.positionSize * pnlVal) / 100;
+            var pnlDollarStr=outcome==='OPEN'?'--':(pnlDollarVal>=0?'+':'')+'$'+Math.abs(pnlDollarVal).toFixed(2);
             var pnlColor=outcome==='WIN'?'var(--green)':outcome==='LOSS'?'var(--red)':'var(--muted)';
             var entry=t.entry||t.price;
             var tp1=t.tp1||null;
@@ -940,6 +942,7 @@ async function loadPerf() {
             tbl+='<td style="color:var(--yellow)">'+posSize+'</td>';
             tbl+='<td><span class="trade-badge '+outcome.toLowerCase()+'">'+outcome+'</span></td>';
             tbl+='<td style="color:'+pnlColor+';font-weight:700">'+pnlStr+'</td>';
+            tbl+='<td style="color:'+pnlColor+';font-weight:700">'+pnlDollarStr+'</td>';
             tbl+='</tr>';
           });
           tbl+='</tbody></table>';
