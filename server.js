@@ -356,15 +356,16 @@ app.get('/api/liqmap', async function(req, res) {
 });
 
 app.get('/api/stats', function(req, res) {
+  const trades = loadTradeHistory();
   const totalClosed = winCount + lossCount;
-  const totalOpen = tradeHistory.filter(t => t.outcome === 'OPEN').length;
-  const total = tradeHistory.length; // Total de todos os trades (abertos + fechados)
+  const totalOpen = trades.filter(t => t.outcome === 'OPEN').length;
+  const total = trades.length; // Total de todos os trades (abertos + fechados)
   const winRate = totalClosed > 0 ? Math.round((winCount / totalClosed) * 100) : 0;
   
   // Calcular curva de capital a partir do histórico de trades
   let currentCap = INITIAL_CAPITAL;
   const capitalCurve = [currentCap];
-  tradeHistory.forEach(t => {
+  trades.forEach(t => {
     if (t.outcome !== 'OPEN') {
       // Assumindo risco fixo ou pnl percentual sobre o capital
       currentCap += (currentCap * (t.pnl / 100));
@@ -373,8 +374,8 @@ app.get('/api/stats', function(req, res) {
   });
 
   // Calcular Profit Factor
-  const grossProfit = tradeHistory.filter(t => t.pnl > 0).reduce((s, t) => s + t.pnl, 0);
-  const grossLoss = Math.abs(tradeHistory.filter(t => t.pnl < 0).reduce((s, t) => s + t.pnl, 0));
+  const grossProfit = trades.filter(t => t.pnl > 0).reduce((s, t) => s + t.pnl, 0);
+  const grossLoss = Math.abs(trades.filter(t => t.pnl < 0).reduce((s, t) => s + t.pnl, 0));
   const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : grossProfit > 0 ? 'MAX' : '0.00';
 
   res.json({
@@ -391,7 +392,7 @@ app.get('/api/stats', function(req, res) {
     currentCapital: Math.round(currentCap),
     capitalCurve: capitalCurve,
     dailyResults: dailyResults,
-    tradeHistory: tradeHistory.slice(-50) // Enviar os últimos 50 trades
+    tradeHistory: trades.slice(-50) // Enviar os últimos 50 trades
   });
 });
 
@@ -486,7 +487,7 @@ async function cmdStatus() {
     `⚙️ Risco/trade: 1%\n` +
     `📋 Símbolos: ${SYMBOLS.join(', ')}\n` +
     `🔄 Scan: cada 5 minutos\n` +
-    `📈 Sinais hoje: ${tradeHistory.filter(t => t.date === new Date().toLocaleDateString('pt-PT')).length}\n` +
+    `📈 Sinais hoje: ${loadTradeHistory().filter(t => t.date === new Date().toLocaleDateString('pt-PT')).length}\n` +
     `🏆 Win Rate: ${winRate}% (${winCount}W / ${lossCount}L)\n` +
     `💹 P&L Total: ${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}%\n\n` +
     '*Comandos disponíveis:*\n' +
@@ -526,11 +527,12 @@ async function cmdPrice() {
 }
 
 async function cmdTrades() {
-  if (!tradeHistory || tradeHistory.length === 0) {
+  const trades = loadTradeHistory();
+  if (!trades || trades.length === 0) {
     await sendTelegram('Nenhum sinal registado ainda.');
     return;
   }
-  const recent = tradeHistory.slice(-5).reverse();
+  const recent = trades.slice(-5).reverse();
   let msg = '📋 *Últimos Sinais*\n\n';
   for (const t of recent) {
     const emoji = t.outcome === 'WIN' ? '✅' : t.outcome === 'LOSS' ? '❌' : '⏳';
@@ -551,8 +553,9 @@ async function cmdStats() {
   const total = winCount + lossCount;
   const winRate = total > 0 ? (winCount / total * 100).toFixed(1) : '0.0';
   const capital = INITIAL_CAPITAL + totalPnl;
-  const grossProfit = tradeHistory.filter(t => t.pnl > 0).reduce((s, t) => s + t.pnl, 0);
-  const grossLoss = Math.abs(tradeHistory.filter(t => t.pnl < 0).reduce((s, t) => s + t.pnl, 0));
+  const trades = loadTradeHistory();
+  const grossProfit = trades.filter(t => t.pnl > 0).reduce((s, t) => s + t.pnl, 0);
+  const grossLoss = Math.abs(trades.filter(t => t.pnl < 0).reduce((s, t) => s + t.pnl, 0));
   const pf = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : grossProfit > 0 ? 'MAX' : '0.00';
   const pnlEmoji = totalPnl >= 0 ? '📈' : '📉';
   const wrEmoji = parseFloat(winRate) >= 50 ? '🟢' : '🔴';
@@ -611,7 +614,8 @@ async function cmdScan() {
         if (now - (lastSignalTime[r.symbol] || 0) >= SIGNAL_COOLDOWN) {
           lastSignalTime[r.symbol] = now;
           const tp1PriceScan = s.useTP1 ? (s.signal === 'BUY' ? s.price * (1 + s.tp1Pct/100) : s.price * (1 - s.tp1Pct/100)) : null;
-          tradeHistory.push({
+          const trades = loadTradeHistory();
+          trades.push({
             time: now,
             date: new Date().toLocaleDateString('pt-PT'),
             symbol: r.symbol,
@@ -635,7 +639,7 @@ async function cmdScan() {
             outcome: 'OPEN',
             pnl: 0
           });
-          saveTrades();
+          saveTradeHistory(trades);
         }
 
         details += `\n  • *${r.symbol}* — ${s.signal} @ \`$${fmtNum(s.price, 2)}\``;
@@ -842,7 +846,8 @@ async function runBot() {
 
         // Persistência: Adicionar ao histórico e guardar em ficheiro
         const tp1Price = s.useTP1 ? (s.signal === 'BUY' ? s.price * (1 + s.tp1Pct/100) : s.price * (1 - s.tp1Pct/100)) : null;
-        tradeHistory.push({
+        const trades = loadTradeHistory();
+        trades.push({
           time: now,
           date: new Date().toLocaleDateString('pt-PT'),
           symbol: r.symbol,
@@ -866,7 +871,7 @@ async function runBot() {
           outcome: 'OPEN',
           pnl: 0
         });
-        saveTrades();
+        saveTradeHistory(trades);
 
         const emoji = s.signal === 'BUY' ? '🟢' : '🔴';
         const type = s.signal === 'BUY' ? 'COMPRA (LONG)' : 'VENDA (SHORT)';
