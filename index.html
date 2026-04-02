@@ -310,9 +310,9 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
     <div id="perfChart"><div style="color:var(--muted);font-size:10px;text-align:center;padding:30px">A carregar...</div></div>
   </div>
 
-  <!-- Sinais do Dia -->
+  <!-- Ordens Abertas -->
   <div class="card">
-    <div class="card-title">Sinais do Dia</div>
+    <div class="card-title">Ordens Abertas</div>
     <div id="dailySig"><div style="color:var(--muted);font-size:10px;text-align:center;padding:16px">Sem sinais hoje</div></div>
   </div>
 
@@ -835,6 +835,10 @@ function renderSignalCard(t) {
   var slPct = t.slPct ? parseFloat(t.slPct).toFixed(2) + '%' : '--';
   var tpPct = t.tpPct ? parseFloat(t.tpPct).toFixed(2) + '%' : '--';
   var tp1Pct = t.tp1Pct ? parseFloat(t.tp1Pct).toFixed(2) + '%' : '--';
+  var currentPriceDisplay = '--';
+  if (t.outcome === 'OPEN' && t.symbol === SYM_MAP[currentSym] && currentPrice) {
+    currentPriceDisplay = fmtPrice(currentPrice);
+  }
   var html = '<div class="sig-card ' + (isBuy ? 'buy' : 'sell') + ' fadein">';
   html += '<div class="sig-header">';
   html += '<div style="display:flex;align-items:center;gap:10px">';
@@ -842,6 +846,9 @@ function renderSignalCard(t) {
   html += '<span class="sig-type ' + (isBuy ? 'buy' : 'sell') + '">' + (isBuy ? 'LONG' : 'SHORT') + '</span>';
   html += '</div><span class="sig-time">' + dt + '</span></div>';
   html += '<div class="sig-grid">';
+  if (t.outcome === 'OPEN') {
+    html += '<div class="sig-box"><div class="sig-box-lbl">PRECO ATUAL</div><div class="sig-box-val cyan">' + currentPriceDisplay + '</div></div>';
+  }
   html += '<div class="sig-box"><div class="sig-box-lbl">ENTRADA</div><div class="sig-box-val cyan">' + fmtPrice(entry) + '</div></div>';
   html += '<div class="sig-box"><div class="sig-box-lbl">STOP LOSS</div><div class="sig-box-val red">' + fmtPrice(sl) + '<br><span style="font-size:8px;color:var(--muted)">' + slPct + '</span></div></div>';
   if (t.useTP1 && tp1) {
@@ -879,7 +886,7 @@ async function loadPerf() {
       if(capEl){capEl.textContent=(capitalGain>=0?'+':'')+'$'+Math.abs(capitalGain).toFixed(2);capEl.style.color=capitalGain>=0?'var(--green)':'var(--red)';}
       renderPerfChart(d.capitalCurve||[d.initialCapital||1000],d.initialCapital||1000);
 
-      // Sinais do Dia - cards detalhados com todos os dados da ordem
+      // Ordens Abertas - cards detalhados com todos os dados da ordem
       var hist=d.tradeHistory||[];
       var today=new Date().toLocaleDateString('pt-PT');
       var todaySigs=hist.filter(function(t){return new Date(t.time).toLocaleDateString('pt-PT')===today||t.date===today;});
