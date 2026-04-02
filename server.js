@@ -1146,37 +1146,39 @@ app.post('/api/close-trade', async function(req, res) {
 });
 
 
-// Loop de monitorização independente com tratamento de erros e auto-ping
+// Loop de monitorização robusto com recursão e auto-ping
 async function startMonitoring() {
   console.log('[Monitor] Iniciando loop de monitorização 24/7...');
   
-  // Heartbeat para confirmar que o servidor está vivo nos logs do Railway
+  // Heartbeat para logs
   setInterval(() => {
     console.log(`[Heartbeat] ${new Date().toISOString()} - Servidor Ativo`);
-  }, 60000); // Cada 1 minuto
+  }, 60000);
 
-  // Auto-ping para evitar hibernação no Railway (se aplicável)
-  const RAILWAY_URL = process.env.RAILWAY_STATIC_URL || process.env.PUBLIC_URL;
+  // Auto-ping para evitar hibernação
+  const RAILWAY_URL = process.env.RAILWAY_STATIC_URL || process.env.PUBLIC_URL || process.env.RAILWAY_TCP_PROXY_DOMAIN;
   if (RAILWAY_URL) {
+    const url = RAILWAY_URL.startsWith('http') ? RAILWAY_URL : `https://${RAILWAY_URL}`;
     setInterval(async () => {
       try {
-        await axios.get(`https://${RAILWAY_URL}/api/stats`).catch(() => {});
-        console.log('[Monitor] Auto-ping enviado para manter servidor acordado');
+        await axios.get(`${url}/api/stats`).catch(() => {});
+        console.log('[Monitor] Auto-ping enviado para:', url);
       } catch (e) {}
-    }, 10 * 60 * 1000); // Cada 10 minutos
+    }, 5 * 60 * 1000); // Cada 5 minutos
   }
 
-  // Loop de fecho de trades (execução imediata e depois intervalo)
-  const runCheck = async () => {
+  // Loop recursivo de fecho de trades (mais robusto que setInterval)
+  async function monitorLoop() {
     try {
       await checkAndCloseTrades();
     } catch (err) {
-      console.error('[Monitor Error] Falha no ciclo de fecho:', err.message);
+      console.error('[Monitor Error] Falha no ciclo:', err.message);
     }
-  };
+    // Agenda a próxima execução para daqui a 10 segundos
+    setTimeout(monitorLoop, 10000);
+  }
   
-  runCheck(); // Executar logo no arranque
-  setInterval(runCheck, 10000); // Cada 10 segundos
+  monitorLoop();
 }
 
 // Iniciar monitorização imediatamente
