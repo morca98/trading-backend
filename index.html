@@ -905,8 +905,7 @@ async function loadPerf() {
           tbl+='<th>DATA</th><th>ATIVO</th><th>TIPO</th><th>ENTRADA</th><th>SL</th><th>TP1</th><th>TP2</th><th>TAMANHO</th><th>ESTADO</th><th>P&amp;L</th>';
           tbl+='</tr></thead><tbody>';
           recent.forEach(function(t){
-            var do2=new Date(t.time);
-            var dt=isNaN(do2.getTime())?'--':(do2.getDate()<10?'0':'')+do2.getDate()+'/'+(do2.getMonth()+1<10?'0':'')+(do2.getMonth()+1)+' '+(do2.getHours()<10?'0':'')+do2.getHours()+':'+(do2.getMinutes()<10?'0':'')+do2.getMinutes();
+            var dt = t.date || '--';
             var sym=(t.symbol||t.pair||'??').replace('USDT','');
             var isBuy=(t.signal==='BUY');
             var outcome=t.outcome||'OPEN';

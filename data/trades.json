@@ -1,6 +1,6 @@
 [
   {
-    "time": 1743580800000,
+    "time": 1743465600000,
     "date": "01/04/2026",
     "symbol": "ETHUSDT",
     "signal": "BUY",
@@ -24,7 +24,7 @@
     "pnl": 0
   },
   {
-    "time": 1743667200000,
+    "time": 1743552000000,
     "date": "02/04/2026",
     "symbol": "BTCUSDT",
     "signal": "SELL",
