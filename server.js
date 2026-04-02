@@ -51,7 +51,15 @@ function loadStats() {
 }
 
 function saveStats(wins, losses, pnl) {
-  try { fs.writeFileSync(STATS_FILE, JSON.stringify({ wins: wins, losses: losses, totalPnl: pnl })); } catch(e) {}
+  try { 
+    fs.writeFileSync(STATS_FILE, JSON.stringify({ wins: wins, losses: losses, totalPnl: pnl })); 
+    // Atualizar variáveis globais para garantir consistência em memória
+    winCount = wins;
+    lossCount = losses;
+    totalPnl = pnl;
+  } catch(e) {
+    console.error('[saveStats Error]:', e.message);
+  }
 }
 
 function loadTrades() {
@@ -71,19 +79,21 @@ function saveTrades() {
 
 // Alias para loadTrades (compatibilidade com código que usa loadTradeHistory)
 function loadTradeHistory() {
-  tradeHistory = loadTrades();
-  return tradeHistory;
+  return loadTrades();
 }
 
-// Alias para saveTrades (compatibilidade com código que usa saveTradeHistory)
 function saveTradeHistory(trades) {
-  tradeHistory = trades;
-  saveTrades();
+  try { 
+    fs.writeFileSync(TRADES_FILE, JSON.stringify(trades)); 
+  } catch(e) {
+    console.error('[saveTradeHistory Error]:', e.message);
+  }
 }
 
 var stats = loadStats();
 var winCount = stats.wins, lossCount = stats.losses, totalPnl = stats.totalPnl;
-var tradeHistory = loadTrades();
+// Removida variável global tradeHistory para evitar cache inconsistente
+// var tradeHistory = loadTrades();
 
 // ── INDICATORS ──
 function calcEMA(data, period) {
