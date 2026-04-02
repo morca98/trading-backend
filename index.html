@@ -888,6 +888,9 @@ async function loadPerf() {
       var capEl=document.getElementById('pCapital');
       if(capEl){capEl.textContent=(capitalGain>=0?'+':'')+'$'+Math.abs(capitalGain).toFixed(2);capEl.style.color=capitalGain>=0?'var(--green)':'var(--red)';}
       
+      // Ordens Abertas - cards detalhados com todos os dados da ordem
+      var hist=d.tradeHistory||[];
+      
       // Construir curva de capital a partir do histórico
       var initialCap = 1000;
       var curve = [initialCap];
@@ -898,8 +901,6 @@ async function loadPerf() {
       });
       renderPerfChart(curve, initialCap);
 
-      // Ordens Abertas - cards detalhados com todos os dados da ordem
-      var hist=d.tradeHistory||[];
       var openOrders=hist.filter(function(t){return t.outcome==='OPEN';});
       var dailySigEl=document.getElementById('dailySig');
       if(openOrders.length){
