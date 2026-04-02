@@ -870,6 +870,51 @@ async function runBot() {
   }
 }
 
+// Funcao para enviar notificacao profissional quando um trade e resolvido
+async function notifyTradeResolved(trade) {
+  if (!trade || !trade.outcome || trade.outcome === 'OPEN') return;
+  
+  const emoji = trade.outcome === 'WIN' ? '✅ GANHO' : '❌ PERDA';
+  const pnlEmoji = trade.pnl >= 0 ? '📈' : '📉';
+  const pnlStr = trade.pnl >= 0 ? '+' : '';
+  
+  const assetName = trade.symbol === 'BTCUSDT' ? 'BTC/USDT' : 'ETH/USDT';
+  const tradeType = trade.signal === 'BUY' ? 'COMPRA (LONG)' : 'VENDA (SHORT)';
+  
+  const msg = 
+    `*${emoji} — TRADE RESOLVIDO*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `🔹 Ativo: *${assetName}*\n` +
+    `📊 Tipo: *${tradeType}*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `💰 Entrada: \`$${fmtNum(trade.entry, 2)}\`\n` +
+    `🛑 Stop Loss: \`$${fmtNum(trade.sl, 2)}\` (${trade.slPct}%)\n` +
+    `🎯 Take Profit: \`$${fmtNum(trade.tp, 2)}\` (${trade.tpPct}%)\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `${pnlEmoji} *Resultado: ${pnlStr}${trade.pnl.toFixed(2)}%*\n` +
+    `💼 Tamanho: \`$${fmtNum(trade.positionSize, 0)}\`\n` +
+    `📅 Data: ${trade.date}\n\n` +
+    `_Estratégia MORCA CRYPTO MASTER V1_`;
+  
+  await sendTelegram(msg);
+}
+
+// Monitorar trades resolvidos a cada 1 minuto
+setInterval(async function() {
+  try {
+    const trades = loadTradeHistory();
+    for (const trade of trades) {
+      if (trade.outcome !== 'OPEN' && !trade.notifiedTelegram) {
+        await notifyTradeResolved(trade);
+        trade.notifiedTelegram = true;
+        saveTradeHistory(trades);
+      }
+    }
+  } catch (e) {
+    console.error('[Trade Monitor Error]:', e.message);
+  }
+}, 60 * 1000);
+
 var PORT = process.env.PORT || 3001;
 app.listen(PORT, function() {
   console.log('Server porta ' + PORT);
