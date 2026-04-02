@@ -985,28 +985,35 @@ async function checkAndCloseTrades() {
         let closePrice = null;
         let closeReason = null;
         
-        // Lógica de comparação robusta (usando margem de 0.01% para evitar falhas por arredondamento)
-        const sl = parseFloat(trade.sl);
-        const tp = parseFloat(trade.tp);
+        // Lógica de comparação robusta com limpeza de dados (remover espaços ou caracteres estranhos)
+        const cleanNum = (v) => typeof v === 'string' ? parseFloat(v.replace(/[^\d.-]/g, '')) : parseFloat(v);
+        const sl = cleanNum(trade.sl);
+        const tp = cleanNum(trade.tp);
+        const entry = cleanNum(trade.entry);
+        
+        if (isNaN(sl) || isNaN(tp) || isNaN(entry)) {
+          console.log(`[Server Monitor] Erro: Valores inválidos para ${trade.symbol} (SL: ${trade.sl}, TP: ${trade.tp})`);
+          continue;
+        }
         
         if (trade.signal === 'BUY') {
           if (currentPrice <= sl) {
             shouldClose = true;
-            closePrice = Math.min(currentPrice, sl); // Garantir que o preço de fecho não é pior que o SL
+            closePrice = sl;
             closeReason = 'SL';
           } else if (currentPrice >= tp) {
             shouldClose = true;
-            closePrice = Math.max(currentPrice, tp); // Capturar slippage positivo se houver
+            closePrice = tp;
             closeReason = 'TP';
           }
         } else {
           if (currentPrice >= sl) {
             shouldClose = true;
-            closePrice = Math.max(currentPrice, sl);
+            closePrice = sl;
             closeReason = 'SL';
           } else if (currentPrice <= tp) {
             shouldClose = true;
-            closePrice = Math.min(currentPrice, tp);
+            closePrice = tp;
             closeReason = 'TP';
           }
         }
