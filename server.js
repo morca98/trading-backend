@@ -52,12 +52,13 @@ function loadStats() {
 
 function saveStats(wins, losses, pnl) {
   try { 
-    fs.writeFileSync(STATS_FILE, JSON.stringify({ wins: wins, losses: losses, totalPnl: pnl })); 
+    // Guardar estatísticas de forma síncrona para garantir persistência
+    fs.writeFileSync(STATS_FILE, JSON.stringify({ wins: wins, losses: losses, totalPnl: pnl }, null, 2), 'utf8'); 
     // Atualizar variáveis globais para garantir consistência em memória
     winCount = wins;
     lossCount = losses;
     totalPnl = pnl;
-    console.log(`[Stats] Guardado: ${wins}W - ${losses}L | P&L: $${pnl.toFixed(2)}`);
+    console.log(`[Stats] Persistência OK: ${wins}W - ${losses}L | P&L: $${pnl.toFixed(2)}`);
   } catch(e) {
     console.error('[saveStats Error]:', e.message);
   }
@@ -85,7 +86,9 @@ function loadTradeHistory() {
 
 function saveTradeHistory(trades) {
   try { 
-    fs.writeFileSync(TRADES_FILE, JSON.stringify(trades)); 
+    // Guardar com indentação para legibilidade e garantir escrita síncrona para persistência imediata
+    fs.writeFileSync(TRADES_FILE, JSON.stringify(trades, null, 2), 'utf8'); 
+    console.log(`[Persistence] Histórico de trades guardado (${trades.length} registos)`);
   } catch(e) {
     console.error('[saveTradeHistory Error]:', e.message);
   }
@@ -354,6 +357,10 @@ app.get('/api/liqmap', async function(req, res) {
       oi: openInterest, lsRatio: avgLongRatio, totalLongLiq: Math.round(totalLongLiq), totalShortLiq: Math.round(totalShortLiq), dominancia: avgLongRatio > 0.5 ? 'LONGS' : 'SHORTS'
     });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'UP', time: new Date().toISOString(), uptime: process.uptime() });
 });
 
 app.get('/api/stats', function(req, res) {
@@ -1168,14 +1175,15 @@ async function startMonitoring() {
   }
 
   // Loop recursivo de fecho de trades (mais robusto que setInterval)
+  // Reduzido para 5 segundos para fechos mais rápidos de SL/TP
   async function monitorLoop() {
     try {
       await checkAndCloseTrades();
     } catch (err) {
       console.error('[Monitor Error] Falha no ciclo:', err.message);
     }
-    // Agenda a próxima execução para daqui a 10 segundos
-    setTimeout(monitorLoop, 10000);
+    // Agenda a próxima execução para daqui a 5 segundos
+    setTimeout(monitorLoop, 5000);
   }
   
   monitorLoop();
@@ -1226,6 +1234,12 @@ app.listen(PORT, function() {
     '/help — Guia completo da estratégia\n\n' +
     `_Bot pronto para operar._`
   );
+  // Scan de novos sinais a cada 5 minutos
   setInterval(runBot, 5 * 60 * 1000);
-  setInterval(handleTelegramCommands, 5000);
+  // Polling de comandos do Telegram a cada 3 segundos
+  setInterval(handleTelegramCommands, 3000);
+  
+  // Forçar uma verificação inicial de trades ao arrancar
+  console.log('[Startup] A verificar trades abertos...');
+  checkAndCloseTrades();
 });
