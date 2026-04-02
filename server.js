@@ -60,7 +60,19 @@ function loadTrades() {
 }
 
 function saveTrades() {
-  try { fs.writeFileSync(TRADES_FILE, JSON.stringify(tradeHistory)); } catch(e) {}
+  try { fs.writeFileSync(TRADES_FILE, JSON.stringify(tradeHistory)); }
+
+// Alias para loadTrades (compatibilidade com código que usa loadTradeHistory)
+function loadTradeHistory() {
+  return tradeHistory;
+}
+
+// Alias para saveTrades (compatibilidade com código que usa saveTradeHistory)
+function saveTradeHistory(trades) {
+  tradeHistory = trades;
+  saveTrades();
+}
+ catch(e) {}
 }
 
 var stats = loadStats();
