@@ -858,10 +858,6 @@ function renderSignalCard(t) {
   html += '<div class="sig-box"><div class="sig-box-lbl">TP2 (FINAL)</div><div class="sig-box-val green">' + fmtPrice(tp2) + '<br><span style="font-size:8px;color:var(--muted)">' + tpPct + '</span></div></div>';
   html += '<div class="sig-box"><div class="sig-box-lbl">TAMANHO</div><div class="sig-box-val yellow">' + posSize + '</div></div>';
   html += '</div>';
-  if (t.useTP1) {
-    html += '<div style="margin-bottom:6px;padding:5px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:2px;font-size:8px;display:flex;justify-content:space-between">';
-    html += '<span style="color:var(--muted)">TAMANHO DA POSICAO</span><span style="color:var(--yellow)">' + posSize + '</span></div>';
-  }
   html += '<div class="sig-indicators">';
   if (t.conf) html += '<span class="sig-ind" style="color:var(--accent)">CONF ' + conf + '</span>';
   if (t.rsi) html += '<span class="sig-ind">RSI ' + parseFloat(t.rsi).toFixed(1) + '</span>';

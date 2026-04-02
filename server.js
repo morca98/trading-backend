@@ -1067,7 +1067,88 @@ app.post('/api/close-trade', async function(req, res) {
   }
 });
 
-setInterval(checkAndCloseTrades, 30 * 1000);
+
+// Função de fecho "Brute Force" - força o fecho se preço ultrapassou alvo
+async function forceCloseTrades() {
+  try {
+    const trades = loadTradeHistory();
+    const openTrades = trades.filter(t => t.outcome === 'OPEN');
+    
+    if (openTrades.length === 0) return;
+    
+    console.log(`[Force Close] Verificando ${openTrades.length} trades...`);
+    
+    for (const trade of openTrades) {
+      const price = await getCurrentPrice(trade.symbol);
+      if (!price) continue;
+      
+      const tp = parseFloat(trade.tp);
+      const sl = parseFloat(trade.sl);
+      const isBuy = trade.signal === 'BUY';
+      
+      console.log(`[Force Close] ${trade.symbol} ${trade.signal} - Preço: ${price}, TP: ${tp}, SL: ${sl}`);
+      
+      let shouldClose = false;
+      let closePrice = null;
+      let closeReason = null;
+      
+      if (isBuy) {
+        if (price >= tp) {
+          shouldClose = true;
+          closePrice = tp;
+          closeReason = 'TP';
+        } else if (price <= sl) {
+          shouldClose = true;
+          closePrice = sl;
+          closeReason = 'SL';
+        }
+      } else {
+        if (price <= tp) {
+          shouldClose = true;
+          closePrice = tp;
+          closeReason = 'TP';
+        } else if (price >= sl) {
+          shouldClose = true;
+          closePrice = sl;
+          closeReason = 'SL';
+        }
+      }
+      
+      if (shouldClose) {
+        console.log(`[Force Close] ✓ FECHANDO ${trade.symbol} em ${closeReason}!`);
+        
+        const pnl = isBuy 
+          ? ((closePrice - trade.entry) / trade.entry) * 100
+          : ((trade.entry - closePrice) / trade.entry) * 100;
+        
+        trade.outcome = pnl >= 0 ? 'WIN' : 'LOSS';
+        trade.pnl = parseFloat(pnl.toFixed(2));
+        trade.exitPrice = closePrice;
+        trade.closeReason = closeReason;
+        trade.closedAt = new Date().toISOString();
+        
+        // Enviar notificação Telegram
+        await notifyTradeResolved(trade);
+        trade.notifiedTelegram = true;
+      }
+    }
+    
+    // Guardar trades atualizados
+    const updatedTrades = trades.filter(t => t.outcome === 'OPEN').length < openTrades.length;
+    if (updatedTrades) {
+      saveTradeHistory(trades);
+      console.log(`[Force Close] ✓ Trades guardados`);
+    }
+  } catch (e) {
+    console.error('[Force Close Error]:', e.message);
+  }
+}
+
+// Executar força de fecho a cada 10 segundos
+setInterval(forceCloseTrades, 10 * 1000);
+
+// Executar verificação de fecho a cada 10 segundos (mais agressivo)
+setInterval(checkAndCloseTrades, 10 * 1000);
 
 // Monitorar trades resolvidos a cada 1 minuto
 setInterval(async function() {
