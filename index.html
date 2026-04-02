@@ -869,10 +869,9 @@ function renderSignalCard(t) {
 }
 async function loadPerf() {
   try {
-    // Sincronizar trades com o servidor (força fecho automático)
+    // Sincronizar trades com o servidor
     try {
       await fetch(BACKEND+'/api/sync-trades', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
-      console.log('[Sync] Histórico sincronizado');
     } catch (e) {
       console.warn('[Sync] Erro:', e.message);
     }
