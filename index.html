@@ -836,8 +836,9 @@ function renderSignalCard(t) {
   var tpPct = t.tpPct ? parseFloat(t.tpPct).toFixed(2) + '%' : '--';
   var tp1Pct = t.tp1Pct ? parseFloat(t.tp1Pct).toFixed(2) + '%' : '--';
   var currentPriceDisplay = '--';
-  if (t.outcome === 'OPEN' && t.symbol === SYM_MAP[currentSym] && currentPrice) {
-    currentPriceDisplay = fmtPrice(currentPrice);
+  if (t.outcome === 'OPEN') {
+    var price = assetPrices[t.symbol] || (t.symbol === SYM_MAP[currentSym] ? currentPrice : null);
+    if (price) currentPriceDisplay = fmtPrice(price);
   }
   var html = '<div class="sig-card ' + (isBuy ? 'buy' : 'sell') + ' fadein">';
   html += '<div class="sig-header">';
@@ -853,11 +854,9 @@ function renderSignalCard(t) {
   html += '<div class="sig-box"><div class="sig-box-lbl">STOP LOSS</div><div class="sig-box-val red">' + fmtPrice(sl) + '<br><span style="font-size:8px;color:var(--muted)">' + slPct + '</span></div></div>';
   if (t.useTP1 && tp1) {
     html += '<div class="sig-box"><div class="sig-box-lbl">TP1 (50%)</div><div class="sig-box-val green">' + fmtPrice(tp1) + '<br><span style="font-size:8px;color:var(--muted)">' + tp1Pct + '</span></div></div>';
-    html += '<div class="sig-box"><div class="sig-box-lbl">TP2 (FINAL)</div><div class="sig-box-val green">' + fmtPrice(tp2) + '<br><span style="font-size:8px;color:var(--muted)">' + tpPct + '</span></div></div>';
-  } else {
-    html += '<div class="sig-box"><div class="sig-box-lbl">TAKE PROFIT</div><div class="sig-box-val green">' + fmtPrice(tp2) + '<br><span style="font-size:8px;color:var(--muted)">' + tpPct + '</span></div></div>';
-    html += '<div class="sig-box"><div class="sig-box-lbl">TAMANHO</div><div class="sig-box-val yellow">' + posSize + '</div></div>';
   }
+  html += '<div class="sig-box"><div class="sig-box-lbl">TP2 (FINAL)</div><div class="sig-box-val green">' + fmtPrice(tp2) + '<br><span style="font-size:8px;color:var(--muted)">' + tpPct + '</span></div></div>';
+  html += '<div class="sig-box"><div class="sig-box-lbl">TAMANHO</div><div class="sig-box-val yellow">' + posSize + '</div></div>';
   html += '</div>';
   if (t.useTP1) {
     html += '<div style="margin-bottom:6px;padding:5px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:2px;font-size:8px;display:flex;justify-content:space-between">';
@@ -1126,10 +1125,9 @@ async function checkOpenTradesWithGraphPrice() {
       // Evitar verificar o mesmo trade múltiplas vezes no mesmo ciclo
       if (tradesMonitoredByGraph[tradeKey]) continue;
       
-      // Só monitorizar trades do símbolo atual
-      if (trade.symbol !== SYM_MAP[currentSym]) continue;
-      
-      const price = currentPrice;
+      // Obter preço do ativo (do assetPrices ou do currentPrice se for o símbolo atual)
+      const price = assetPrices[trade.symbol] || (trade.symbol === SYM_MAP[currentSym] ? currentPrice : null);
+      if (!price) continue; // Se não temos preço, pular
       const entry = trade.entry || trade.price;
       const tp2 = trade.tp; // TP2 é o TP final
       const sl = trade.sl;
@@ -1219,6 +1217,37 @@ async function loadData(){
 }
 
 function renderAll(){renderChart();renderVPBar();renderVPStats();renderLevels();renderClouds();renderPrice();}
+
+// Armazenar preços de todos os ativos com ordens abertas
+var assetPrices = {}; // { 'BTCUSDT': 66885.40, 'ETHUSDT': 2150.31 }
+
+async function updateAllAssetPrices() {
+  try {
+    const response = await fetch(BACKEND + '/api/stats');
+    const data = await response.json();
+    if (!data.success || !data.tradeHistory) return;
+    
+    const openTrades = data.tradeHistory.filter(t => t.outcome === 'OPEN');
+    const uniqueSymbols = [...new Set(openTrades.map(t => t.symbol))];
+    
+    // Obter preços para todos os símbolos com ordens abertas
+    for (const symbol of uniqueSymbols) {
+      try {
+        const priceData = await apiPriceDirect(symbol === 'BTCUSDT' ? 'BTC/USDT' : 'ETH/USDT');
+        if (priceData) {
+          assetPrices[symbol] = priceData.price;
+        }
+      } catch (e) {
+        console.log(`Erro ao obter preço de ${symbol}:`, e);
+      }
+    }
+  } catch (e) {
+    console.error('Erro ao atualizar preços de ativos:', e);
+  }
+}
+
+// Atualizar preços de todos os ativos a cada 5 segundos
+setInterval(updateAllAssetPrices, 5000);
 
 setInterval(async function(){
   var t=await apiPrice(currentSym);
