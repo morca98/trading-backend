@@ -1143,8 +1143,27 @@ app.post('/api/close-trade', async function(req, res) {
 });
 
 
-// Monitorização robusta de trades a cada 10 segundos
-setInterval(checkAndCloseTrades, 10 * 1000);
+// Loop de monitorização independente com tratamento de erros
+async function startMonitoring() {
+  console.log('[Monitor] Iniciando loop de monitorização 24/7...');
+  
+  // Heartbeat para confirmar que o servidor está vivo nos logs do Railway
+  setInterval(() => {
+    console.log(`[Heartbeat] ${new Date().toISOString()} - Servidor Ativo`);
+  }, 60000); // Cada 1 minuto
+
+  // Loop de fecho de trades
+  setInterval(async () => {
+    try {
+      await checkAndCloseTrades();
+    } catch (err) {
+      console.error('[Monitor Error] Falha no ciclo de fecho:', err.message);
+    }
+  }, 10000); // Cada 10 segundos
+}
+
+// Iniciar monitorização imediatamente
+startMonitoring();
 
 app.post('/api/sync-trades', async function(req, res) {
   try {
