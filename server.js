@@ -990,20 +990,59 @@ async function checkAndCloseTrades() {
 const priceCache = {};
 
 async function getCurrentPrice(symbol) {
-  try {
-    const res = await axios.get(`${BINANCE_FUTURES}/ticker/price?symbol=${symbol}`);
-    const price = parseFloat(res.data.price);
-    priceCache[symbol] = price;
-    return price;
-  } catch (e) {
-    console.error(`[Price Fetch Error ${symbol}]:`, e.message);
-    // Retornar preço em cache se disponível
-    if (priceCache[symbol]) {
-      console.log(`[Using cached price for ${symbol}]: ${priceCache[symbol]}`);
-      return priceCache[symbol];
+  // Tentar múltiplas fontes de preço
+  const sources = [
+    async () => {
+      try {
+        const res = await axios.get(`${BINANCE_FUTURES}/ticker/price?symbol=${symbol}`, { timeout: 5000 });
+        const price = parseFloat(res.data.price);
+        console.log(`[Price] ${symbol} from Binance: ${price}`);
+        return price;
+      } catch (e) {
+        console.log(`[Price] Binance failed for ${symbol}: ${e.message}`);
+        return null;
+      }
+    },
+    async () => {
+      try {
+        const res = await axios.get(`https://api.mexc.com/api/v3/ticker/price?symbol=${symbol}`, { timeout: 5000 });
+        const price = parseFloat(res.data.price);
+        console.log(`[Price] ${symbol} from MEXC: ${price}`);
+        return price;
+      } catch (e) {
+        console.log(`[Price] MEXC failed for ${symbol}: ${e.message}`);
+        return null;
+      }
+    },
+    async () => {
+      try {
+        const res = await axios.get(`https://api.gateio.ws/api/v4/spot/tickers?currency_pair=${symbol}`, { timeout: 5000 });
+        const price = parseFloat(res.data[0].last);
+        console.log(`[Price] ${symbol} from Gate.io: ${price}`);
+        return price;
+      } catch (e) {
+        console.log(`[Price] Gate.io failed for ${symbol}: ${e.message}`);
+        return null;
+      }
     }
-    return null;
+  ];
+  
+  for (const source of sources) {
+    const price = await source();
+    if (price) {
+      priceCache[symbol] = price;
+      return price;
+    }
   }
+  
+  // Se todas as fontes falharem, usar cache
+  if (priceCache[symbol]) {
+    console.log(`[Price] Using cached price for ${symbol}: ${priceCache[symbol]}`);
+    return priceCache[symbol];
+  }
+  
+  console.error(`[Price] Could not fetch price for ${symbol} from any source`);
+  return null;
 }
 
 app.post('/api/close-trade', async function(req, res) {
