@@ -1,4 +1,3 @@
-  
   // Adicionar multiplas datas no eixo horizontal
   var dateLabels = '';
   var numDates = Math.min(5, data.length);
