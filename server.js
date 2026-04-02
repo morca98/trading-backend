@@ -1077,7 +1077,9 @@ app.post('/api/close-trade', async function(req, res) {
   }
 });
 
-setInterval(checkAndCloseTrades, 30 * 1000);
+// Iniciar verificacao imediata e depois a cada 15 segundos para maior precisao
+checkAndCloseTrades();
+setInterval(checkAndCloseTrades, 15 * 1000);
 
 // Monitorar trades resolvidos a cada 1 minuto
 setInterval(async function() {
