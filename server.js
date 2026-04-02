@@ -566,7 +566,7 @@ async function cmdStats() {
     `📊 Total de trades: *${total}*\n` +
     `${wrEmoji} Win Rate: *${winRate}%*\n` +
     `✅ Ganhos: *${winCount}* | ❌ Perdas: *${lossCount}*\n` +
-    `⏳ Em aberto: *${Object.keys(activeTrades).length}*\n` +
+    `⏳ Em aberto: *${trades.filter(t => t.outcome === 'OPEN').length}*\n` +
     '━━━━━━━━━━━━━━━━━━━━\n' +
     `${pnlEmoji} P&L Total: *${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}*\n` +
     `⚡ Profit Factor: *${pf}*\n` +
@@ -927,15 +927,9 @@ async function notifyTradeResolved(trade) {
   const positionStr = `$${fmtNum(trade.positionSize, 0)} (${positionInAsset.toFixed(6)} ${assetSymbol})`;
   
   const trades = loadTradeHistory();
-  let currentCap = INITIAL_CAPITAL;
-  let totalPnlDollar = 0;
-  trades.forEach(t => {
-    if (t.outcome !== 'OPEN') {
-      const gainLoss = (t.positionSize * t.pnl) / 100;
-      totalPnlDollar += gainLoss;
-      currentCap += gainLoss;
-    }
-  });
+  const stats = loadStats();
+  let currentCap = INITIAL_CAPITAL + stats.totalPnl;
+  let totalPnlDollar = stats.totalPnl;
   
   const capitalEmoji = currentCap >= INITIAL_CAPITAL ? '📈' : '📉';
   const capitalStr = currentCap >= INITIAL_CAPITAL ? '+' : '';
