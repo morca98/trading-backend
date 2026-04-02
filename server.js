@@ -1143,7 +1143,7 @@ app.post('/api/close-trade', async function(req, res) {
 });
 
 
-// Loop de monitorização independente com tratamento de erros
+// Loop de monitorização independente com tratamento de erros e auto-ping
 async function startMonitoring() {
   console.log('[Monitor] Iniciando loop de monitorização 24/7...');
   
@@ -1152,14 +1152,28 @@ async function startMonitoring() {
     console.log(`[Heartbeat] ${new Date().toISOString()} - Servidor Ativo`);
   }, 60000); // Cada 1 minuto
 
-  // Loop de fecho de trades
-  setInterval(async () => {
+  // Auto-ping para evitar hibernação no Railway (se aplicável)
+  const RAILWAY_URL = process.env.RAILWAY_STATIC_URL || process.env.PUBLIC_URL;
+  if (RAILWAY_URL) {
+    setInterval(async () => {
+      try {
+        await axios.get(`https://${RAILWAY_URL}/api/stats`).catch(() => {});
+        console.log('[Monitor] Auto-ping enviado para manter servidor acordado');
+      } catch (e) {}
+    }, 10 * 60 * 1000); // Cada 10 minutos
+  }
+
+  // Loop de fecho de trades (execução imediata e depois intervalo)
+  const runCheck = async () => {
     try {
       await checkAndCloseTrades();
     } catch (err) {
       console.error('[Monitor Error] Falha no ciclo de fecho:', err.message);
     }
-  }, 10000); // Cada 10 segundos
+  };
+  
+  runCheck(); // Executar logo no arranque
+  setInterval(runCheck, 10000); // Cada 10 segundos
 }
 
 // Iniciar monitorização imediatamente
