@@ -789,6 +789,10 @@ async function handleTelegramCommands() {
 
 async function runBot() {
   try {
+    // PRIMEIRO: Verificar e fechar trades abertos
+    await checkAndCloseTrades();
+    
+    // DEPOIS: Gerar novos sinais
     const results = await Promise.all(
       SYMBOLS.map(async (symbol) => {
         const sigRes = await axios.get(`http://localhost:${process.env.PORT || 3001}/api/signal?symbol=${symbol}`).catch(() => null);
@@ -1077,9 +1081,12 @@ app.post('/api/close-trade', async function(req, res) {
   }
 });
 
-// Iniciar verificacao imediata e depois a cada 15 segundos para maior precisao
-checkAndCloseTrades();
-setInterval(checkAndCloseTrades, 15 * 1000);
+// Iniciar runBot imediatamente e depois a cada 5 minutos (junto com a geracao de sinais)
+runBot();
+setInterval(runBot, 5 * 60 * 1000);
+
+// Tambem verificar trades a cada 30 segundos entre ciclos de runBot
+setInterval(checkAndCloseTrades, 30 * 1000);
 
 // Monitorar trades resolvidos a cada 1 minuto
 setInterval(async function() {
