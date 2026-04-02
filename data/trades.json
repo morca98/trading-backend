@@ -20,12 +20,8 @@
     "rsi": "61.0",
     "adx": "37.5",
     "atr": "35.38",
-    "outcome": "WIN",
-    "pnl": 3.29,
-    "exitPrice": 2221.07,
-    "closeReason": "TP",
-    "closedAt": "2026-04-01T12:00:00.000Z",
-    "notifiedTelegram": false
+    "outcome": "OPEN",
+    "pnl": 0
   },
   {
     "time": 1743552000000,
