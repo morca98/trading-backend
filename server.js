@@ -837,6 +837,9 @@ async function runBot() {
 
         const emoji = s.signal === 'BUY' ? '🟢' : '🔴';
         const type = s.signal === 'BUY' ? 'COMPRA (LONG)' : 'VENDA (SHORT)';
+        const assetSymbol = r.symbol === 'BTCUSDT' ? 'BTC' : 'ETH';
+        const positionInAsset = s.positionSize / s.price;
+        const positionStr = `$${fmtNum(s.positionSize, 0)} (${positionInAsset.toFixed(6)} ${assetSymbol})`;
         
         let msg = 
           `${emoji} *NOVO SINAL: ${r.symbol}*\n` +
@@ -859,7 +862,7 @@ async function runBot() {
           `📈 Macro 4H: *${s.macroTrend}*\n` +
           `📉 Trend 15M: *${s.trend15m}*\n` +
           `📏 RSI: \`${s.rsi}\` | ADX: \`${s.adx}\`\n` +
-          `💼 Tamanho: \`$${fmtNum(s.positionSize, 0)}\` (Risco 1%)\n\n` +
+          `💼 Tamanho: \`${positionStr}\` (Risco 1%)\n\n` +
           `_Estratégia MORCA CRYPTO MASTER V1_`;
 
         await sendTelegram(msg);
@@ -880,6 +883,9 @@ async function notifyTradeResolved(trade) {
   
   const assetName = trade.symbol === 'BTCUSDT' ? 'BTC/USDT' : 'ETH/USDT';
   const tradeType = trade.signal === 'BUY' ? 'COMPRA (LONG)' : 'VENDA (SHORT)';
+  const assetSymbol = trade.symbol === 'BTCUSDT' ? 'BTC' : 'ETH';
+  const positionInAsset = trade.positionSize / trade.entry;
+  const positionStr = `$${fmtNum(trade.positionSize, 0)} (${positionInAsset.toFixed(6)} ${assetSymbol})`;
   
   const trades = loadTradeHistory();
   let currentCap = INITIAL_CAPITAL;
@@ -906,7 +912,7 @@ async function notifyTradeResolved(trade) {
     `🎯 Take Profit: \`$${fmtNum(trade.tp, 2)}\` (${trade.tpPct}%)\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `${pnlEmoji} *Resultado: ${pnlStr}${trade.pnl.toFixed(2)}%*\n` +
-    `💼 Tamanho: \`$${fmtNum(trade.positionSize, 0)}\`\n` +
+    `💼 Tamanho: \`${positionStr}\`\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `${capitalEmoji} *Capital Atual: $${fmtNum(currentCap, 2)}*\n` +
     `💵 *Lucro/Perda Total: ${capitalStr}$${fmtNum(Math.abs(totalPnlDollar), 2)}*\n` +
