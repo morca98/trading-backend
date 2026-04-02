@@ -77,7 +77,6 @@ function saveTradeHistory(trades) {
   tradeHistory = trades;
   saveTrades();
 }
-}
 
 var stats = loadStats();
 var winCount = stats.wins, lossCount = stats.losses, totalPnl = stats.totalPnl;
