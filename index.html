@@ -1113,48 +1113,66 @@ async function checkOpenTradesWithGraphPrice() {
     // Obter histórico de trades do servidor
     const response = await fetch(BACKEND + '/api/stats');
     const data = await response.json();
-    if (!data.success || !data.tradeHistory) return;
+    if (!data.success || !data.tradeHistory) {
+      console.warn('[Monitor] Sem dados de trades');
+      return;
+    }
     
     const openTrades = data.tradeHistory.filter(t => t.outcome === 'OPEN');
-    if (!openTrades.length) return;
+    if (!openTrades.length) {
+      console.log('[Monitor] Nenhum trade aberto');
+      return;
+    }
+    
+    console.log(`[Monitor] Verificando ${openTrades.length} trades abertos`);
+    console.log('[Monitor] Preços disponíveis:', assetPrices);
     
     // Para cada trade aberto, verificar se TP2 ou SL foi atingido
     for (const trade of openTrades) {
       const tradeKey = trade.symbol + '_' + trade.entry + '_' + (trade.time || 0);
       
-      // Evitar verificar o mesmo trade múltiplas vezes no mesmo ciclo
-      if (tradesMonitoredByGraph[tradeKey]) continue;
+      // Evitar verificar o mesmo trade múltiplas vezes
+      if (tradesMonitoredByGraph[tradeKey]) {
+        console.log(`[Monitor] Trade ${tradeKey} já foi processado`);
+        continue;
+      }
       
-      // Obter preço do ativo (do assetPrices ou do currentPrice se for o símbolo atual)
+      // Obter preço do ativo
       const price = assetPrices[trade.symbol] || (trade.symbol === SYM_MAP[currentSym] ? currentPrice : null);
-      if (!price) continue; // Se não temos preço, pular
-      const entry = trade.entry || trade.price;
-      const tp2 = trade.tp; // TP2 é o TP final
-      const sl = trade.sl;
+      if (!price) {
+        console.warn(`[Monitor] Sem preço para ${trade.symbol}`);
+        continue;
+      }
+      
+      const entry = parseFloat(trade.entry || trade.price);
+      const tp2 = parseFloat(trade.tp);
+      const sl = parseFloat(trade.sl);
       const isBuy = trade.signal === 'BUY';
       
-      console.log(`[Graph Monitor] ${trade.symbol} ${trade.signal} - Preço: ${price}, Entry: ${entry}, TP2: ${tp2}, SL: ${sl}`);
+      console.log(`[Monitor] ${trade.symbol} ${trade.signal} - P: ${price}, E: ${entry}, TP2: ${tp2}, SL: ${sl}`);
       
       let shouldClose = false;
       let closePrice = null;
       let closeReason = null;
       
       if (isBuy) {
-        if (price >= tp2) {
+        // LONG: fechar se preço >= TP2 ou preço <= SL
+        if (price >= tp2 * 0.9999) { // Margem de 0.01%
           shouldClose = true;
           closePrice = tp2;
           closeReason = 'TP2';
-        } else if (price <= sl) {
+        } else if (price <= sl * 1.0001) { // Margem de 0.01%
           shouldClose = true;
           closePrice = sl;
           closeReason = 'SL';
         }
       } else {
-        if (price <= tp2) {
+        // SHORT: fechar se preço <= TP2 ou preço >= SL
+        if (price <= tp2 * 1.0001) { // Margem de 0.01%
           shouldClose = true;
           closePrice = tp2;
           closeReason = 'TP2';
-        } else if (price >= sl) {
+        } else if (price >= sl * 0.9999) { // Margem de 0.01%
           shouldClose = true;
           closePrice = sl;
           closeReason = 'SL';
@@ -1162,7 +1180,11 @@ async function checkOpenTradesWithGraphPrice() {
       }
       
       if (shouldClose) {
-        console.log(`[Graph Monitor] FECHANDO ${trade.symbol} em ${closeReason} - Preço: ${price}, TP2: ${tp2}, SL: ${sl}`);
+        console.log(`[Monitor] ✓ FECHANDO ${trade.symbol} em ${closeReason}!`);
+        console.log(`[Monitor] Enviando para servidor: symbol=${trade.symbol}, entry=${entry}, exitPrice=${closePrice}`);
+        
+        // Marcar imediatamente para evitar duplicatas
+        tradesMonitoredByGraph[tradeKey] = true;
         
         // Enviar ordem de fecho para o backend
         try {
@@ -1180,22 +1202,22 @@ async function checkOpenTradesWithGraphPrice() {
           
           const result = await closeResponse.json();
           if (result.success) {
-            console.log(`[Graph Monitor] Trade fechado com sucesso: ${trade.symbol}`);
-            tradesMonitoredByGraph[tradeKey] = true; // Marcar APÓS sucesso
+            console.log(`[Monitor] ✓ Trade fechado com sucesso!`);
             playBeep(800, 0.5, 'sine');
-            sendBrowserNotif('Trade Fechado', `${trade.symbol} fechado em ${closeReason} a $${closePrice.toFixed(2)}`);
-            // Recarregar dados em 2 segundos
-            setTimeout(loadPerf, 2000);
+            sendBrowserNotif('✅ Trade Fechado', `${trade.symbol} fechado em ${closeReason}`);
+            setTimeout(loadPerf, 1000);
           } else {
-            console.error(`[Graph Monitor] Erro ao fechar trade: ${result.message || 'Desconhecido'}`);
+            console.error(`[Monitor] ✗ Erro: ${result.error || result.message}`);
+            tradesMonitoredByGraph[tradeKey] = false; // Tentar novamente
           }
         } catch (e) {
-          console.error(`[Graph Monitor] Erro ao fechar trade: ${e.message}`);
+          console.error(`[Monitor] ✗ Erro de rede: ${e.message}`);
+          tradesMonitoredByGraph[tradeKey] = false; // Tentar novamente
         }
       }
     }
   } catch (e) {
-    console.error('[Graph Monitor Error]:', e.message);
+    console.error('[Monitor Error]:', e.message);
   }
 }
 

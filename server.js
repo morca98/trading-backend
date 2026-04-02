@@ -995,26 +995,35 @@ async function getCurrentPrice(symbol) {
 app.post('/api/close-trade', async function(req, res) {
   try {
     const { symbol, entry, exitPrice, closeReason, time } = req.body;
+    
+    console.log(`[Close Trade] Recebido: symbol=${symbol}, entry=${entry}, exitPrice=${exitPrice}, reason=${closeReason}`);
+    
     const trades = loadTradeHistory();
     
-    // Encontrar o trade pelo símbolo, entrada e hora
-    const tradeIndex = trades.findIndex(t => 
-      t.outcome === 'OPEN' && 
-      t.symbol === symbol && 
-      Math.abs(t.entry - entry) < 0.01 &&
-      (t.time === time || !time)
-    );
+    // Encontrar o trade pelo símbolo e entrada (com margem de tolerância)
+    let tradeIndex = -1;
+    for (let i = 0; i < trades.length; i++) {
+      const t = trades[i];
+      if (t.outcome === 'OPEN' && t.symbol === symbol && Math.abs(t.entry - entry) < 0.1) {
+        tradeIndex = i;
+        break;
+      }
+    }
     
     if (tradeIndex < 0) {
+      console.error(`[Close Trade] Trade não encontrado: ${symbol} @ ${entry}`);
       return res.status(400).json({ success: false, error: 'Trade not found' });
     }
     
     const trade = trades[tradeIndex];
+    console.log(`[Close Trade] Trade encontrado: ${trade.symbol} ${trade.signal}`);
+    
     if (trade.outcome !== 'OPEN') {
+      console.error(`[Close Trade] Trade já está fechado: ${trade.outcome}`);
       return res.status(400).json({ success: false, error: 'Trade already closed' });
     }
     
-    const closePrice = exitPrice || (trade.signal === 'BUY' ? trade.tp : trade.tp);
+    const closePrice = parseFloat(exitPrice) || parseFloat(trade.tp);
     const pnl = trade.signal === 'BUY' 
       ? ((closePrice - trade.entry) / trade.entry) * 100
       : ((trade.entry - closePrice) / trade.entry) * 100;
@@ -1023,15 +1032,23 @@ app.post('/api/close-trade', async function(req, res) {
     trade.pnl = parseFloat(pnl.toFixed(2));
     trade.exitPrice = closePrice;
     trade.closedAt = new Date().toISOString();
-    trade.closeReason = closeReason; // Guardar o motivo do fecho (TP2 ou SL)
+    trade.closeReason = closeReason;
+    
+    console.log(`[Close Trade] ✓ Fechando: ${trade.symbol} ${trade.outcome} (${trade.pnl}%)`);
     
     saveTradeHistory(trades);
     
     // Enviar notificação para o Telegram imediatamente
-    await notifyTradeResolved(trade);
+    try {
+      await notifyTradeResolved(trade);
+      console.log(`[Close Trade] ✓ Notificação Telegram enviada`);
+    } catch (telegramError) {
+      console.error(`[Close Trade] Erro ao enviar Telegram:`, telegramError.message);
+    }
     
     res.json({ success: true, trade: trade });
   } catch (e) {
+    console.error(`[Close Trade] Erro:`, e.message);
     res.status(500).json({ success: false, error: e.message });
   }
 });
