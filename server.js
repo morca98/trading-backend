@@ -358,6 +358,7 @@ app.get('/api/stats', function(req, res) {
     totalPnl: totalPnl,
     profitFactor: profitFactor,
     activeTrades: Object.keys(activeTrades).length,
+    numAssets: SYMBOLS.length, // Número de ativos monitorizados (BTC, ETH)
     initialCapital: INITIAL_CAPITAL,
     currentCapital: Math.round(currentCap),
     capitalCurve: capitalCurve,

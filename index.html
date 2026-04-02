@@ -868,7 +868,7 @@ async function loadPerf() {
       document.getElementById('pWR').textContent=wr+'%'; document.getElementById('pWR').style.color=wr>=50?'var(--green)':'var(--red)';
       document.getElementById('pTotal').textContent=d.total||0;
       document.getElementById('pPnl').textContent=(pnl>=0?'+':'')+pnl.toFixed(1)+'%'; document.getElementById('pPnl').style.color=pnl>=0?'var(--green)':'var(--red)';
-      document.getElementById('pActive').textContent=d.activeTrades||0;
+      document.getElementById('pActive').textContent=d.numAssets||0;
       var pfEl=document.getElementById('pPF');
       if(pfEl){var pf=d.profitFactor||'0.00';pfEl.textContent=pf;pfEl.style.color=(pf==='MAX'||parseFloat(pf)>=1)?'var(--green)':'var(--red)';}
       renderPerfChart(d.capitalCurve||[d.initialCapital||1000],d.initialCapital||1000);
