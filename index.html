@@ -375,8 +375,7 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 </div>
 
 <script>
-var BACKEND = window.location.origin.includes('github.io') ? 'https://trading-backend-production-6633.up.railway.app' : window.location.origin;
-// Diagnóstico visual para o utilizador saber para onde o site está a ligar
+var BACKEND = window.location.origin;
 console.log('Backend URL:', BACKEND);
 setTimeout(function() {
   var footer = document.querySelector('.footer');
