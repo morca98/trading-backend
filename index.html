@@ -860,7 +860,11 @@ function renderSignalCard(t) {
 }
 async function loadPerf() {
   try {
-    var r=await fetch(BACKEND+'/api/stats'),d=await r.json();
+    var url = BACKEND + '/api/stats';
+    console.log('Carregando stats de:', url);
+    var r=await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var d=await r.json();
     if(d.success){
       var wr=d.winRate||0, pnl=d.totalPnl||0;
       document.getElementById('pWR').textContent=wr+'%'; document.getElementById('pWR').style.color=wr>=50?'var(--green)':'var(--red)';
