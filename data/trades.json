@@ -24,7 +24,8 @@
     "pnl": -1.65,
     "exitPrice": 2114.93,
     "closedAt": "2026-04-01T12:00:00.000Z",
-    "notifiedTelegram": true
+    "notifiedTelegram": true,
+    "id": 1
   },
   {
     "time": 1743552000000,
@@ -51,7 +52,8 @@
     "pnl": 1.97,
     "exitPrice": 66735.44,
     "closedAt": "2026-04-02T10:00:00.000Z",
-    "notifiedTelegram": true
+    "notifiedTelegram": true,
+    "id": 2
   },
   {
     "time": 1743597660000,
@@ -75,6 +77,7 @@
     "adx": "42.5",
     "atr": "662.09",
     "outcome": "OPEN",
-    "pnl": 0
+    "pnl": 0,
+    "id": 3
   }
 ]

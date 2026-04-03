@@ -66,8 +66,22 @@ function saveStats(wins, losses, pnl) {
 
 function loadTrades() {
   try {
-    if (fs.existsSync(TRADES_FILE)) return JSON.parse(fs.readFileSync(TRADES_FILE, 'utf8'));
-  } catch(e) {}
+    if (fs.existsSync(TRADES_FILE)) {
+      const trades = JSON.parse(fs.readFileSync(TRADES_FILE, 'utf8'));
+      // Garantir que todos os trades têm um ID sequencial (1 ao infinito)
+      let modified = false;
+      for (let i = 0; i < trades.length; i++) {
+        if (!trades[i].id) {
+          trades[i].id = i + 1;
+          modified = true;
+        }
+      }
+      if (modified) saveTradeHistory(trades);
+      return trades;
+    }
+  } catch(e) {
+    console.error('[loadTrades Error]:', e.message);
+  }
   return [];
 }
 
@@ -513,8 +527,10 @@ async function cmdStart() {
     '/status — Estado detalhado do bot\n' +
     '/scan — Iniciar scan manual BTC e ETH\n' +
     '/price — Preços actuais BTC/ETH\n' +
-    '/trades — Ver últimos sinais gerados\n' +
     '/stats — Estatísticas de performance\n' +
+    '/trades — Ver trades (IDs para fechar/editar)\n' +
+    '/fechar [ID] [preço] — Fechar trade manualmente\n' +
+    '/editar [ID] [WIN/LOSS] [%] — Editar trade\n' +
     '/capital — Ver ou alterar capital disponível\n' +
     '/backtest — Simulação histórica da estratégia\n' +
     '/help — Guia completo da estratégia';
@@ -541,8 +557,10 @@ async function cmdStatus() {
     '/status — Estado detalhado do bot\n' +
     '/scan — Iniciar scan manual BTC e ETH\n' +
     '/price — Preços actuais BTC/ETH\n' +
-    '/trades — Ver últimos sinais gerados\n' +
     '/stats — Estatísticas de performance\n' +
+    '/trades — Ver trades (IDs para fechar/editar)\n' +
+    '/fechar [ID] [preço] — Fechar trade manualmente\n' +
+    '/editar [ID] [WIN/LOSS] [%] — Editar trade\n' +
     '/capital — Ver ou alterar capital disponível\n' +
     '/backtest — Simulação histórica da estratégia\n' +
     '/help — Guia completo da estratégia';
@@ -579,21 +597,124 @@ async function cmdTrades() {
     await sendTelegram('Nenhum sinal registado ainda.');
     return;
   }
-  const recent = trades.slice(-5).reverse();
+  const recent = trades.slice(-10).reverse();
   let msg = '📋 *Últimos Sinais*\n\n';
   for (const t of recent) {
     const emoji = t.outcome === 'WIN' ? '✅' : t.outcome === 'LOSS' ? '❌' : '⏳';
-    msg += `${emoji} *${t.symbol}* @ \`$${fmtNum(t.entry, 2)}\`\n`;
+    msg += `ID: \`#${t.id}\` ${emoji} *${t.symbol}* @ \`$${fmtNum(t.entry, 2)}\`\n`;
     const cryptoSym = t.symbol.replace('USDT', '');
     const cryptoSize = t.positionSize ? (t.positionSize / t.entry).toFixed(6) : '0.000000';
     msg += `   Tamanho: \`$${t.positionSize || 0}\` (${cryptoSize} ${cryptoSym}) | SL: \`$${fmtNum(t.sl, 2)}\` | TP: \`$${fmtNum(t.tp, 2)}\`\n`;
-    if (t.pnl !== undefined) {
+    if (t.outcome !== 'OPEN' && t.pnl !== undefined) {
       const pnlDollar = (t.positionSize * t.pnl) / 100;
-      msg += `   P&L: ${t.pnl >= 0 ? '+' : ''}$${pnlDollar.toFixed(2)}\n`;
+      msg += `   P&L: ${t.pnl >= 0 ? '+' : ''}$${pnlDollar.toFixed(2)} (${t.pnl}%)\n`;
     }
     msg += '\n';
   }
+  msg += '_Para fechar: /fechar [ID] [Preço]_\n_Para editar: /editar [ID] [WIN/LOSS] [PNL%]_';
   await sendTelegram(msg);
+}
+
+async function cmdFechar(args) {
+  if (!args || args.length < 1) {
+    await sendTelegram('❌ Uso: `/fechar [ID] [Preço Opcional]`\nExemplo: `/fechar 15` ou `/fechar 15 65000.50`');
+    return;
+  }
+  const id = parseInt(args[0]);
+  const trades = loadTradeHistory();
+  const tradeIndex = trades.findIndex(t => t.id === id);
+  
+  if (tradeIndex < 0) {
+    await sendTelegram(`❌ Trade #${id} não encontrado.`);
+    return;
+  }
+  
+  const trade = trades[tradeIndex];
+  if (trade.outcome !== 'OPEN') {
+    await sendTelegram(`❌ O trade #${id} já está fechado (${trade.outcome}).`);
+    return;
+  }
+
+  let exitPrice = (args[1] && !isNaN(parseFloat(args[1]))) ? parseFloat(args[1]) : await getCurrentPrice(trade.symbol);
+  if (!exitPrice) {
+    await sendTelegram('❌ Não foi possível obter o preço atual. Por favor, forneça o preço manualmente.');
+    return;
+  }
+
+  const pnl = trade.signal === 'BUY' 
+    ? ((exitPrice - trade.entry) / trade.entry) * 100
+    : ((trade.entry - exitPrice) / trade.entry) * 100;
+  
+  trade.outcome = pnl >= 0 ? 'WIN' : 'LOSS';
+  trade.pnl = parseFloat(pnl.toFixed(2));
+  trade.exitPrice = exitPrice;
+  trade.closedAt = new Date().toISOString();
+  trade.closeReason = 'MANUAL_TELEGRAM';
+
+  // Atualizar estatísticas
+  const currentStats = loadStats();
+  if (trade.outcome === 'WIN') currentStats.wins++; else currentStats.losses++;
+  const pnlDollar = (trade.positionSize * trade.pnl) / 100;
+  currentStats.totalPnl += pnlDollar;
+  saveStats(currentStats.wins, currentStats.losses, currentStats.totalPnl);
+  
+  saveTradeHistory(trades);
+  await notifyTradeResolved(trade);
+  await sendTelegram(`✅ Trade #${id} fechado manualmente a $${fmtNum(exitPrice, 2)} (${trade.pnl}%).`);
+}
+
+async function cmdEditar(args) {
+  if (!args || args.length < 3) {
+    await sendTelegram('❌ Uso: `/editar [ID] [WIN/LOSS] [PNL%]`\nExemplo: `/editar 15 WIN 2.5` ou `/editar 15 LOSS -1.0`');
+    return;
+  }
+  const id = parseInt(args[0]);
+  const newOutcome = args[1].toUpperCase();
+  const newPnl = parseFloat(args[2]);
+  
+  if (newOutcome !== 'WIN' && newOutcome !== 'LOSS') {
+    await sendTelegram('❌ O resultado deve ser WIN ou LOSS.');
+    return;
+  }
+  if (isNaN(newPnl)) {
+    await sendTelegram('❌ P&L inválido.');
+    return;
+  }
+
+  const trades = loadTradeHistory();
+  const tradeIndex = trades.findIndex(t => t.id === id);
+  
+  if (tradeIndex < 0) {
+    await sendTelegram(`❌ Trade #${id} não encontrado.`);
+    return;
+  }
+  
+  const trade = trades[tradeIndex];
+  const oldOutcome = trade.outcome;
+  const oldPnlPct = trade.pnl || 0;
+  const oldPnlDollar = (trade.positionSize * oldPnlPct) / 100;
+  
+  // Reverter stats antigas se o trade já estava fechado
+  const currentStats = loadStats();
+  if (oldOutcome === 'WIN') currentStats.wins--;
+  else if (oldOutcome === 'LOSS') currentStats.losses--;
+  currentStats.totalPnl -= oldPnlDollar;
+
+  // Aplicar novos valores
+  trade.outcome = newOutcome;
+  trade.pnl = newPnl;
+  if (!trade.closedAt) trade.closedAt = new Date().toISOString();
+  trade.closeReason = trade.closeReason || 'EDIT_MANUAL';
+  
+  // Atualizar com novas stats
+  if (newOutcome === 'WIN') currentStats.wins++; else currentStats.losses++;
+  const newPnlDollar = (trade.positionSize * newPnl) / 100;
+  currentStats.totalPnl += newPnlDollar;
+  
+  saveStats(currentStats.wins, currentStats.losses, currentStats.totalPnl);
+  saveTradeHistory(trades);
+  
+  await sendTelegram(`✅ Trade #${id} editado com sucesso.\nNovo P&L: ${newPnl}% ($${newPnlDollar.toFixed(2)})`);
 }
 
 async function cmdStats() {
@@ -663,6 +784,7 @@ async function cmdScan() {
           const tp1PriceScan = s.useTP1 ? (s.signal === 'BUY' ? s.price * (1 + s.tp1Pct/100) : s.price * (1 - s.tp1Pct/100)) : null;
           const trades = loadTradeHistory();
           trades.push({
+            id: trades.length > 0 ? Math.max(...trades.map(t => t.id || 0)) + 1 : 1,
             time: now,
             date: new Date().toLocaleDateString('pt-PT'),
             symbol: r.symbol,
@@ -811,8 +933,10 @@ async function cmdHelp() {
     '/status — Estado detalhado do bot\n' +
     '/scan — Scan manual BTC e ETH\n' +
     '/price — Preços actuais BTC/ETH\n' +
-    '/trades — Ver últimos sinais gerados\n' +
     '/stats — Estatísticas de performance\n' +
+    '/trades — Ver trades (IDs para fechar/editar)\n' +
+    '/fechar [ID] [preço] — Fechar trade manualmente\n' +
+    '/editar [ID] [WIN/LOSS] [%] — Editar trade\n' +
     '/capital [valor] — Ver ou alterar capital disponível\n' +
     '/backtest [dias] [symbol] — Backtest detalhado\n\n' +
     '*Exemplos de backtest:*\n' +
@@ -857,6 +981,10 @@ async function handleTelegramCommands() {
         await cmdCapital(args);
       } else if (cmd === '/scan') {
         await cmdScan();
+      } else if (cmd === '/fechar') {
+        await cmdFechar(args);
+      } else if (cmd === '/editar') {
+        await cmdEditar(args);
       } else if (cmd === '/backtest' || cmd === '/btc' || cmd === '/eth') {
         // /btc e /eth como atalhos
         if (cmd === '/btc') { await cmdBacktest(['90', 'BTCUSDT']); }
@@ -895,6 +1023,7 @@ async function runBot() {
         const tp1Price = s.useTP1 ? (s.signal === 'BUY' ? s.price * (1 + s.tp1Pct/100) : s.price * (1 - s.tp1Pct/100)) : null;
         const trades = loadTradeHistory();
         trades.push({
+          id: trades.length > 0 ? Math.max(...trades.map(t => t.id || 0)) + 1 : 1,
           time: now,
           date: new Date().toLocaleDateString('pt-PT'),
           symbol: r.symbol,
@@ -1282,8 +1411,10 @@ app.listen(PORT, function() {
     '/status — Estado detalhado do bot\n' +
     '/scan — Iniciar scan manual BTC e ETH\n' +
     '/price — Preços actuais BTC/ETH\n' +
-    '/trades — Ver últimos sinais gerados\n' +
     '/stats — Estatísticas de performance\n' +
+    '/trades — Ver trades (IDs para fechar/editar)\n' +
+    '/fechar [ID] [preço] — Fechar trade manualmente\n' +
+    '/editar [ID] [WIN/LOSS] [%] — Editar trade\n' +
     '/capital — Ver ou alterar capital disponível\n' +
     '/backtest — Simulação histórica da estratégia\n' +
     '/help — Guia completo da estratégia\n\n' +
