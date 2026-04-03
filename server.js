@@ -86,9 +86,16 @@ function loadTradeHistory() {
 
 function saveTradeHistory(trades) {
   try { 
-    // Guardar com indentação para legibilidade e garantir escrita síncrona para persistência imediata
-    fs.writeFileSync(TRADES_FILE, JSON.stringify(trades, null, 2), 'utf8'); 
-    console.log(`[Persistence] Histórico de trades guardado (${trades.length} registos)`);
+    // Guardar primeiro num ficheiro temporário e depois renomear para garantir atomicidade (evita corrupção se o servidor cair durante a escrita)
+    const tempFile = TRADES_FILE + '.tmp';
+    fs.writeFileSync(tempFile, JSON.stringify(trades, null, 2), 'utf8'); 
+    fs.renameSync(tempFile, TRADES_FILE);
+    
+    // Log apenas se o número de trades mudar ou a cada 10 minutos para não encher o disco de logs
+    if (!global.lastTradeCount || global.lastTradeCount !== trades.length) {
+      console.log(`[Persistence] Histórico atualizado: ${trades.length} trades`);
+      global.lastTradeCount = trades.length;
+    }
   } catch(e) {
     console.error('[saveTradeHistory Error]:', e.message);
   }
@@ -360,7 +367,39 @@ app.get('/api/liqmap', async function(req, res) {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'UP', time: new Date().toISOString(), uptime: process.uptime() });
+  try {
+    const trades = loadTradeHistory();
+    const openTrades = trades.filter(t => t.outcome === 'OPEN').length;
+    const stats = loadStats();
+    const uptimeSecs = Math.floor(process.uptime());
+    const uptimeHours = Math.floor(uptimeSecs / 3600);
+    const uptimeMinutes = Math.floor((uptimeSecs % 3600) / 60);
+    
+    res.json({
+      status: 'UP',
+      timestamp: new Date().toISOString(),
+      uptime: uptimeSecs,
+      uptimeFormatted: uptimeHours + 'h ' + uptimeMinutes + 'm',
+      memory: {
+        heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
+      },
+      trades: {
+        openCount: openTrades,
+        totalCount: trades.length,
+        wins: stats.wins,
+        losses: stats.losses,
+        totalPnl: stats.totalPnl
+      },
+      monitoring: {
+        active: true,
+        interval: '3 segundos',
+        lastCheck: new Date().toISOString()
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ status: 'ERROR', error: e.message });
+  }
 });
 
 app.get('/api/stats', function(req, res) {
@@ -1153,40 +1192,56 @@ app.post('/api/close-trade', async function(req, res) {
 });
 
 
-// Loop de monitorização robusto com recursão e auto-ping
+// Loop de monitorização robusto com versão e auto-ping
 async function startMonitoring() {
   console.log('[Monitor] Iniciando loop de monitorização 24/7...');
+  console.log(`[Monitor] Hora de início: ${new Date().toLocaleString('pt-PT', { timeZone: 'Europe/Lisbon' })}`);
   
-  // Heartbeat para logs
+  // Heartbeat para logs (a cada 30 segundos)
   setInterval(() => {
-    console.log(`[Heartbeat] ${new Date().toISOString()} - Servidor Ativo`);
-  }, 60000);
+    const now = new Date();
+    const timeStr = now.toLocaleString('pt-PT', { timeZone: 'Europe/Lisbon' });
+    const trades = loadTradeHistory();
+    const openTrades = trades.filter(t => t.outcome === 'OPEN').length;
+    console.log(`[Heartbeat] ${timeStr} | Servidor Ativo | Trades Abertos: ${openTrades} | Stats: ${winCount}W-${lossCount}L`);
+  }, 30000);
 
-  // Auto-ping para evitar hibernação
+  // Auto-ping agressivo para evitar hibernação (a cada 2 minutos)
   const RAILWAY_URL = process.env.RAILWAY_STATIC_URL || process.env.PUBLIC_URL || process.env.RAILWAY_TCP_PROXY_DOMAIN;
   if (RAILWAY_URL) {
     const url = RAILWAY_URL.startsWith('http') ? RAILWAY_URL : `https://${RAILWAY_URL}`;
     setInterval(async () => {
       try {
-        await axios.get(`${url}/api/stats`).catch(() => {});
-        console.log('[Monitor] Auto-ping enviado para:', url);
-      } catch (e) {}
-    }, 5 * 60 * 1000); // Cada 5 minutos
+        const response = await axios.get(`${url}/api/health`, { timeout: 5000 });
+        console.log(`[Auto-Ping] ${new Date().toISOString()} - Servidor respondeu com status: ${response.data.status}`);
+      } catch (e) {
+        console.error(`[Auto-Ping] Falha ao fazer ping: ${e.message}`);
+      }
+    }, 2 * 60 * 1000); // Cada 2 minutos
+  } else {
+    console.warn('[Monitor] RAILWAY_URL não configurada. Auto-ping desativado.');
   }
 
   // Loop recursivo de fecho de trades (mais robusto que setInterval)
-  // Reduzido para 5 segundos para fechos mais rápidos de SL/TP
+  // Reduzido para 3 segundos para fechos ultra-rápidos de SL/TP
+  let monitorCycleCount = 0;
   async function monitorLoop() {
+    monitorCycleCount++;
     try {
       await checkAndCloseTrades();
+      // Log a cada 20 ciclos (60 segundos)
+      if (monitorCycleCount % 20 === 0) {
+        console.log(`[Monitor Loop] Ciclo #${monitorCycleCount} completado com sucesso`);
+      }
     } catch (err) {
-      console.error('[Monitor Error] Falha no ciclo:', err.message);
+      console.error('[Monitor Error] Falha no ciclo #' + monitorCycleCount + ':', err.message);
     }
-    // Agenda a próxima execução para daqui a 5 segundos
-    setTimeout(monitorLoop, 5000);
+    // Agenda a próxima execução para daqui a 3 segundos
+    setTimeout(monitorLoop, 3000);
   }
   
   monitorLoop();
+  console.log('[Monitor] Loop de monitorização iniciado com intervalo de 3 segundos');
 }
 
 // Iniciar monitorização imediatamente
