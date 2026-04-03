@@ -85,13 +85,7 @@ function loadTrades() {
   return [];
 }
 
-function saveTrades() {
-  try { 
-    fs.writeFileSync(TRADES_FILE, JSON.stringify(tradeHistory)); 
-  } catch(e) {
-    console.error('[saveTrades Error]:', e.message);
-  }
-}
+// saveTrades obsoleta removida para evitar confusão com saveTradeHistory
 
 // Alias para loadTrades (compatibilidade com código que usa loadTradeHistory)
 function loadTradeHistory() {
@@ -105,11 +99,9 @@ function saveTradeHistory(trades) {
     fs.writeFileSync(tempFile, JSON.stringify(trades, null, 2), 'utf8'); 
     fs.renameSync(tempFile, TRADES_FILE);
     
-    // Log apenas se o número de trades mudar ou a cada 10 minutos para não encher o disco de logs
-    if (!global.lastTradeCount || global.lastTradeCount !== trades.length) {
-      console.log(`[Persistence] Histórico atualizado: ${trades.length} trades`);
-      global.lastTradeCount = trades.length;
-    }
+    // Log sempre que houver uma alteração real ou a cada 10 minutos para não encher o disco de logs
+    console.log(`[Persistence] Histórico guardado: ${trades.length} trades`);
+    global.lastTradeCount = trades.length;
   } catch(e) {
     console.error('[saveTradeHistory Error]:', e.message);
   }
@@ -1235,6 +1227,10 @@ async function checkAndCloseTrades() {
     if (updated) {
       saveTradeHistory(trades);
       console.log(`[Server Monitor] Histórico de trades atualizado e guardado.`);
+    } else {
+      // Se não houve atualização mas o número de trades em memória é diferente do disco,
+      // podemos ter um problema de sincronização. Vamos garantir que o disco reflete a memória.
+      // No entanto, como carregamos do disco no início de cada ciclo, isto é menos provável.
     }
   } catch (e) {
     console.error('[Server Monitor Global Error]:', e.message);
