@@ -210,6 +210,12 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData, symb
   var riskAmount = (INITIAL_CAPITAL + totalPnl) * 0.01;
   var positionSize = slPct > 0 ? (riskAmount / (slPct / 100)) : 0;
 
+  // Filtro de capital: Não enviar sinal se o tamanho da posição for superior a 1500$
+  if (positionSize > 1500) {
+    console.log(`[Signal Filter] Sinal ${signal} para ${symbol} ignorado: Tamanho da posição ($${positionSize.toFixed(0)}) excede o limite de $1500.`);
+    signal = 'WAIT';
+  }
+
   return { 
     signal: signal, conf: conf, price: price, sl: sl, tp: tp, slPct: slPct.toFixed(2), tpPct: tpPct.toFixed(2), 
     ema9: ema9.toFixed(2), ema21: ema21.toFixed(2), ema50: ema50.toFixed(2), 
