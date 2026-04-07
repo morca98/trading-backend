@@ -529,6 +529,7 @@ async function cmdStart() {
     '/trades — Ver trades (IDs para fechar/editar)\n' +
     '/fechar [ID] [preço] — Fechar trade manualmente\n' +
     '/editar [ID] [WIN/LOSS] [%] — Editar trade\n' +
+    '/apagar [ID] — Apagar trade do histórico\n' +
     '/capital — Ver ou alterar capital disponível\n' +
     '/backtest — Simulação histórica da estratégia\n' +
     '/help — Guia completo da estratégia';
@@ -559,6 +560,7 @@ async function cmdStatus() {
     '/trades — Ver trades (IDs para fechar/editar)\n' +
     '/fechar [ID] [preço] — Fechar trade manualmente\n' +
     '/editar [ID] [WIN/LOSS] [%] — Editar trade\n' +
+    '/apagar [ID] — Apagar trade do histórico\n' +
     '/capital — Ver ou alterar capital disponível\n' +
     '/backtest — Simulação histórica da estratégia\n' +
     '/help — Guia completo da estratégia';
@@ -609,8 +611,44 @@ async function cmdTrades() {
     }
     msg += '\n';
   }
-  msg += '_Para fechar: /fechar [ID] [Preço]_\n_Para editar: /editar [ID] [WIN/LOSS] [PNL%]_';
+  msg += '_Para fechar: /fechar [ID] [Preço]_\n_Para editar: /editar [ID] [WIN/LOSS] [PNL%]_\n_Para apagar: /apagar [ID]_';
   await sendTelegram(msg);
+}
+
+async function cmdApagar(args) {
+  if (!args || args.length < 1) {
+    await sendTelegram('❌ Uso: `/apagar [ID]`\nExemplo: `/apagar 15`');
+    return;
+  }
+  const id = parseInt(args[0]);
+  const trades = loadTradeHistory();
+  const tradeIndex = trades.findIndex(t => t.id === id);
+  
+  if (tradeIndex < 0) {
+    await sendTelegram(`❌ Trade #${id} não encontrado.`);
+    return;
+  }
+  
+  const trade = trades[tradeIndex];
+  
+  // Se o trade estiver fechado, revertemos as estatísticas para manter consistência
+  if (trade.outcome !== 'OPEN') {
+    const currentStats = loadStats();
+    if (trade.outcome === 'WIN') currentStats.wins--; else currentStats.losses--;
+    const pnlDollar = (trade.positionSize * trade.pnl) / 100;
+    currentStats.totalPnl -= pnlDollar;
+    saveStats(currentStats.wins, currentStats.losses, currentStats.totalPnl);
+    
+    // Atualizar variáveis globais em memória
+    winCount = currentStats.wins;
+    lossCount = currentStats.losses;
+    totalPnl = currentStats.totalPnl;
+  }
+
+  trades.splice(tradeIndex, 1);
+  saveTradeHistory(trades);
+  
+  await sendTelegram(`✅ Trade #${id} removido do histórico.`);
 }
 
 async function cmdFechar(args) {
@@ -935,6 +973,7 @@ async function cmdHelp() {
     '/trades — Ver trades (IDs para fechar/editar)\n' +
     '/fechar [ID] [preço] — Fechar trade manualmente\n' +
     '/editar [ID] [WIN/LOSS] [%] — Editar trade\n' +
+    '/apagar [ID] — Apagar trade do histórico\n' +
     '/capital [valor] — Ver ou alterar capital disponível\n' +
     '/backtest [dias] [symbol] — Backtest detalhado\n\n' +
     '*Exemplos de backtest:*\n' +
@@ -983,6 +1022,8 @@ async function handleTelegramCommands() {
         await cmdFechar(args);
       } else if (cmd === '/editar') {
         await cmdEditar(args);
+      } else if (cmd === '/apagar') {
+        await cmdApagar(args);
       } else if (cmd === '/backtest' || cmd === '/btc' || cmd === '/eth') {
         // /btc e /eth como atalhos
         if (cmd === '/btc') { await cmdBacktest(['90', 'BTCUSDT']); }
@@ -1417,6 +1458,7 @@ app.listen(PORT, function() {
     '/trades — Ver trades (IDs para fechar/editar)\n' +
     '/fechar [ID] [preço] — Fechar trade manualmente\n' +
     '/editar [ID] [WIN/LOSS] [%] — Editar trade\n' +
+    '/apagar [ID] — Apagar trade do histórico\n' +
     '/capital — Ver ou alterar capital disponível\n' +
     '/backtest — Simulação histórica da estratégia\n' +
     '/help — Guia completo da estratégia\n\n' +
