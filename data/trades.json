@@ -79,5 +79,30 @@
     "outcome": "OPEN",
     "pnl": 0,
     "id": 3
+  },
+  {
+    "time": 1743602400000,
+    "date": "02/04/2026",
+    "symbol": "ETHUSDT",
+    "signal": "SELL",
+    "entry": 2084.31,
+    "price": 2084.31,
+    "sl": 2117.27,
+    "tp": 2018.40,
+    "tp1": null,
+    "slPct": "1.58",
+    "tpPct": "3.16",
+    "tp1Pct": null,
+    "useTP1": false,
+    "positionSize": 635,
+    "conf": 85,
+    "macroTrend": "BEAR",
+    "trend15m": "DOWN",
+    "rsi": "40.0",
+    "adx": "35.0",
+    "atr": "32.96",
+    "outcome": "OPEN",
+    "pnl": 0,
+    "id": 4
   }
 ]
