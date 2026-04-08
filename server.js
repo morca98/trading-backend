@@ -1040,23 +1040,19 @@ async function handleTelegramCommands() {
 
 async function runBot() {
   try {
-    const results = await Promise.all(
-      SYMBOLS.map(async (symbol) => {
-        const sigRes = await axios.get(`http://localhost:${process.env.PORT || 3001}/api/signal?symbol=${symbol}`).catch(() => null);
-        return { symbol, signal: sigRes ? sigRes.data.signal : null };
-      })
-    );
+    // Processar símbolos sequencialmente para evitar condições de corrida na leitura/escrita do ficheiro de trades
+    for (const symbol of SYMBOLS) {
+      const sigRes = await axios.get(`http://localhost:${process.env.PORT || 3001}/api/signal?symbol=${symbol}`).catch(() => null);
+      const s = sigRes ? sigRes.data.signal : null;
 
-    for (const r of results) {
-      if (r.signal && r.signal.signal !== 'WAIT') {
-        const s = r.signal;
+      if (s && s.signal !== 'WAIT') {
         const now = Date.now();
         
-        // Evitar sinais duplicados (cooldown de 12 horas por ativo e direção)
-        // Verificamos o histórico permanente para garantir persistência mesmo após restart
+        // RE-CARREGAR histórico a cada iteração para garantir que temos os dados mais frescos
         const trades = loadTradeHistory();
-        // Procurar o último sinal do mesmo ativo e direção, independentemente de estar aberto ou fechado
-        const sameSignals = trades.filter(t => t.symbol === r.symbol && t.signal === s.signal);
+        
+        // Procurar o último sinal do mesmo ativo e direção
+        const sameSignals = trades.filter(t => t.symbol === symbol && t.signal === s.signal);
         const lastSameSignal = sameSignals.length > 0 ? sameSignals[sameSignals.length - 1] : null;
         
         if (lastSameSignal) {
@@ -1064,21 +1060,23 @@ async function runBot() {
           const diff = now - lastTime;
           if (!isNaN(lastTime) && diff < SIGNAL_COOLDOWN) {
             const hoursLeft = ((SIGNAL_COOLDOWN - diff) / (1000 * 60 * 60)).toFixed(1);
-            console.log(`[Signal Filter] Sinal ${s.signal} para ${r.symbol} ignorado: Cooldown ativo (${hoursLeft}h restantes).`);
+            console.log(`[Signal Filter] Sinal ${s.signal} para ${symbol} ignorado: Cooldown ativo (${hoursLeft}h restantes).`);
             continue;
           }
         }
         
-        lastSignalTime[r.symbol] = now;
-        lastSignal[r.symbol] = s;
+        console.log(`[Signal Filter] Sinal ${s.signal} para ${symbol} APROVADO. A guardar no histórico...`);
+        
+        lastSignalTime[symbol] = now;
+        lastSignal[symbol] = s;
 
         // Persistência: Adicionar ao histórico e guardar em ficheiro
         const tp1Price = s.useTP1 ? (s.signal === 'BUY' ? s.price * (1 + s.tp1Pct/100) : s.price * (1 - s.tp1Pct/100)) : null;
-        trades.push({
+        const newTrade = {
           id: trades.length > 0 ? Math.max(...trades.map(t => t.id || 0)) + 1 : 1,
           time: now,
           date: new Date().toLocaleDateString('pt-PT'),
-          symbol: r.symbol,
+          symbol: symbol,
           signal: s.signal,
           entry: s.price,
           price: s.price,
@@ -1098,17 +1096,19 @@ async function runBot() {
           atr: s.atr,
           outcome: 'OPEN',
           pnl: 0
-        });
+        };
+        
+        trades.push(newTrade);
         saveTradeHistory(trades);
 
         const emoji = s.signal === 'BUY' ? '🟢' : '🔴';
         const type = s.signal === 'BUY' ? 'COMPRA (LONG)' : 'VENDA (SHORT)';
-        const assetSymbol = r.symbol === 'BTCUSDT' ? 'BTC' : 'ETH';
+        const assetSymbol = symbol === 'BTCUSDT' ? 'BTC' : 'ETH';
         const positionInAsset = s.positionSize / s.price;
         const positionStr = `$${fmtNum(s.positionSize, 0)} (${positionInAsset.toFixed(6)} ${assetSymbol})`;
         
         let msg = 
-          `${emoji} *NOVO SINAL: ${r.symbol}*\n` +
+          `${emoji} *NOVO SINAL: ${symbol}*\n` +
           '━━━━━━━━━━━━━━━━━━━━\n' +
           `🎯 Tipo: *${type}*\n` +
           `💰 Preço: \`$${fmtNum(s.price, 2)}\`\n` +
