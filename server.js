@@ -1055,12 +1055,16 @@ async function runBot() {
         // Evitar sinais duplicados (cooldown de 12 horas por ativo e direção)
         // Verificamos o histórico permanente para garantir persistência mesmo após restart
         const trades = loadTradeHistory();
+        // Procurar o último sinal do mesmo ativo e direção, independentemente de estar aberto ou fechado
         const lastSameSignal = [...trades].reverse().find(t => t.symbol === r.symbol && t.signal === s.signal);
         
-        if (lastSameSignal && (now - lastSameSignal.time) < SIGNAL_COOLDOWN) {
-          const hoursLeft = ((SIGNAL_COOLDOWN - (now - lastSameSignal.time)) / (1000 * 60 * 60)).toFixed(1);
-          console.log(`[Signal Filter] Sinal ${s.signal} para ${r.symbol} ignorado: Cooldown ativo (${hoursLeft}h restantes).`);
-          continue;
+        if (lastSameSignal) {
+          const lastTime = parseInt(lastSameSignal.time);
+          if (!isNaN(lastTime) && (now - lastTime) < SIGNAL_COOLDOWN) {
+            const hoursLeft = ((SIGNAL_COOLDOWN - (now - lastTime)) / (1000 * 60 * 60)).toFixed(1);
+            console.log(`[Signal Filter] Sinal ${s.signal} para ${r.symbol} ignorado: Cooldown ativo (${hoursLeft}h restantes).`);
+            continue;
+          }
         }
         
         lastSignalTime[r.symbol] = now;
