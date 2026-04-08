@@ -18,7 +18,7 @@ const BINANCE_FUTURES = 'https://fapi.binance.com';
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
-const SIGNAL_COOLDOWN = 90 * 60 * 1000; // 90 minutos = 3 velas de 30m (igual ao cooldown do backtest)
+const SIGNAL_COOLDOWN = 12 * 60 * 60 * 1000; // 12 horas de cooldown por ativo e direção
 // Limite de 1 sinal por dia removido para aumentar sinais
 // var lastSignalDateBuy = { BTCUSDT: '', ETHUSDT: '' };
 // var lastSignalDateSell = { BTCUSDT: '', ETHUSDT: '' };
@@ -1052,15 +1052,22 @@ async function runBot() {
         const s = r.signal;
         const now = Date.now();
         
-        // Evitar sinais duplicados (cooldown de 90 min)
-        if (now - (lastSignalTime[r.symbol] || 0) < SIGNAL_COOLDOWN) continue;
+        // Evitar sinais duplicados (cooldown de 12 horas por ativo e direção)
+        // Verificamos o histórico permanente para garantir persistência mesmo após restart
+        const trades = loadTradeHistory();
+        const lastSameSignal = [...trades].reverse().find(t => t.symbol === r.symbol && t.signal === s.signal);
+        
+        if (lastSameSignal && (now - lastSameSignal.time) < SIGNAL_COOLDOWN) {
+          const hoursLeft = ((SIGNAL_COOLDOWN - (now - lastSameSignal.time)) / (1000 * 60 * 60)).toFixed(1);
+          console.log(`[Signal Filter] Sinal ${s.signal} para ${r.symbol} ignorado: Cooldown ativo (${hoursLeft}h restantes).`);
+          continue;
+        }
         
         lastSignalTime[r.symbol] = now;
         lastSignal[r.symbol] = s;
 
         // Persistência: Adicionar ao histórico e guardar em ficheiro
         const tp1Price = s.useTP1 ? (s.signal === 'BUY' ? s.price * (1 + s.tp1Pct/100) : s.price * (1 - s.tp1Pct/100)) : null;
-        const trades = loadTradeHistory();
         trades.push({
           id: trades.length > 0 ? Math.max(...trades.map(t => t.id || 0)) + 1 : 1,
           time: now,
