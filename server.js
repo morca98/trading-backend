@@ -166,7 +166,7 @@ function calcTrend(closes) {
   return ema9 > ema21 ? 'UP' : 'DOWN';
 }
 
-function generateSignal(candles, price, macroTrend, trend15m, atr, liqData, symbol) {
+function generateSignal(candles, price, macroTrend, trend15m, atr, liqData, symbol, dailyTrend) {
   var closes = candles.map(function(c) { return c.close; });
   var lows = candles.map(function(c) { return c.low; });
   var highs = candles.map(function(c) { return c.high; });
@@ -186,9 +186,19 @@ function generateSignal(candles, price, macroTrend, trend15m, atr, liqData, symb
   var isStrongBear = price < ema9 && ema9 < ema21 && ema21 < ema50;
 
   if (isStrongBull && adx > minADX && rsi < 65 && (macroTrend === 'UP' || macroTrend.includes('BULL'))) {
-    signal = 'BUY'; conf = 85;
+    // Aplicar filtro diário: só long se EMA20 > EMA50 diário
+    if (!dailyTrend || dailyTrend === 'BULL') {
+      signal = 'BUY'; conf = 85;
+    } else {
+      console.log(`[Signal Filter] Sinal BUY para ${symbol} ignorado pelo filtro diário (Tendência Diária: ${dailyTrend})`);
+    }
   } else if (isStrongBear && adx > minADX && rsi > 35 && (macroTrend === 'DOWN' || macroTrend.includes('BEAR'))) {
-    signal = 'SELL'; conf = 85;
+    // Aplicar filtro diário: só short se EMA20 < EMA50 diário
+    if (!dailyTrend || dailyTrend === 'BEAR') {
+      signal = 'SELL'; conf = 85;
+    } else {
+      console.log(`[Signal Filter] Sinal SELL para ${symbol} ignorado pelo filtro diário (Tendência Diária: ${dailyTrend})`);
+    }
   }
 
   var sl = 0, tp = 0, slPct = 0, tpPct = 0;
@@ -258,7 +268,8 @@ app.get('/api/signal', async function(req, res) {
       axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=' + interval + '&limit=200'),
       axios.get(BINANCE + '/api/v3/ticker/price?symbol=' + symbol),
       axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=4h&limit=200'),
-      axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=15m&limit=30')
+      axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=15m&limit=30'),
+      axios.get(BINANCE + '/api/v3/klines?symbol=' + symbol + '&interval=1d&limit=60')
     ]);
     var candles = results[0].data.map(function(k) { return { time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }; });
     var price = parseFloat(results[1].data.price);
@@ -268,8 +279,12 @@ app.get('/api/signal', async function(req, res) {
     var lastPrice4h = closes4h[closes4h.length - 1];
     var macroTrend = (lastPrice4h > macroEma50 && macroEma50 > macroEma200) ? 'BULL' : (lastPrice4h < macroEma50 && macroEma50 < macroEma200) ? 'BEAR' : 'NEUTRAL';
     var trend15m = calcTrend(results[3].data.map(function(k) { return +k[4]; }));
+    var closesDaily = results[4].data.map(function(k) { return +k[4]; });
+    var ema20Daily = calcEMA(closesDaily.slice(-20), 20);
+    var ema50Daily = calcEMA(closesDaily.slice(-50), 50);
+    var dailyTrend = ema20Daily > ema50Daily ? 'BULL' : 'BEAR';
     var atr = calcATR(candles, 14);
-    var signal = generateSignal(candles, price, macroTrend, trend15m, atr, null, symbol);
+    var signal = generateSignal(candles, price, macroTrend, trend15m, atr, null, symbol, dailyTrend);
     var closes = candles.map(function(c) { return c.close; });
     res.json({ success: true, signal: signal, price: price, candles: candles.slice(-60), ema9: calcEMALine(closes, 9).slice(-60), ema21: calcEMALine(closes, 21).slice(-60), ema50: calcEMALine(closes, 50).slice(-60), macroTrend: macroTrend, trend15m: trend15m });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
